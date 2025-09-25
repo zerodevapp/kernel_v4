@@ -76,10 +76,12 @@ contract KernelFactory {
         returns (Kernel)
     {
         bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
-        (, address account) =
+        (bool deployed, address account) =
             LibClone.createDeterministicERC1967(address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
         Kernel k = Kernel(payable(account));
-        k.initialize(initialPackages);
+        if (!deployed) {
+            k.initialize(initialPackages);
+        }
         return k;
     }
 
@@ -91,10 +93,12 @@ contract KernelFactory {
         bytes calldata extraCall
     ) external payable returns (Kernel) {
         bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
-        (, address account) =
+        (bool deployed, address account) =
             LibClone.createDeterministicERC1967(address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
         Kernel k = Kernel(payable(account));
-        k.initialize(initialPackages);
+        if (!deployed) {
+            k.initialize(initialPackages);
+        }
         (bool success,) = address(k).call(extraCall);
         require(success, "call failed");
         return k;
