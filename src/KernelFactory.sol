@@ -6,6 +6,8 @@ import {KernelImmutableECDSA} from "./KernelImmutableECDSA.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 
 contract KernelFactory {
+    error InvalidSigner();
+    error CallFailed();
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
 
@@ -36,7 +38,7 @@ contract KernelFactory {
     }
 
     // Kernel UUPS
-    function deploy(Install[] calldata initialPackages, uint256 nonce) external payable returns (Kernel) {
+    function deploy(Install[] calldata initialPackages, uint256 nonce) public payable returns (Kernel) {
         bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
         (bool deployed, address account) = LibClone.createDeterministicERC1967(msg.value, address(UUPS), salt);
         Kernel k = Kernel(payable(account));
@@ -50,16 +52,11 @@ contract KernelFactory {
     function deployWithCall(Install[] calldata initialPackages, uint256 nonce, bytes calldata extraCall)
         external
         payable
-        returns (Kernel)
+        returns (Kernel k)
     {
-        bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
-        (bool deployed, address account) = LibClone.createDeterministicERC1967(msg.value, address(UUPS), salt);
-        Kernel k = Kernel(payable(account));
-        if (!deployed) {
-            k.initialize(initialPackages);
-        }
+        k = deploy(initialPackages, nonce);
         (bool success,) = address(k).call(extraCall);
-        require(success, "call failed");
+        require(success, CallFailed());
         return k;
     }
 
@@ -71,14 +68,18 @@ contract KernelFactory {
     // Kernel UUPS ECDSA fallback
     /// forge-lint: disable-next-line(mixed-case-function)
     function deployECDSA(address signer, Install[] calldata initialPackages, uint256 nonce)
-        external
+        public
         payable
         returns (Kernel)
     {
+        require(signer != address(0), InvalidSigner());
         bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
-        (, address account) =
+        (bool deployed, address account) =
             LibClone.createDeterministicERC1967(address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
         Kernel k = Kernel(payable(account));
+        if(deployed) {
+            return k;
+        }
         k.initialize(initialPackages);
         return k;
     }
@@ -89,14 +90,10 @@ contract KernelFactory {
         Install[] calldata initialPackages,
         uint256 nonce,
         bytes calldata extraCall
-    ) external payable returns (Kernel) {
-        bytes32 salt = keccak256(abi.encode(initialPackages, nonce));
-        (, address account) =
-            LibClone.createDeterministicERC1967(address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
-        Kernel k = Kernel(payable(account));
-        k.initialize(initialPackages);
+    ) external payable returns (Kernel k) {
+        k = deployeECDSA(signer, intialPackages, nonce);
         (bool success,) = address(k).call(extraCall);
-        require(success, "call failed");
+        require(success, CallFailed());
         return k;
     }
 
