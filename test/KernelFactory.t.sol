@@ -1,6 +1,8 @@
 pragma solidity ^0.8.0;
 
+import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {EntryPointLib} from "./utils/EntryPointLib.sol";
+import {Lib4337} from "src/lib/Lib4337.sol";
 import {Kernel} from "src/Kernel.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelHelper} from "src/KernelHelper.sol";
@@ -19,6 +21,9 @@ import {InvalidRootValidation} from "src/types/Error.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
 
 contract KernelFactoryTest is KernelTestBase {
+    address owner;
+    uint256 ownerKey;
+
     function setUp() external {
         ep = EntryPointLib.deploy();
 
@@ -32,13 +37,13 @@ contract KernelFactoryTest is KernelTestBase {
         mockFallback = new MockFallback();
         beneficiary = payable(makeAddr("Beneficiary"));
         policy = new MockPolicy();
-        signer = new MockSigner();
         permissionId = bytes20(keccak256(abi.encodePacked("Hello world")));
         vm.txGasPrice(1);
         _initialize();
     }
 
     function _initialize() internal virtual override {
+        (owner, ownerKey) = makeAddrAndKey("Owner");
         rootValidator = new MockValidator();
         rootValidatorData = hex"";
         Install[] memory pkgs = new Install[](1);
@@ -52,7 +57,6 @@ contract KernelFactoryTest is KernelTestBase {
     }
 
     function test_deploy_root_validator() external unitTest {
-        vm.skip(is7702);
         Install[] memory pkgs = new Install[](1);
         pkgs[0] =
             Install({moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""});
@@ -84,7 +88,6 @@ contract KernelFactoryTest is KernelTestBase {
     }
 
     function test_deploy_existing() external {
-        vm.skip(is7702);
         Install[] memory pkgs = new Install[](1);
         pkgs[0] =
             Install({moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""});
@@ -93,7 +96,6 @@ contract KernelFactoryTest is KernelTestBase {
     }
 
     function test_deploy_with_call() external unitTest {
-        vm.skip(is7702);
         Install[] memory initPkgs = new Install[](1);
         initPkgs[0] =
             Install({moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""});
@@ -102,6 +104,81 @@ contract KernelFactoryTest is KernelTestBase {
         kernel = Kernel(payable(factory.getAddress(initPkgs, 1)));
         bytes memory sig = enableSig(0, true, false, pkgs, _rootSignHash);
         Kernel k = factory.deployWithCall(initPkgs, 1, abi.encodeWithSelector(0xa706cd33, false, 0, pkgs, sig));
+        assertEq(address(k), address(kernel));
+        ValidationInfo memory vInfo = k.validationInfo(ValidationId.wrap(bytes20(address(newValidator))));
+        assertTrue(vInfo.vType == VALIDATION_TYPE_VALIDATOR);
+    }
+
+    function test_deploy_with_call_existing() external unitTest {
+        Install[] memory initPkgs = new Install[](1);
+        initPkgs[0] =
+            Install({moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""});
+        factory.deploy(initPkgs, 1);
+        Install[] memory pkgs = new Install[](1);
+        pkgs[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        kernel = Kernel(payable(factory.getAddress(initPkgs, 1)));
+        bytes memory sig = enableSig(0, true, false, pkgs, _rootSignHash);
+        Kernel k = factory.deployWithCall(initPkgs, 1, abi.encodeWithSelector(0xa706cd33, false, 0, pkgs, sig));
+        assertEq(address(k), address(kernel));
+        ValidationInfo memory vInfo = k.validationInfo(ValidationId.wrap(bytes20(address(newValidator))));
+        assertTrue(vInfo.vType == VALIDATION_TYPE_VALIDATOR);
+    }
+
+    function _ecdsaSignUserOp(PackedUserOperation memory op, bool success, bool replay)
+        internal
+        returns (bytes memory sig)
+    {
+        bytes32 hash = replay ? Lib4337.chainAgnosticUserOpHash(address(ep), op) : ep.getUserOpHash(op);
+        return _ecdsaRootSignHash(hash, success);
+    }
+
+    function _ecdsaRootSignHash(bytes32 hash, bool success) internal returns (bytes memory sig) {
+        if (!success) {
+            hash = keccak256(abi.encodePacked(hash));
+        }
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_deploy_ecdsa() external {
+        Install[] memory pkgs = new Install[](0);
+        Kernel k = factory.deployECDSA(owner, pkgs, 1);
+        assertEq(address(k), address(factory.getECDSAAddress(owner, pkgs, 1)));
+    }
+
+    function test_deploy_ecdsa_msg_value() external {
+        Install[] memory pkgs = new Install[](0);
+        Kernel k = factory.deployECDSA{value: 1}(owner, pkgs, 1);
+        assertEq(address(k), address(factory.getECDSAAddress(owner, pkgs, 1)));
+        assertEq(address(k).balance, 1);
+    }
+
+    function test_deploy_ecdsa_with_call() external unitTest {
+        Install[] memory initPkgs = new Install[](0);
+
+        Install[] memory pkgs = new Install[](1);
+        pkgs[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        kernel = Kernel(payable(factory.getECDSAAddress(owner, initPkgs, 1)));
+        bytes memory sig = enableSig(0, true, false, pkgs, _ecdsaRootSignHash);
+
+        Kernel k =
+            factory.deployECDSAWithCall(owner, initPkgs, 1, abi.encodeWithSelector(0xa706cd33, false, 0, pkgs, sig));
+        assertEq(address(k), address(kernel));
+        ValidationInfo memory vInfo = k.validationInfo(ValidationId.wrap(bytes20(address(newValidator))));
+        assertTrue(vInfo.vType == VALIDATION_TYPE_VALIDATOR);
+    }
+
+    function test_deploy_ecdsa_with_call_existing() external unitTest {
+        Install[] memory initPkgs = new Install[](0);
+        factory.deployECDSA(owner, initPkgs, 1);
+
+        Install[] memory pkgs = new Install[](1);
+        pkgs[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        kernel = Kernel(payable(factory.getECDSAAddress(owner, initPkgs, 1)));
+        bytes memory sig = enableSig(0, true, false, pkgs, _ecdsaRootSignHash);
+
+        Kernel k =
+            factory.deployECDSAWithCall(owner, initPkgs, 1, abi.encodeWithSelector(0xa706cd33, false, 0, pkgs, sig));
         assertEq(address(k), address(kernel));
         ValidationInfo memory vInfo = k.validationInfo(ValidationId.wrap(bytes20(address(newValidator))));
         assertTrue(vInfo.vType == VALIDATION_TYPE_VALIDATOR);
