@@ -22,10 +22,13 @@ struct ModuleStorage {
 
 abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManager, SelectorManager, ERC1271 {
     modifier executorHook() {
+        bytes memory globalHookData = "";
+        globalHookData = _preHook(_globalHook(), msg.data);
         IHook hook = _executorConfig(IExecutor(msg.sender)).hook;
         bytes memory hookData = _preHook(hook, msg.data);
         _;
         _postHook(hook, hookData);
+        _postHook(_globalHook(), globalHookData);
     }
 
     // NOTE : override this to use erc7484 registry

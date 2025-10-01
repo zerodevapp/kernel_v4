@@ -32,7 +32,7 @@ import {ValidationStorage, ValidationInfo} from "./types/Structs.sol";
 abstract contract Kernel is ModuleManager, ExecutionManager {
     IEntryPoint immutable ENTRYPOINT;
 
-    function _onlyEntryPointOrSelf() internal {
+    function _onlyEntryPointOrSelf() internal view {
         require(msg.sender == address(ENTRYPOINT) || msg.sender == address(this), Unauthorized());
     }
 
@@ -107,7 +107,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
             signature = sig.userOpSignature;
         }
         ValidationStorage storage $ = _validationStorage();
-
+        
         // check if the call data is allowed by the validationId
         if ($.vInfo[vId].hook != address(0)) {
             require(
@@ -129,6 +129,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
     /// execution
     function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external payable {
         _onlyEntryPointOrSelf();
+        bytes memory globalHookData = _preHook(_globalHook(), userOp.callData[4:]);
         bytes memory context = _preHook(_validationHook(userOpHash), userOp.callData[4:]);
         (bool success, bytes memory ret) = address(this).delegatecall(userOp.callData[4:]);
         // propagete the revert message
@@ -138,6 +139,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
             }
         }
         _postHook(_validationHook(userOpHash), context);
+        _postHook(_globalHook(), globalHookData);
     }
 
     function execute(bytes32 mode, bytes calldata executionData) external payable {
@@ -175,6 +177,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
         if ($.target == address(0) || ($.hook == IHook(address(0)) && msg.sender != address(ENTRYPOINT))) {
             revert InvalidSelector();
         }
+        bytes memory globalHookData = _preHook(_globalHook(), msg.data);
         bytes memory hookData;
         // explicitly set to address(1) to skip the hook while allowing anyone to call it
         if (address($.hook) != address(0) && address($.hook) != address(1)) {
@@ -195,6 +198,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
         if (address($.hook) != address(0) && address($.hook) != address(1)) {
             _postHook($.hook, hookData);
         }
+        _postHook(_globalHook(), globalHookData);
     }
 
     /// management

@@ -6,7 +6,16 @@ import {ModuleInstallFailed, NotInstalled} from "../types/Error.sol";
 
 abstract contract HookManager {
     struct HookStorage {
+        IHook globalHook;
         mapping(address => bool) enabled;
+    }
+
+    function globalHook() external view returns (address) {
+        return address(_globalHook());
+    }
+
+    function _globalHook() internal view returns (IHook) {
+        return _hookStorage().globalHook;
     }
 
     function _hookStorage() internal pure returns (HookStorage storage hs) {
@@ -17,13 +26,19 @@ abstract contract HookManager {
     }
 
     function _installHook(address _hook, bytes calldata _internalData, bool _installSuccess) internal {
-        if (_internalData.length == 0) {
+        if(_internalData.length == 0) {
+            // if internalData.length == 0, means that user does not expect hook install to be reverted
             require(_installSuccess, ModuleInstallFailed());
+            // also, this hook is considered as global hook
+            _hookStorage().globalHook = IHook(_hook);
         }
         _hookStorage().enabled[_hook] = true;
     }
 
     function _uninstallHook(address _hook, bytes calldata, bool) internal {
+        if (_hook == address(_globalHook())) {
+            _hookStorage().globalHook = IHook(address(0));
+        }
         _hookStorage().enabled[_hook] = false;
     }
 

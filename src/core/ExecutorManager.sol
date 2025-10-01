@@ -14,7 +14,7 @@ contract ExecutorManager {
         mapping(IExecutor => ExecutorConfig) executorConfig;
     }
 
-    function _executorStorage() internal view returns (ExecutorStorage storage $) {
+    function _executorStorage() internal pure returns (ExecutorStorage storage $) {
         assembly {
             $.slot := EXECUTOR_MANAGER_STORAGE_SLOT
         }

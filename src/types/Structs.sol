@@ -17,9 +17,9 @@ struct Uninstall {
 
 struct ValidationInfo {
     ValidationType vType;
-    address[] policies;
-    address signer;
     address hook;
+    address signer;
+    address[] policies;
 }
 
 struct ValidationStorage {
