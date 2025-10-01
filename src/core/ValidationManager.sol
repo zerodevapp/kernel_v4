@@ -193,8 +193,8 @@ abstract contract ValidationManager {
         }
         ValidationInfo storage vInfo = _validationStorage().vInfo[vId];
         if (vInfo.vType == VALIDATION_TYPE_VALIDATOR) {
-            IValidator validator = IValidator(address(ValidationId.unwrap(vId))); // TODO: add permission support;
-            validationData = validator.isValidSignatureWithSender(requester, /*NOTE: fix this */ _hash, _signature)
+            IValidator validator = IValidator(address(ValidationId.unwrap(vId)));
+            validationData = validator.isValidSignatureWithSender(requester, _hash, _signature)
                 == ERC1271_MAGICVALUE ? 0 : 1;
         } else if (vInfo.vType == VALIDATION_TYPE_PERMISSION) {
             return _verifySignaturePermission(vId, vInfo, requester, _hash, _signature);
@@ -247,7 +247,6 @@ abstract contract ValidationManager {
         PackedUserOperation memory op,
         bytes calldata userOpSignature
     ) internal returns (uint256 validationData) {
-        // NOTE: removed permission for now, adding back after testing is done
         address validator = address(ValidationId.unwrap(vId));
         op.signature = userOpSignature;
         return IValidator(validator).validateUserOp(op, opHash);
