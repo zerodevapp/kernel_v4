@@ -58,7 +58,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     }
 
     function _statelessInitializeCheck() internal view virtual returns (bool) {
-        return bytes3(address(this).code) == bytes3(0xef0100);
+        return false;
     }
 
     function _statefulInitializeCheck() internal view virtual returns (bool) {

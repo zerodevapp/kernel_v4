@@ -12,6 +12,6 @@ contract Kernel7702 is Kernel {
     }
 
     function _statelessInitializeCheck() internal view override returns (bool) {
-        return true;
+        return bytes3(address(this).code) == bytes3(0xef0100);
     }
 }
