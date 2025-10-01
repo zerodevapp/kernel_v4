@@ -11,6 +11,7 @@ import {MockFallback} from "./mock/MockFallback.sol";
 import {MockValidator} from "./mock/MockValidator.sol";
 import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
+import {MockHook} from "./mock/MockHook.sol";
 import {MockERC721} from "./mock/MockERC721.sol";
 import {MockERC1155} from "./mock/MockERC1155.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
@@ -35,6 +36,7 @@ abstract contract KernelTestBase is Test {
     address payable beneficiary;
     MockPolicy policy;
     MockSigner signer;
+    MockHook mockHook;
     bytes20 permissionId;
     uint256 permissionRevertIndex;
     KernelHelper helper;

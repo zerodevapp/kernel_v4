@@ -10,7 +10,8 @@ import {
     InvalidPermissionUninstallOrder,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
-    InvalidValidator
+    InvalidValidator,
+    NotInstalled
 } from "../types/Error.sol";
 import {ValidationId, ValidationType, ValidationMode} from "../types/Types.sol";
 import {
@@ -35,9 +36,16 @@ function parseNonce(uint256 nonce) pure returns (ValidationMode vMode, Validatio
 abstract contract ValidationManager {
     ValidationId transient installingPermission;
 
+    function _hookEnabled(IHook _hook) internal view virtual returns (bool);
+
     function root() external view returns (ValidationId) {
         ValidationStorage storage $ = _validationStorage();
         return $.root;
+    }
+
+    function validationInfo(ValidationId vId) external view returns (ValidationInfo memory) {
+        ValidationStorage storage $ = _validationStorage();
+        return $.vInfo[vId];
     }
 
     function _validationHook(bytes32 userOpHash) internal view returns (IHook hook) {
@@ -50,11 +58,6 @@ abstract contract ValidationManager {
         assembly {
             tstore(userOpHash, hook)
         }
-    }
-
-    function validationInfo(ValidationId vId) external view returns (ValidationInfo memory) {
-        ValidationStorage storage $ = _validationStorage();
-        return $.vInfo[vId];
     }
 
     function _validationStorage() internal pure returns (ValidationStorage storage $) {
@@ -72,15 +75,20 @@ abstract contract ValidationManager {
         }
         // if not, first 20 bytes is the hook address
         address hook = address(bytes20(_internalData[0:20]));
+        require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
         $.vInfo[vId].hook = hook;
         _internalData = _internalData[20:];
 
         // then the rest is the allowed selectors
         while (_internalData.length >= 4) {
             bytes4 selector = bytes4(_internalData[0:4]);
-            $.allowed[vId][selector] = true;
+            _allowSelector($, vId, selector, true);
             _internalData = _internalData[4:];
         }
+    }
+
+    function _allowSelector(ValidationStorage storage $, ValidationId vId, bytes4 selector, bool allow) internal {
+        $.allowed[vId][selector] = true;
     }
 
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
@@ -112,7 +120,6 @@ abstract contract ValidationManager {
         $ = _validationStorage().vInfo[vId];
         if (installingPermission == ValidationId.wrap(bytes20(0))) {
             require(vId != ValidationId.wrap(bytes20(0)), "invalid validationId");
-            require($.vType == ValidationType.wrap(0x00), "already taken");
             installingPermission = vId;
             $.vType = VALIDATION_TYPE_PERMISSION;
             _initializeValidation(vId, _internalData[20:]);

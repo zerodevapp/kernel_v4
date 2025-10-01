@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 import {LibString} from "solady/utils/LibString.sol";
 import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
+import {Install} from "src/types/Structs.sol";
 
 abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc7739() public {
@@ -93,42 +94,94 @@ abstract contract KernelERC1271Test is KernelTestBase {
         assertEq(ret, ERC1271_INVALID);
     }
 
+    /// forge-config: default.isolate = true
     function test_erc1271_permission() external unitTest {
         bytes32 messageHash = keccak256("Hello world");
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        Install[] memory pkgs = new Install[](2);
+        pkgs[0] = Install({
+            moduleType: 5,
+            module: address(policy),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        pkgs[1] = Install({
+            moduleType: 6,
+            module: address(signer),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        kernel.installModule(pkgs);
         bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(permissionId, sig));
         assertEq(ret, ERC1271_MAGICVALUE);
     }
 
+    /// forge-config: default.isolate = true
     function test_erc1271_permission_fail() external unitTest {
         bytes32 messageHash = keccak256("Hello world");
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, false);
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        Install[] memory pkgs = new Install[](2);
+        pkgs[0] = Install({
+            moduleType: 5,
+            module: address(policy),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        pkgs[1] = Install({
+            moduleType: 6,
+            module: address(signer),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        kernel.installModule(pkgs);
         bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(permissionId, sig));
         assertEq(ret, ERC1271_INVALID);
     }
 
+    /// forge-config: default.isolate = true
     function test_erc1271_permission_personal_sign() external unitTest {
         bytes32 messageHash = keccak256("Hello world");
         bytes32 personalHash = _toErc1271HashPersonalSign(messageHash);
         bytes memory sig = _permissionSignHash(personalHash, true);
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        Install[] memory pkgs = new Install[](2);
+        pkgs[0] = Install({
+            moduleType: 5,
+            module: address(policy),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        pkgs[1] = Install({
+            moduleType: 6,
+            module: address(signer),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        kernel.installModule(pkgs);
         bytes4 ret = kernel.isValidSignature(messageHash, abi.encodePacked(permissionId, sig));
         assertEq(ret, ERC1271_MAGICVALUE);
     }
 
+    /// forge-config: default.isolate = true
     function test_erc1271_permission_personal_sign_fail() external unitTest {
         bytes32 messageHash = keccak256("Hello world");
         bytes32 personalHash = _toErc1271HashPersonalSign(messageHash);
         bytes memory sig = _permissionSignHash(personalHash, false);
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        Install[] memory pkgs = new Install[](2);
+        pkgs[0] = Install({
+            moduleType: 5,
+            module: address(policy),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        pkgs[1] = Install({
+            moduleType: 6,
+            module: address(signer),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(permissionId)
+        });
+        kernel.installModule(pkgs);
         bytes4 ret = kernel.isValidSignature(messageHash, abi.encodePacked(permissionId, sig));
         assertEq(ret, ERC1271_INVALID);
     }

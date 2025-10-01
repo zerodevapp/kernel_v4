@@ -69,7 +69,12 @@ contract KernelFactoryTest is KernelTestBase {
             internalData: abi.encodePacked(permissionId),
             moduleData: hex""
         });
-        pkgs[1] = Install({moduleType: 1, module: address(newValidator), internalData: hex"", moduleData: hex""});
+        pkgs[1] = Install({
+            moduleType: 6,
+            module: address(signer),
+            internalData: abi.encodePacked(permissionId),
+            moduleData: hex""
+        });
         Kernel k = factory.deploy(pkgs, 1);
         assertEq(k.accountId(), "kernel.v0.4");
         assertEq(k.registry(), address(0));

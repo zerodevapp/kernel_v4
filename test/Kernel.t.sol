@@ -47,6 +47,7 @@ contract KernelTest is
         beneficiary = payable(makeAddr("Beneficiary"));
         policy = new MockPolicy();
         signer = new MockSigner();
+        mockHook = new MockHook();
         permissionId = bytes20(keccak256(abi.encodePacked("Hello world")));
         vm.txGasPrice(1);
         _initialize();
@@ -66,7 +67,7 @@ contract KernelTest is
     }
 
     function test_install_packages_with_signature() external unitTest {
-        Install[] memory packages = new Install[](2);
+        Install[] memory packages = new Install[](3);
         packages[0] = Install({moduleType: 1, module: address(newValidator), internalData: hex"", moduleData: hex""});
         packages[1] = Install({
             moduleType: 5,
@@ -74,15 +75,27 @@ contract KernelTest is
             internalData: abi.encodePacked(permissionId),
             moduleData: hex""
         });
+        packages[2] = Install({
+            moduleType: 6,
+            module: address(signer),
+            internalData: abi.encodePacked(permissionId),
+            moduleData: hex""
+        });
         kernel.installModule(false, 0, packages, enableSig(0, true, false, packages, _rootSignHash));
     }
 
     function test_install_packages_with_signature_replayable() external unitTest {
-        Install[] memory packages = new Install[](2);
+        Install[] memory packages = new Install[](3);
         packages[0] = Install({moduleType: 1, module: address(newValidator), internalData: hex"", moduleData: hex""});
         packages[1] = Install({
             moduleType: 5,
             module: address(policy),
+            internalData: abi.encodePacked(permissionId),
+            moduleData: hex""
+        });
+        packages[2] = Install({
+            moduleType: 6,
+            module: address(signer),
             internalData: abi.encodePacked(permissionId),
             moduleData: hex""
         });
@@ -98,7 +111,6 @@ contract KernelTest is
     }
 
     function test_install_invalid() external unitTest {
-        MockHook mockHook = new MockHook();
         vm.expectRevert(NotImplemented.selector);
         kernel.installModule(10, address(mockHook), abi.encode(hex"", ""));
         vm.expectRevert(NotImplemented.selector);
@@ -106,7 +118,6 @@ contract KernelTest is
     }
 
     function test_uninstall_invalid() external unitTest {
-        MockHook mockHook = new MockHook();
         vm.expectRevert(NotImplemented.selector);
         kernel.uninstallModule(10, address(mockHook), abi.encode(hex"", ""));
     }

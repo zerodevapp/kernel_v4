@@ -2,7 +2,6 @@ pragma solidity ^0.8.0;
 
 import {SelectorManager} from "src/core/SelectorManager.sol";
 import {MockFallback} from "./mock/MockFallback.sol";
-import {MockHook} from "./mock/MockHook.sol";
 import {CallType} from "src/types/Types.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
 import {InvalidSelector} from "src/types/Error.sol";
@@ -31,7 +30,6 @@ abstract contract KernelSelectorTest is KernelTestBase {
     }
 
     function test_install_selector_call_withhook() external unitTest {
-        MockHook mockHook = new MockHook();
         kernel.installModule(4, address(mockHook), abi.encode(hex"", ""));
         kernel.installModule(
             3,

@@ -245,6 +245,11 @@ abstract contract Kernel is ModuleManager, ExecutionManager {
         _install(packages);
     }
 
+    function installModule(Install[] calldata packages) external {
+        _onlyEntryPointOrSelf();
+        _install(packages);
+    }
+
     fallback(bytes calldata) external payable returns (bytes memory) {
         return _fallback();
     }

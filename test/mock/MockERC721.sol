@@ -15,8 +15,8 @@ contract MockERC721 is ERC721 {
     function symbol() public pure override returns (string memory) {
         return "MOCK";
     }
-    /// forge-lint: disable-next-line(mixed-case-function)
 
+    /// forge-lint: disable-next-line(mixed-case-function)
     function tokenURI(uint256) public pure override returns (string memory) {
         return "";
     }
