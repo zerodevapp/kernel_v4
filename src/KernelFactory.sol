@@ -8,6 +8,7 @@ import {LibClone} from "solady/utils/LibClone.sol";
 contract KernelFactory {
     error InvalidSigner();
     error CallFailed();
+
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
 
@@ -77,7 +78,7 @@ contract KernelFactory {
         (bool deployed, address account) =
             LibClone.createDeterministicERC1967(msg.value, address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
         Kernel k = Kernel(payable(account));
-        if(deployed) {
+        if (deployed) {
             return k;
         }
         k.initialize(initialPackages);
