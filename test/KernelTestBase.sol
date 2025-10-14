@@ -131,13 +131,6 @@ abstract contract KernelTestBase is Test {
         function(bytes32, bool) internal returns(bytes memory) signEnable
     ) internal returns (bytes memory sig) {
         bytes32 digest = helper.installDigest(address(kernel), replayable, nonce, packages);
-        MockKernel mockKernel = new MockKernel(ep);
-
-        if (!is7702) {
-            //vm.store(address(kernel), ERC1967_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(address(mockKernel)))));
-            //assertEq(MockKernel(payable(address(kernel))).installDigest(replayable, nonce, packages), digest);
-            //vm.store(address(kernel), ERC1967_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(address(factory.template())))));
-        }
         return signEnable(digest, enableSuccess);
     }
 
