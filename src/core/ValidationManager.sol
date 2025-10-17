@@ -288,7 +288,7 @@ abstract contract ValidationManager {
                 permissionSig := userOpSignature.offset
             }
             bytes32 paddedVId = bytes32(PermissionId.unwrap(getPermissionId(vId)));
-            for (uint256 i = 0; i < vInfo.policies.length; i++) {
+            for (uint256 i = 0; i < vInfo.policies.length; ++i) {
                 IPolicy policy = IPolicy(vInfo.policies[i]);
                 op.signature = permissionSig.signatures[i];
                 validationData =
