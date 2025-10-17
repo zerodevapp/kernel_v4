@@ -263,7 +263,12 @@ abstract contract ValidationManager {
         // NOTE: removed permission for now, adding back after testing is done
         IValidator validator = getValidator(vId);
         op.signature = userOpSignature;
-        return validator.validateUserOp(op, opHash);
+        //return validator.validateUserOp(op, opHash);
+        (bool success, bytes memory ret) = address(validator).call(
+            abi.encodeCall(IValidator.validateUserOp, (op, opHash))
+        );
+        //validationData = success ? abi.decode(ret, (uint256)) : 1;
+        validationData = success ? uint256(bytes32(ret)) : 1;
     }
 
     struct PermissionSignature {
