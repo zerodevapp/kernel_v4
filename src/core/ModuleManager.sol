@@ -217,6 +217,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         bytes calldata signature
     ) internal returns (bool success) {
         uint256 validationData = _verifyInstallSignatureRaw(replayable, _nonce, packages, signature);
+        _checkAndIncrementNonce(_nonce);
         return Lib4337.checkValidation(validationData);
     }
 
@@ -230,7 +231,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         _moduleStorage().nonce[nonceKey] = seq;
     }
 
-    function _checkNonce(uint256 _nonce) internal virtual returns (bool) {
+    function _checkAndIncrementNonce(uint256 _nonce) internal virtual returns (bool) {
         uint192 key = uint192(_nonce >> 64);
         uint64 seq = uint64(_nonce);
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
@@ -239,12 +240,21 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return _moduleStorage().nonce[key]++ == seq;
     }
 
+    function _checkNonce(uint256 _nonce) internal view virtual returns (bool) {
+        uint192 key = uint192(_nonce >> 64);
+        uint64 seq = uint64(_nonce);
+        if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
+            return seq == _moduleStorage().nonceValidFrom;
+        }
+        return _moduleStorage().nonce[key] == seq;
+    }
+
     function _verifyInstallSignatureRaw(
         bool replayable,
         uint256 _nonce,
         Install[] calldata packages,
         bytes calldata signature
-    ) internal returns (uint256 validationData) {
+    ) internal view returns (uint256 validationData) {
         ValidationId vId = _validationStorage().root;
         function(bytes32) internal view returns (bytes32) hashTypedData =
             replayable ? _hashTypedDataSansChainId : _hashTypedData;

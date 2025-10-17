@@ -120,7 +120,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 sig := signature.offset
             }
             validationData = _verifyInstallSignatureRaw(enableReplayable, sig.nonce, sig.packages, sig.enableSignature);
-            console.log("Enable :");
+            _checkAndIncrementNonce(sig.nonce);
             _install(sig.packages);
             signature = sig.userOpSignature;
         }
