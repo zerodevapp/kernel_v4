@@ -156,35 +156,95 @@ abstract contract KernelERC1271Test is KernelTestBase {
         );
     }
 
-    function test_erc1271_enable_validator_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_validator_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: false, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_validator_personal_sign() external unitTest erc1271Test {}
+    function test_erc1271_enable_validator_personal_sign() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: true, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_validator_personal_sign_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_validator_personal_sign_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: false, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_replayable_validator() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_validator() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: true, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_replayable_validator_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_validator_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: false, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_replayable_validator_personal_sign() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_validator_personal_sign() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: true, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_replayable_validator_personal_sign_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_validator_personal_sign_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: false, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_permission() external unitTest erc1271Test {}
+    function test_erc1271_enable_permission() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: true, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_permission_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_permission_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: false, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_permission_personal_sign() external unitTest erc1271Test {}
+    function test_erc1271_enable_permission_personal_sign() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: true, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_permission_personal_sign_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_permission_personal_sign_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: false, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_replayable_permission() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_permission() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: true, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_replayable_permission_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_permission_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: false, personalSign: false})
+        );
+    }
 
-    function test_erc1271_enable_replayable_permission_personal_sign() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_permission_personal_sign() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: true, personalSign: true})
+        );
+    }
 
-    function test_erc1271_enable_replayable_permission_personal_sign_fail() external unitTest erc1271Test {}
+    function test_erc1271_enable_replayable_permission_personal_sign_fail() external unitTest erc1271Test {
+        _test_erc1271_enable_permission(
+            EnableTestParam({replayable: true, enableSuccess: true, signatureSuccess: false, personalSign: true})
+        );
+    }
 
     struct EnableTestParam {
         bool replayable;
@@ -198,11 +258,12 @@ abstract contract KernelERC1271Test is KernelTestBase {
         bytes memory sig;
         if (args.personalSign) {
             bytes32 personalHash = _toErc1271HashPersonalSign(messageHash);
-            sig = _validatorSignHash(personalHash, true);
+            sig = _validatorSignHash(personalHash, args.signatureSuccess);
         } else {
             bytes32 contentsHash;
-            (contentsHash, sig) =
-                _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
+            (contentsHash, sig) = _erc1271Signature(
+                messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, args.signatureSuccess
+            );
             messageHash = _toContentsHash(contentsHash);
         }
         Install[] memory packages = new Install[](1);
@@ -217,6 +278,45 @@ abstract contract KernelERC1271Test is KernelTestBase {
             uMode,
             bytes1(0x01),
             newValidator,
+            abi.encode(
+                uint256(0), packages, enableSig(0, args.enableSuccess, args.replayable, packages, _rootSignHash), sig
+            )
+        );
+
+        bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
+        assertEq(res, args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+    }
+
+    function _test_erc1271_enable_permission(EnableTestParam memory args) internal returns (bool) {
+        bytes32 messageHash = keccak256("Hello world");
+        bytes memory sig;
+        if (args.personalSign) {
+            bytes32 personalHash = _toErc1271HashPersonalSign(messageHash);
+            sig = _permissionSignHash(personalHash, args.signatureSuccess);
+        } else {
+            bytes32 contentsHash;
+            (contentsHash, sig) = _erc1271Signature(
+                messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, args.signatureSuccess
+            );
+            messageHash = _toContentsHash(contentsHash);
+        }
+        Install[] memory packages = new Install[](2);
+        packages[0] = Install({
+            moduleType: 5, module: address(policy), moduleData: hex"", internalData: abi.encodePacked(permissionId)
+        });
+        packages[1] = Install({
+            moduleType: 6, module: address(signer), moduleData: hex"", internalData: abi.encodePacked(permissionId)
+        });
+        uint8 uMode = 0;
+        // enable mode flag
+        uMode += 2 ** 3;
+        if (args.replayable) {
+            uMode += 2 ** 2;
+        }
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x02),
+            permissionId,
             abi.encode(
                 uint256(0), packages, enableSig(0, args.enableSuccess, args.replayable, packages, _rootSignHash), sig
             )
