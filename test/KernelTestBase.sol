@@ -40,6 +40,7 @@ abstract contract KernelTestBase is Test {
     uint256 permissionRevertIndex;
     KernelHelper helper;
 
+    bool isMock;
     bool is7702;
     bool isImmutable;
 

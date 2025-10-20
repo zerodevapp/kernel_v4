@@ -285,6 +285,12 @@ abstract contract KernelERC1271Test is KernelTestBase {
 
         bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
         assertEq(res, args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+
+        if (!isMock) {
+            vm.chainId(1000);
+            res = kernel.isValidSignature(messageHash, sigWithEnable);
+            assertEq(res, args.signatureSuccess && args.replayable ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+        }
     }
 
     function _test_erc1271_enable_permission(EnableTestParam memory args) internal returns (bool) {
@@ -321,9 +327,14 @@ abstract contract KernelERC1271Test is KernelTestBase {
                 uint256(0), packages, enableSig(0, args.enableSuccess, args.replayable, packages, _rootSignHash), sig
             )
         );
-
         bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
         assertEq(res, args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+
+        if (!isMock) {
+            vm.chainId(1000);
+            res = kernel.isValidSignature(messageHash, sigWithEnable);
+            assertEq(res, args.signatureSuccess && args.replayable ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+        }
     }
 
     // Code heavily inspired by solady's erc1271, erc4337 test file
