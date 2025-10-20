@@ -138,7 +138,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {
         bytes32[] memory packageHashes = new bytes32[](packages.length);
         unchecked {
-            for (uint256 i = 0; i < packages.length; i++) {
+            for (uint256 i = 0; i < packages.length; ++i) {
                 Install calldata pkg = packages[i];
                 packageHashes[i] = keccak256(
                     abi.encode(
@@ -206,7 +206,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
 
     function _install(Install[] calldata packages) internal {
         unchecked {
-            for (uint256 i = 0; i < packages.length; i++) {
+            for (uint256 i = 0; i < packages.length; ++i) {
                 Install calldata pkg = packages[i];
                 _installModule(pkg.moduleType, pkg.module, pkg.moduleData, pkg.internalData);
             }
@@ -312,7 +312,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = getValidator(vId);
             uint256 i;
-            for (i; i < packages.length; i++) {
+            for (i; i < packages.length; ++i) {
                 Install calldata pkg = packages[i];
                 if (pkg.moduleType == 1 && pkg.module == address(validator)) {
                     break;
@@ -330,7 +330,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                 permissionSig := signature.offset
             }
             uint256 sigIdx;
-            for (uint256 i; i < packages.length; i++) {
+            for (uint256 i; i < packages.length; ++i) {
                 Install calldata pkg = packages[i];
                 if (PermissionId.wrap(bytes4(pkg.internalData)) == pId) {
                     if (sigIdx == permissionSig.signatures.length - 1) {
@@ -344,7 +344,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                     if (!res) {
                         return false;
                     }
-                    sigIdx++;
+                    ++sigIdx;
                 }
             }
             require(sigIdx == permissionSig.signatures.length, "signature arr mismatch");

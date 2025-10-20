@@ -226,7 +226,7 @@ abstract contract ValidationManager {
                 permissionSig := _signature.offset
             }
             bytes32 paddedVId = bytes32(PermissionId.unwrap(getPermissionId(vId)));
-            for (uint256 i = 0; i < vInfo.policies.length; i++) {
+            for (uint256 i = 0; i < vInfo.policies.length; ++i) {
                 IPolicy policy = IPolicy(vInfo.policies[i]);
                 validationData = Lib4337.intersectValidationData(
                     validationData,

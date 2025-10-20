@@ -26,7 +26,7 @@ contract KernelFactory {
         ) = abi.decode(initData, (bool, uint256, Install[], bytes));
 
         // naively check if the package has been installed, does not guarantee if proper internalData is used
-        for (uint256 i = 0; i < packages.length; i++) {
+        for (uint256 i = 0; i < packages.length; ++i) {
             Install memory p = packages[i];
 
             bytes memory context;

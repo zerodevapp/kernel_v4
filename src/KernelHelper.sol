@@ -60,7 +60,7 @@ contract KernelHelper {
 
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {
         bytes32[] memory packageHashes = new bytes32[](packages.length);
-        for (uint256 i = 0; i < packages.length; i++) {
+        for (uint256 i = 0; i < packages.length; ++i) {
             Install calldata pkg = packages[i];
             packageHashes[i] = keccak256(
                 abi.encode(

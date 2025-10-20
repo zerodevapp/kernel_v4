@@ -274,7 +274,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 bytes[] calldata uninstallDataArr = data.uninstallData;
                 require(uninstallDataArr.length == vInfo.policies.length + 1, InvalidDataLength());
                 // uninstall policies first
-                for (uint256 i = 0; i < vInfo.policies.length; i++) {
+                for (uint256 i = 0; i < vInfo.policies.length; ++i) {
                     vInfo.policies[i].call(abi.encodeWithSelector(IModule.onUninstall.selector, uninstallDataArr[i]));
                     _uninstallPolicyWithVid(vInfo.policies[i], vId);
                 }
@@ -358,7 +358,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         } else if (moduleTypeId == 5) {
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
-            for (uint256 i = 0; i < $.policies.length; i++) {
+            for (uint256 i = 0; i < $.policies.length; ++i) {
                 if ($.policies[i] == module) {
                     return true;
                 }
