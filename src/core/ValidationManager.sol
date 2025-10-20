@@ -21,7 +21,7 @@ import {
     VALIDATION_TYPE_PERMISSION,
     ERC1271_MAGICVALUE
 } from "../types/Constants.sol";
-import {ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
+import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 
@@ -264,15 +264,10 @@ abstract contract ValidationManager {
         IValidator validator = getValidator(vId);
         op.signature = userOpSignature;
         //return validator.validateUserOp(op, opHash);
-        (bool success, bytes memory ret) = address(validator).call(
-            abi.encodeCall(IValidator.validateUserOp, (op, opHash))
-        );
+        (bool success, bytes memory ret) =
+            address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
         //validationData = success ? abi.decode(ret, (uint256)) : 1;
         validationData = success ? uint256(bytes32(ret)) : 1;
-    }
-
-    struct PermissionSignature {
-        bytes[] signatures;
     }
 
     function _validateUserOpPermission(
