@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 import {LibString} from "solady/utils/LibString.sol";
 import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
+import {Install} from "src/types/Structs.sol";
 
 abstract contract KernelERC1271Test is KernelTestBase {
     modifier erc1271Test() {
@@ -147,6 +148,82 @@ abstract contract KernelERC1271Test is KernelTestBase {
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
         bytes4 ret = kernel.isValidSignature(messageHash, abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig));
         assertEq(ret, ERC1271_INVALID);
+    }
+
+    function test_erc1271_enable_validator() external unitTest erc1271Test {
+        _test_erc1271_enable_validator(
+            EnableTestParam({replayable: false, enableSuccess: true, signatureSuccess: true, personalSign: false})
+        );
+    }
+
+    function test_erc1271_enable_validator_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_validator_personal_sign() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_validator_personal_sign_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_validator() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_validator_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_validator_personal_sign() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_validator_personal_sign_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_permission() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_permission_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_permission_personal_sign() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_permission_personal_sign_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_permission() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_permission_fail() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_permission_personal_sign() external unitTest erc1271Test {}
+
+    function test_erc1271_enable_replayable_permission_personal_sign_fail() external unitTest erc1271Test {}
+
+    struct EnableTestParam {
+        bool replayable;
+        bool enableSuccess;
+        bool signatureSuccess;
+        bool personalSign;
+    }
+
+    function _test_erc1271_enable_validator(EnableTestParam memory args) internal returns (bool) {
+        bytes32 messageHash = keccak256("Hello world");
+        bytes memory sig;
+        if (args.personalSign) {
+            bytes32 personalHash = _toErc1271HashPersonalSign(messageHash);
+            sig = _validatorSignHash(personalHash, true);
+        } else {
+            bytes32 contentsHash;
+            (contentsHash, sig) =
+                _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
+            messageHash = _toContentsHash(contentsHash);
+        }
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        uint8 uMode = 0;
+        // enable mode flag
+        uMode += 2 ** 3;
+        if (args.replayable) {
+            uMode += 2 ** 2;
+        }
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x01),
+            newValidator,
+            abi.encode(
+                uint256(0), packages, enableSig(0, args.enableSuccess, args.replayable, packages, _rootSignHash), sig
+            )
+        );
+
+        bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
+        assertEq(res, args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
     }
 
     // Code heavily inspired by solady's erc1271, erc4337 test file

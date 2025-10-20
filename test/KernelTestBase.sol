@@ -87,6 +87,7 @@ abstract contract KernelTestBase is Test {
     }
 
     function _validatorSignHash(bytes32 hash, bool success) internal virtual returns (bytes memory sig) {
+        newValidator.sudoSetSuccess(success);
         if (success) {
             newValidator.sudoSetValidSig(hex"");
         }

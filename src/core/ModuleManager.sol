@@ -120,7 +120,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                 assembly {
                     sig := signature.offset
                 }
-                if (Lib4337.checkValidation(
+                if (!Lib4337.checkValidation(
                         _verifyInstallSignatureRaw(enableReplayable, sig.nonce, sig.packages, sig.enableSignature)
                     )) {
                     // if enable sig is invalid, short circuit
