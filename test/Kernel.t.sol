@@ -88,6 +88,7 @@ contract KernelTest is
             moduleType: 6, module: address(signer), internalData: abi.encodePacked(permissionId), moduleData: hex""
         });
         kernel.installModule(false, 0, packages, enableSig(0, true, false, packages, _rootSignHash));
+        vm.snapshotGasLastCall("Install - 3");
     }
 
     function test_install_packages_with_signature_replayable() external unitTest {
