@@ -17,7 +17,6 @@ import {MockCallee} from "./mock/MockCallee.sol";
 import {MockContractETH} from "./mock/MockContractETH.sol";
 import {MockHook} from "./mock/MockHook.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
-import {console} from "forge-std/console.sol";
 import {Received} from "src/types/Events.sol";
 import {Install} from "src/types/Structs.sol";
 import {PermissionId} from "src/types/Types.sol";
@@ -198,14 +197,6 @@ abstract contract KernelTestBase is Test {
         }
         uint192 key = uint192(bytes24(abi.encodePacked(uMode, vType, vId, bytes2(0x00))));
         return ep.getNonce(address(kernel), key);
-    }
-
-    function test_codesize() external {
-        vm.skip(true);
-        address implementation = address(factory.UUPS());
-        console.log("Code size :", implementation.code.length);
-        require(implementation.code.length <= 24576, "Code too big");
-        console.log("space left :", 24576 - implementation.code.length);
     }
 
     function test_receive_eth() external {
