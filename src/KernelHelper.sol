@@ -1,7 +1,7 @@
 pragma solidity ^0.8.0;
 
 import {calldataKeccak} from "./lib/Utils.sol";
-import {Install, Call, InstallAndExecute} from "./types/Structs.sol";
+import {Install, Call} from "./types/Structs.sol";
 
 contract KernelHelper {
     /// @dev `keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")`.
@@ -31,31 +31,6 @@ contract KernelHelper {
                 )
             )
         );
-    }
-
-    function installAndExecuteDigest(
-        address kernel,
-        bytes32 mode,
-        Call[] calldata calls,
-        InstallAndExecute calldata opData
-    ) external returns (bytes32) {
-        function(address, bytes32) internal view returns (bytes32) hashTypedData =
-            opData.replayable ? _hashTypedDataSansChainId : _hashTypedData;
-        bytes32 digest = hashTypedData(
-            kernel,
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        "ExecuteWithInstall(bytes32 mode, bytes execData,uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"
-                    ),
-                    mode,
-                    keccak256(abi.encode(calls)),
-                    opData.nonce,
-                    _installHash(opData.packages)
-                )
-            )
-        );
-        return digest;
     }
 
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {

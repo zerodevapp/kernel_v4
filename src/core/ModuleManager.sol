@@ -8,14 +8,7 @@ import {SelectorManager} from "./SelectorManager.sol";
 import {ERC1271} from "../lib/ERC1271.sol";
 import {InvalidValidationType, InvalidNonce, InvalidValidator, NotImplemented, Unauthorized} from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
-import {
-    Install,
-    Call,
-    InstallAndExecute,
-    EnableModeSignature,
-    ModuleStorage,
-    PermissionSignature
-} from "../types/Structs.sol";
+import {Install, Call, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
 import {
     ValidationId,
     ValidationMode,
@@ -68,17 +61,17 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return HookManager._hookEnabled(_hook);
     }
 
-    function _initialized() internal view virtual returns (bool) {
-        return _statelessInitializeCheck() || _statefulInitializeCheck();
-    }
+    //    function _initialized() internal view virtual returns (bool) {
+    //        return _statelessInitializeCheck() || _statefulInitializeCheck();
+    //    }
 
-    function _statelessInitializeCheck() internal view virtual returns (bool) {
-        return bytes3(address(this).code) == bytes3(0xef0100);
-    }
-
-    function _statefulInitializeCheck() internal view virtual returns (bool) {
-        return ValidationId.unwrap(_validationStorage().root) != bytes20(0);
-    }
+    //    function _statelessInitializeCheck() internal view virtual returns (bool) {
+    //        return bytes3(address(this).code) == bytes3(0xef0100);
+    //    }
+    //
+    //    function _statefulInitializeCheck() internal view virtual returns (bool) {
+    //        return ValidationId.unwrap(_validationStorage().root) != bytes20(0);
+    //    }
 
     function _moduleStorage() internal pure returns (ModuleStorage storage $) {
         assembly {

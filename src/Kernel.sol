@@ -60,12 +60,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         version = "0.4.0";
     }
 
-    function initialize(Install[] calldata packages) external payable virtual {
-        require(!_initialized(), InvalidInitialization());
-        // this is initialize
-        // require first package to be the root validator
-        _initialize(packages);
-    }
+    function initialize(Install[] calldata packages) external payable virtual;
 
     function _initialize(Install[] calldata packages) internal virtual {
         require(packages.length > 0);
@@ -129,7 +124,9 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         if (
             vType == VALIDATION_TYPE_ROOT
                 || ($.allowed[vId][bytes4(userOp.callData)] && $.vInfo[vId].hook == address(1))
-        ) {} else {
+        ) {
+            // No-op, this is cheaper in gas
+        } else {
             require(
                 bytes4(userOp.callData[0:4]) == this.executeUserOp.selector
                     && $.allowed[vId][bytes4(userOp.callData[4:])],

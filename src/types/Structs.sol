@@ -34,13 +34,6 @@ struct Call {
     bytes data;
 }
 
-struct InstallAndExecute {
-    bool replayable;
-    uint256 nonce;
-    Install[] packages;
-    bytes signature;
-}
-
 /// authentication
 struct EnableModeSignature {
     uint256 nonce;

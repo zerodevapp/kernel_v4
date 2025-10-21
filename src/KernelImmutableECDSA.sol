@@ -21,9 +21,9 @@ contract KernelImmutableECDSA is KernelUUPS {
         return false;
     }
 
-    function _statelessInitializeCheck() internal view override returns (bool) {
-        return false;
-    }
+    //function _statelessInitializeCheck() internal view override returns (bool) {
+    //    return false;
+    //}
 
     function _fallbackValidatorAvailable() internal pure override returns (bool) {
         return true;
