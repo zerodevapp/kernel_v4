@@ -11,6 +11,7 @@ contract Staker is Ownable, EIP712 {
     mapping(address => bool) public approved;
 
     error NotApprovedFactory();
+    error DeployFailed();
 
     constructor(address _owner) {
         _initializeOwner(_owner);
@@ -25,6 +26,7 @@ contract Staker is Ownable, EIP712 {
             revert NotApprovedFactory();
         }
         (bool success, bytes memory ret) = factory.call(createData);
+        require(success, DeployFailed());
         return abi.decode(ret, (address));
     }
 
@@ -32,11 +34,7 @@ contract Staker is Ownable, EIP712 {
         approved[_factory] = approval;
     }
 
-    function approveFactoryWithSignature(address _factory, bool approval, bytes calldata signature)
-        external
-        payable
-        onlyOwner
-    {
+    function approveFactoryWithSignature(address _factory, bool approval, bytes calldata signature) external payable {
         // struct :
         // {
         //   factory: address,
@@ -45,7 +43,7 @@ contract Staker is Ownable, EIP712 {
         bytes32 digest = _hashTypedDataSansChainId(
             EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(_factory)), approval ? 1 : 0)
         );
-        require(owner() == ECDSA.recover(digest, signature), "InvalidSignature");
+        require(owner() == ECDSA.tryRecoverCalldata(digest, signature), "InvalidSignature");
         approved[_factory] = approval;
     }
 

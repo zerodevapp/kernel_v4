@@ -23,15 +23,17 @@ ValidationType constant VALIDATION_TYPE_ROOT = ValidationType.wrap(0x00);
 ValidationType constant VALIDATION_TYPE_VALIDATOR = ValidationType.wrap(0x01);
 ValidationType constant VALIDATION_TYPE_PERMISSION = ValidationType.wrap(0x02);
 
-// TODO: change this -- recalculate
-bytes32 constant SELECTOR_MANAGER_STORAGE_SLOT = 0x7c341349a4360fdd5d5bc07e69f325dc6aaea3eb018b3e0ea7e53cc0bb0d6f3b;
+// --- storage slots ---
+// bytes32(uint256(keccak256('kernel.v4.selector')) - 1)
+bytes32 constant SELECTOR_MANAGER_STORAGE_SLOT = 0x550d18e77e0b3e646dcc27a9961c73d7867a7c5f6c2c65424629353cdc97dcc0;
+// bytes32(uint256(keccak256('kernel.v4.module')) - 1)
 bytes32 constant MODULE_MANAGER_STORAGE_SLOT = 0x9bc558e75ed0a57385e96d6b87fd2864d462eed29668be6fed742168fd90ab0f;
-// bytes32(uint256(keccak256('kernel.v3.executor')) - 1)
-bytes32 constant EXECUTOR_MANAGER_STORAGE_SLOT = 0x1bbee3173dbdc223633258c9f337a0fff8115f206d302bea0ed3eac003b68b86;
-// bytes32(uint256(keccak256('kernel.v3.hook')) - 1)
-bytes32 constant HOOK_MANAGER_STORAGE_SLOT = 0x4605d5f70bb605094b2e761eccdc27bed9a362d8612792676bf3fb9b12832ffc;
-// bytes32(uint256(keccak256('kernel.v3.validation')) - 1)
-bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT = 0x7bcaa2ced2a71450ed5a9a1b4848e8e5206dbc3f06011e595f7f55428cc6f84f;
+// bytes32(uint256(keccak256('kernel.v4.executor')) - 1)
+bytes32 constant EXECUTOR_MANAGER_STORAGE_SLOT = 0xc98f19fae81314cbf0302e1e3c0554f60c259fab8e2d5d392893489d40eb0045;
+// bytes32(uint256(keccak256('kernel.v4.hook')) - 1)
+bytes32 constant HOOK_MANAGER_STORAGE_SLOT = 0x5419def70c6ad54339f14ca6da31808409bec8ff0f178491c5b59f0d8276d4d3;
+// bytes32(uint256(keccak256('kernel.v4.validation')) - 1)
+bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e;
 bytes32 constant ERC1967_IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 bytes4 constant ERC1271_MAGICVALUE = 0x1626ba7e;
 bytes4 constant ERC1271_INVALID = 0xffffffff;

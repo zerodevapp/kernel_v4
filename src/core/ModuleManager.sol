@@ -338,7 +338,10 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                     }
                     bool res = IStatelessValidatorWithSender(pkg.module)
                         .validateSignatureWithDataWithSender(
-                            msg.sender, hash, abi.encodePacked(pId, permissionSig.signatures[sigIdx]), pkg.moduleData
+                            msg.sender,
+                            hash,
+                            permissionSig.signatures[sigIdx],
+                            pkg.moduleData // NOTE: not passing the permissionId as stateless does not need any permissionId
                         );
                     if (!res) {
                         return false;
