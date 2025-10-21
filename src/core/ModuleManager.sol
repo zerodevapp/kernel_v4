@@ -8,7 +8,7 @@ import {SelectorManager} from "./SelectorManager.sol";
 import {ERC1271} from "../lib/ERC1271.sol";
 import {InvalidValidationType, InvalidNonce, InvalidValidator, NotImplemented, Unauthorized} from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
-import {Install, Call, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
+import {Install, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
 import {
     ValidationId,
     ValidationMode,
@@ -254,7 +254,9 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     }
 
     function _checkAndIncrementNonce(uint256 _nonce) internal virtual returns (bool) {
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint64 seq = uint64(_nonce);
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
             _moduleStorage().nonce[key] = _moduleStorage().nonceValidFrom;
@@ -263,7 +265,9 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     }
 
     function _checkNonce(uint256 _nonce) internal view virtual returns (bool) {
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint64 seq = uint64(_nonce);
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
             return seq == _moduleStorage().nonceValidFrom;

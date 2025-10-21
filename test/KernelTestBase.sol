@@ -20,7 +20,7 @@ import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {console} from "forge-std/console.sol";
 import {Received} from "src/types/Events.sol";
 import {Install} from "src/types/Structs.sol";
-import {ValidationMode, PermissionId} from "src/types/Types.sol";
+import {PermissionId} from "src/types/Types.sol";
 
 abstract contract KernelTestBase is Test {
     IEntryPoint ep;
@@ -62,7 +62,7 @@ abstract contract KernelTestBase is Test {
 
     function _initialize() internal virtual;
 
-    function _rootSignUserOp(PackedUserOperation memory op, bool success, bool replay)
+    function _rootSignUserOp(PackedUserOperation memory, bool success, bool)
         internal
         virtual
         returns (bytes memory sig)
@@ -71,14 +71,14 @@ abstract contract KernelTestBase is Test {
         return hex"";
     }
 
-    function _rootSignHash(bytes32 hash, bool success) internal virtual returns (bytes memory sig) {
+    function _rootSignHash(bytes32, bool success) internal virtual returns (bytes memory sig) {
         if (success) {
             MockValidator(address(rootValidator)).sudoSetValidSig(hex"");
         }
         return hex"";
     }
 
-    function _validatorSignUserOp(PackedUserOperation memory op, bool success, bool replay)
+    function _validatorSignUserOp(PackedUserOperation memory, bool success, bool)
         internal
         virtual
         returns (bytes memory sig)
@@ -87,7 +87,7 @@ abstract contract KernelTestBase is Test {
         return hex"";
     }
 
-    function _validatorSignHash(bytes32 hash, bool success) internal virtual returns (bytes memory sig) {
+    function _validatorSignHash(bytes32, bool success) internal virtual returns (bytes memory sig) {
         newValidator.sudoSetSuccess(success);
         if (success) {
             newValidator.sudoSetValidSig(hex"");
@@ -95,7 +95,7 @@ abstract contract KernelTestBase is Test {
         return hex"";
     }
 
-    function _permissionSignUserOp(PackedUserOperation memory op, bool success, bool replay)
+    function _permissionSignUserOp(PackedUserOperation memory, bool success, bool)
         internal
         virtual
         returns (bytes memory sig)
@@ -113,7 +113,7 @@ abstract contract KernelTestBase is Test {
         return abi.encode(signatures);
     }
 
-    function _permissionSignHash(bytes32 hash, bool success) internal virtual returns (bytes memory sig) {
+    function _permissionSignHash(bytes32, bool success) internal virtual returns (bytes memory sig) {
         bytes[] memory signatures = new bytes[](2);
         signatures[0] = hex"dead";
         signatures[1] = hex"beef";
@@ -190,6 +190,7 @@ abstract contract KernelTestBase is Test {
 
     function encodeNonce(bool replayableUserOp, bool enableFlag, bool replayableEnable, bytes1 vType, bytes20 vId)
         internal
+        view
         returns (uint256 nonce)
     {
         uint8 uMode = 0;
@@ -202,7 +203,6 @@ abstract contract KernelTestBase is Test {
         if (replayableEnable) {
             uMode += 2 ** 2;
         }
-        ValidationMode vMode = ValidationMode.wrap(bytes1(uMode));
         uint192 key = uint192(bytes24(abi.encodePacked(uMode, vType, vId, bytes2(0x00))));
         return ep.getNonce(address(kernel), key);
     }

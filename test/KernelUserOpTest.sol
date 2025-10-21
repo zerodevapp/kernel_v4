@@ -18,6 +18,7 @@ abstract contract KernelUserOpTest is KernelTestBase {
         try this.simulateEntrypointCall(op) {}
         catch (bytes memory err) {
             bytes32 data = LibBytes.load(err, 4);
+            // forge-lint: disable-next-line(unsafe-typecast)
             return (uint128(bytes16(data)), uint128(uint256(data)));
         }
         return (0, 0);
@@ -30,12 +31,15 @@ abstract contract KernelUserOpTest is KernelTestBase {
         Kernel(payable(op.sender)).validateUserOp(op, hash, 1);
         gas = gas - gasleft();
         vm.stopPrank();
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint128 vgl = uint128(gas) + 30000;
         vm.startPrank(address(ep));
         gas = gasleft();
         (bool success,) = op.sender.call(op.callData);
         gas = gas - gasleft();
+        require(success, "Call Failed");
         vm.stopPrank();
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint128 egl = uint128(gas) + 30000;
         revert Result(uint256(bytes32(abi.encodePacked(uint128(vgl), uint128(egl)))));
     }

@@ -1,6 +1,6 @@
 pragma solidity ^0.8.0;
 
-import {ValidationId, ValidationType, CallType} from "./Types.sol";
+import {ValidationId, CallType} from "./Types.sol";
 import {IHook, IExecutor} from "../interfaces/IERC7579Modules.sol";
 
 struct Install {

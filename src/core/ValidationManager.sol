@@ -10,7 +10,6 @@ import {
     InvalidPermissionUninstallOrder,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
-    InvalidValidator,
     NotInstalled
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType, ValidationMode} from "../types/Types.sol";
@@ -126,13 +125,13 @@ abstract contract ValidationManager {
         }
     }
 
-    function _uninstallValidator(address _validator, bytes calldata _internalData, bool _uninstallSuccess) internal {
+    function _uninstallValidator(address _validator, bytes calldata, bool) internal {
         ValidationStorage storage $ = _validationStorage();
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
         $.vInfo[vId].hook = address(0);
     }
 
-    function _uninstallPolicy(address _policy, bytes calldata _internalData, bool _uninstallSuccess) internal {
+    function _uninstallPolicy(address _policy, bytes calldata _internalData, bool) internal {
         ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
         _uninstallPolicyWithVid(_policy, vId);
     }
@@ -149,7 +148,7 @@ abstract contract ValidationManager {
         }
     }
 
-    function _uninstallSigner(address _signer, bytes calldata _internalData, bool _uninstallSuccess) internal {
+    function _uninstallSigner(address _signer, bytes calldata _internalData, bool) internal {
         ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
         _uninstallSignerWithVid(_signer, vId);
     }
@@ -267,6 +266,7 @@ abstract contract ValidationManager {
         (bool success, bytes memory ret) =
             address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
         //validationData = success ? abi.decode(ret, (uint256)) : 1;
+        // forge-lint: disable-next-line(unsafe-typecast)
         validationData = success ? uint256(bytes32(ret)) : 1;
     }
 

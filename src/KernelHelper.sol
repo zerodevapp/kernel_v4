@@ -1,7 +1,7 @@
 pragma solidity ^0.8.0;
 
 import {calldataKeccak} from "./lib/Utils.sol";
-import {Install, Call} from "./types/Structs.sol";
+import {Install} from "./types/Structs.sol";
 
 contract KernelHelper {
     /// @dev `keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")`.
@@ -50,7 +50,7 @@ contract KernelHelper {
         return keccak256(abi.encodePacked(packageHashes));
     }
 
-    function _hashTypedDataSansChainId(address addr, bytes32 structHash) internal view returns (bytes32 digest) {
+    function _hashTypedDataSansChainId(address addr, bytes32 structHash) internal pure returns (bytes32 digest) {
         string memory name = "Kernel";
         string memory version = "0.4.0";
         /// @solidity memory-safe-assembly

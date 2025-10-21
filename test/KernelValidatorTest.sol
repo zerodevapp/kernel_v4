@@ -8,15 +8,8 @@ import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
 import {InvalidRootValidation, InvalidNonce, NotInstalled} from "src/types/Error.sol";
-import {
-    VALIDATION_TYPE_ROOT,
-    VALIDATION_TYPE_VALIDATOR,
-    VALIDATION_TYPE_PERMISSION,
-    ERC1271_MAGICVALUE
-} from "src/types/Constants.sol";
+import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
 import {permissionToIdentifier} from "src/lib/Utils.sol";
-
-import {console} from "forge-std/console.sol";
 
 abstract contract KernelValidatorTest is KernelTestBase {
     function _sendUserOpValidator(bool success, bool useHook) internal {
@@ -285,7 +278,6 @@ abstract contract KernelValidatorTest is KernelTestBase {
     function test_install_validator_with_hook_notinstalled() external unitTest {
         assertTrue(kernel.supportsModule(4));
         assertTrue(kernel.supportsModule(1));
-        ValidationId vId = ValidationId.wrap(bytes20(address(newValidator)));
         vm.expectRevert(NotInstalled.selector);
         kernel.installModule(
             1,

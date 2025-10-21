@@ -9,8 +9,7 @@ import {parseNonce} from "./core/ValidationManager.sol";
 import {ExecutionManager} from "./core/ExecutionManager.sol";
 import {Lib4337} from "./lib/Lib4337.sol";
 import {ERC1271} from "./lib/ERC1271.sol";
-import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "./lib/Utils.sol";
-
+import {getType, getValidator, validatorToIdentifier, permissionToIdentifier} from "./lib/Utils.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {
     CallType,
@@ -27,7 +26,6 @@ import {
     Unauthorized,
     UnauthorizedCallData,
     InvalidSelector,
-    InvalidInitialization,
     InstallSignatureVerificationFailed,
     InvalidDataLength,
     InvalidRootValidation
@@ -46,7 +44,7 @@ import {
 abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     IEntryPoint immutable ENTRYPOINT;
 
-    function _onlyEntryPointOrSelf() internal {
+    function _onlyEntryPointOrSelf() internal view {
         require(msg.sender == address(ENTRYPOINT) || msg.sender == address(this), Unauthorized());
     }
 
@@ -248,7 +246,6 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     // we are going to let array of pkgs to be installed and use first one as root
     function setRoot(Install[] calldata pkg, bool removeCurrent, bytes calldata uninstallData) external payable {
         _onlyEntryPointOrSelf();
-        ValidationId currentRoot = _validationStorage().root;
         if (removeCurrent) {
             ValidationId vId = _validationStorage().root;
             ValidationType vType = getType(vId);
@@ -270,11 +267,14 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 bytes[] calldata uninstallDataArr = data.uninstallData;
                 require(uninstallDataArr.length == vInfo.policies.length + 1, InvalidDataLength());
                 // uninstall policies first
+                // NOTE : success is not checked on purpose as we are focusing on removing not actually calling onUninstall
                 for (uint256 i = 0; i < vInfo.policies.length; i++) {
+                    // forge-lint: disable-next-line(unchecked-call)
                     vInfo.policies[i].call(abi.encodeWithSelector(IModule.onUninstall.selector, uninstallDataArr[i]));
                     _uninstallPolicyWithVid(vInfo.policies[i], vId);
                 }
 
+                // forge-lint: disable-next-line(unchecked-call)
                 vInfo.signer
                     .call(
                         abi.encodeWithSelector(
@@ -347,11 +347,13 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         } else if (moduleTypeId == 2) {
             return address(_executorConfig(IExecutor(module)).hook) != address(0);
         } else if (moduleTypeId == 3) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             bytes4 selector = bytes4(additionalContext);
             return _selectorConfig(selector).target == module;
         } else if (moduleTypeId == 4) {
             return _hookStorage().enabled[module];
         } else if (moduleTypeId == 5) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
             for (uint256 i = 0; i < $.policies.length; i++) {
@@ -361,6 +363,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             }
             return false;
         } else if (moduleTypeId == 6) {
+            // forge-lint: disable-next-line(unsafe-typecast)
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
             return $.signer == module;

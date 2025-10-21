@@ -17,7 +17,6 @@ contract KernelFactory {
     }
 
     function checkInitialized(address account, bytes calldata initData) external view returns (bool) {
-        bytes4 selector = bytes4(initData[0:4]);
         (
 
             /*replayable*/,

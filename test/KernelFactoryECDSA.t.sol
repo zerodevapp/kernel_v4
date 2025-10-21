@@ -8,14 +8,12 @@ import {KernelFactory} from "src/KernelFactory.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {Install, ValidationInfo} from "src/types/Structs.sol";
-import {VALIDATION_TYPE_VALIDATOR} from "src/types/Constants.sol";
 import {ValidationId, PermissionId} from "src/types/Types.sol";
 import {MockFallback} from "./mock/MockFallback.sol";
 import {MockValidator} from "./mock/MockValidator.sol";
 import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
-import {InvalidRootValidation} from "src/types/Error.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {Lib4337} from "src/lib/Lib4337.sol";
@@ -52,6 +50,7 @@ contract KernelFactoryECDSATest is KernelTestBase {
 
     function _rootSignUserOp(PackedUserOperation memory op, bool success, bool replay)
         internal
+        view
         override
         returns (bytes memory sig)
     {
@@ -59,7 +58,7 @@ contract KernelFactoryECDSATest is KernelTestBase {
         return _rootSignHash(hash, success);
     }
 
-    function _rootSignHash(bytes32 hash, bool success) internal override returns (bytes memory sig) {
+    function _rootSignHash(bytes32 hash, bool success) internal view override returns (bytes memory sig) {
         if (!success) {
             hash = keccak256(abi.encodePacked(hash));
         }

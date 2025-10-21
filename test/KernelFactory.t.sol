@@ -8,7 +8,6 @@ import {KernelFactory} from "src/KernelFactory.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {Install, ValidationInfo} from "src/types/Structs.sol";
-import {VALIDATION_TYPE_VALIDATOR} from "src/types/Constants.sol";
 import {ValidationId, PermissionId} from "src/types/Types.sol";
 import {MockFallback} from "./mock/MockFallback.sol";
 import {MockValidator} from "./mock/MockValidator.sol";
@@ -58,7 +57,7 @@ contract KernelFactoryTest is KernelTestBase {
             moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""
         });
         vm.startSnapshotGas("Mock - deploy()");
-        Kernel k = factory.deploy(pkgs, 1);
+        factory.deploy(pkgs, 1);
         vm.stopSnapshotGas();
     }
 
@@ -81,7 +80,7 @@ contract KernelFactoryTest is KernelTestBase {
         pkgs[0] = Install({moduleType: 2, module: address(executor), internalData: hex"", moduleData: hex""});
         pkgs[1] = Install({moduleType: 1, module: address(newValidator), internalData: hex"", moduleData: hex""});
         vm.expectRevert(InvalidRootValidation.selector);
-        Kernel k = factory.deploy(pkgs, 1);
+        factory.deploy(pkgs, 1);
     }
 
     function test_deploy_existing() external {
