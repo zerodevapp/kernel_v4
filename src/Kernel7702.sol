@@ -14,10 +14,6 @@ contract Kernel7702 is Kernel {
         return ECDSA.tryRecoverCalldata(hash, sig) == address(this);
     }
 
-    //function _statelessInitializeCheck() internal view override returns (bool) {
-    //    return true;
-    //}
-
     function _fallbackValidatorAvailable() internal pure override returns (bool) {
         return true;
     }

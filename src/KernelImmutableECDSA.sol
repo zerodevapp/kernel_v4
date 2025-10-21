@@ -15,10 +15,6 @@ contract KernelImmutableECDSA is KernelUUPS {
         return ECDSA.tryRecoverCalldata(hash, sig) == signer;
     }
 
-    //function _statelessInitializeCheck() internal view override returns (bool) {
-    //    return false;
-    //}
-
     function _fallbackValidatorAvailable() internal pure override returns (bool) {
         return true;
     }
