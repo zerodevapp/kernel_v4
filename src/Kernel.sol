@@ -42,7 +42,6 @@ import {
     InstallModuleDataFormat,
     PermissionUninstallData
 } from "./types/Structs.sol";
-import "forge-std/console.sol";
 
 abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     IEntryPoint immutable ENTRYPOINT;
