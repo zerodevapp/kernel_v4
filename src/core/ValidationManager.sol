@@ -12,7 +12,7 @@ import {
     InvalidPermissionId,
     NotInstalled
 } from "../types/Error.sol";
-import {ValidationId, PermissionId, ValidationType, ValidationMode} from "../types/Types.sol";
+import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
 import {
     VALIDATION_MANAGER_STORAGE_SLOT,
     VALIDATION_TYPE_ROOT,
@@ -23,15 +23,6 @@ import {
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
-
-function parseNonce(uint256 nonce) pure returns (ValidationMode vMode, ValidationType vType, ValidationId vId) {
-    // 2bytes mode (1byte currentMode, 1byte type)
-    // 20bytes identifier
-    // 1byte mode | 1byte type | 20bytes vId | 2byte nonceKey | 8byte nonce == 32bytes
-    vMode = ValidationMode.wrap(bytes1(bytes32(nonce)));
-    vType = ValidationType.wrap(bytes1(bytes32(nonce << 8)));
-    vId = ValidationId.wrap(bytes21(bytes32(nonce << 8)));
-}
 
 abstract contract ValidationManager {
     error InvalidVid(ValidationId vId);

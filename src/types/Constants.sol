@@ -38,3 +38,10 @@ bytes4 constant ERC1271_INVALID = 0xffffffff;
 ValidationData constant SIG_VALIDATION_FAILED = ValidationData.wrap(SIG_VALIDATION_FAILED_UINT);
 uint256 constant SIG_VALIDATION_FAILED_UINT = 1;
 uint256 constant SIG_VALIDATION_SUCCESS_UINT = 0;
+
+//InstallPackages(uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)
+bytes32 constant INSTALL_PACKAGES_STRUCT_HASH = 0x633d6810f7f4053622dad4c187707d9c3cd7f57b8b68943473d3437060aefc6d;
+//keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
+bytes32 constant INSTALL_STRUCT_HASH = 0x50c63c739a5f8d2e99954b3d4c7008fcdcef795a1b755ab9287372b01d6ac239;
+//ApproveFactory(address factory,bool approval)
+bytes32 constant APPROVE_FACTORY_STRUCT_HASH = 0x5f5d54a660883657f2f36565a4221ea47582afba62e38479852d3078c781c6e2;

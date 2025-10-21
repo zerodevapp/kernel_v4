@@ -6,7 +6,14 @@ import {ExecutorManager} from "./ExecutorManager.sol";
 import {HookManager} from "./HookManager.sol";
 import {SelectorManager} from "./SelectorManager.sol";
 import {ERC1271} from "../lib/ERC1271.sol";
-import {InvalidValidationType, InvalidNonce, InvalidValidator, NotImplemented, Unauthorized} from "../types/Error.sol";
+import {
+    InvalidValidationType,
+    InvalidNonce,
+    InvalidValidator,
+    InvalidPermissionId,
+    NotImplemented,
+    Unauthorized
+} from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
 import {Install, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
 import {
@@ -23,7 +30,9 @@ import {
     MODULE_MANAGER_STORAGE_SLOT,
     VALIDATION_TYPE_ROOT,
     VALIDATION_TYPE_VALIDATOR,
-    VALIDATION_TYPE_PERMISSION
+    VALIDATION_TYPE_PERMISSION,
+    INSTALL_PACKAGES_STRUCT_HASH,
+    INSTALL_STRUCT_HASH
 } from "../types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
@@ -127,9 +136,6 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
             result = Lib4337.checkValidation(validationData);
         }
     }
-
-    //keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
-    bytes32 constant INSTALL_STRUCT_HASH = 0x50c63c739a5f8d2e99954b3d4c7008fcdcef795a1b755ab9287372b01d6ac239;
 
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {
         bytes32[] memory buffer = EfficientHashLib.malloc(packages.length);
@@ -280,9 +286,6 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return _moduleStorage().nonce[key] == seq;
     }
 
-    //InstallPackages(uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)
-    bytes32 constant INSTALL_PACKAGES_STRUCT_HASH = 0x633d6810f7f4053622dad4c187707d9c3cd7f57b8b68943473d3437060aefc6d;
-
     function _verifyInstallSignatureRaw(
         bool replayable,
         uint256 _nonce,
@@ -293,13 +296,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         function(bytes32) internal view returns (bytes32) hashTypedData =
             replayable ? _hashTypedDataSansChainId : _hashTypedData;
         require(_checkNonce(_nonce), InvalidNonce());
-        bytes32 digest = hashTypedData(
-            EfficientHashLib.hash(
-                INSTALL_PACKAGES_STRUCT_HASH,
-                bytes32(_nonce),
-                _installHash(packages)
-            )
-        );
+        bytes32 digest =
+            hashTypedData(EfficientHashLib.hash(INSTALL_PACKAGES_STRUCT_HASH, bytes32(_nonce), _installHash(packages)));
         return _verifySignature(vId, address(this), digest, signature);
     }
 
@@ -348,7 +346,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                     sigIdx++;
                 }
             }
-            require(sigIdx == permissionSig.signatures.length, "signature arr mismatch");
+            require(sigIdx == permissionSig.signatures.length, InvalidPermissionId());
             return true;
         } else {
             revert InvalidValidationType();

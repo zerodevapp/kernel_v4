@@ -5,11 +5,10 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {IERC7579Account} from "./interfaces/IERC7579Account.sol";
 import {IValidator, IExecutor, IHook, IModule} from "./interfaces/IERC7579Modules.sol";
 import {ModuleManager, Install} from "./core/ModuleManager.sol";
-import {parseNonce} from "./core/ValidationManager.sol";
 import {ExecutionManager} from "./core/ExecutionManager.sol";
 import {Lib4337} from "./lib/Lib4337.sol";
 import {ERC1271} from "./lib/ERC1271.sol";
-import {getType, getValidator, validatorToIdentifier, permissionToIdentifier} from "./lib/Utils.sol";
+import {parseNonce, getType, getValidator, validatorToIdentifier, permissionToIdentifier} from "./lib/Utils.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {
     CallType,

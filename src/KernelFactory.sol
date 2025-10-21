@@ -125,15 +125,15 @@ contract KernelFactory {
         );
     }
 
-    function _calculateSalt(Install[] calldata initialPackages, uint256 nonce) internal pure returns(bytes32) {
+    function _calculateSalt(Install[] calldata initialPackages, uint256 nonce) internal pure returns (bytes32) {
         unchecked {
             bytes32[] memory buffer = EfficientHashLib.malloc(initialPackages.length + 1);
             EfficientHashLib.set(buffer, 0, nonce);
-            for(uint256 i = 1; i<buffer.length; i++) {
+            for (uint256 i = 1; i < buffer.length; i++) {
                 Install calldata pkg = initialPackages[i - 1];
                 EfficientHashLib.set(
                     buffer,
-                    i, 
+                    i,
                     EfficientHashLib.hash(
                         bytes32(pkg.moduleType),
                         bytes32(uint256(uint160(pkg.module))),
