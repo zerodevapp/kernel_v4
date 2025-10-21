@@ -1,9 +1,9 @@
 pragma solidity ^0.8.0;
 
-import {calldataKeccak} from "./lib/Utils.sol";
-import {Install} from "./types/Structs.sol";
+import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
+import {Install} from "src/types/Structs.sol";
 
-contract KernelHelper {
+library KernelHelper {
     /// @dev `keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")`.
     bytes32 internal constant _DOMAIN_TYPEHASH = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f;
 
@@ -42,8 +42,8 @@ contract KernelHelper {
                     keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
                     pkg.moduleType,
                     pkg.module,
-                    calldataKeccak(pkg.moduleData),
-                    calldataKeccak(pkg.internalData)
+                    EfficientHashLib.hashCalldata(pkg.moduleData),
+                    EfficientHashLib.hashCalldata(pkg.internalData)
                 )
             );
         }
@@ -70,7 +70,7 @@ contract KernelHelper {
         }
     }
 
-    function _hashTypedData(address addr, bytes32 structHash) internal view virtual returns (bytes32 digest) {
+    function _hashTypedData(address addr, bytes32 structHash) internal view returns (bytes32 digest) {
         string memory name = "Kernel";
         string memory version = "0.4.0";
         bytes32 separator = keccak256(bytes(name));

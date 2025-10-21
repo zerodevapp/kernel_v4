@@ -2,7 +2,6 @@ pragma solidity ^0.8.0;
 
 import {EntryPointLib} from "./utils/EntryPointLib.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
-import {KernelHelper} from "src/KernelHelper.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
@@ -42,7 +41,6 @@ contract KernelTest is
         uups = new KernelUUPS(ep);
         KernelImmutableECDSA immutableEcdsa = new KernelImmutableECDSA(ep);
         factory = new KernelFactory(uups, immutableEcdsa);
-        helper = new KernelHelper();
         newValidator = new MockValidator();
         callee = new MockCallee();
         executor = makeAddr("Executor");

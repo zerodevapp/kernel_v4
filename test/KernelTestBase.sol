@@ -4,7 +4,7 @@ import {Test} from "forge-std/Test.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {Kernel} from "src/Kernel.sol";
-import {KernelHelper} from "src/KernelHelper.sol";
+import {KernelHelper} from "./KernelHelper.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {Install} from "src/types/Structs.sol";
 import {MockFallback} from "./mock/MockFallback.sol";
@@ -38,7 +38,6 @@ abstract contract KernelTestBase is Test {
     MockHook hook;
     PermissionId permissionId;
     uint256 permissionRevertIndex;
-    KernelHelper helper;
 
     bool isMock;
     bool is7702;
@@ -134,13 +133,7 @@ abstract contract KernelTestBase is Test {
         Install[] memory packages,
         function(bytes32, bool) internal returns (bytes memory) signEnable
     ) internal returns (bytes memory sig) {
-        bytes32 digest = helper.installDigest(address(kernel), replayable, nonce, packages);
-
-        if (!is7702) {
-            //vm.store(address(kernel), ERC1967_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(address(mockKernel)))));
-            //assertEq(MockKernel(payable(address(kernel))).installDigest(replayable, nonce, packages), digest);
-            //vm.store(address(kernel), ERC1967_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(address(factory.template())))));
-        }
+        bytes32 digest = KernelHelper.installDigest(address(kernel), replayable, nonce, packages);
         return signEnable(digest, enableSuccess);
     }
 

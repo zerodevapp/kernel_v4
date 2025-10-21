@@ -17,7 +17,6 @@ import {
     isEnable,
     isEnableReplayable
 } from "../types/Types.sol";
-import {calldataKeccak} from "../lib/Utils.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 import {
@@ -26,6 +25,7 @@ import {
     VALIDATION_TYPE_VALIDATOR,
     VALIDATION_TYPE_PERMISSION
 } from "../types/Constants.sol";
+import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
 abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManager, SelectorManager, ERC1271 {
     modifier executorHook() {
@@ -128,23 +128,28 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         }
     }
 
+    //keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
+    bytes32 constant INSTALL_STRUCT_HASH = 0x50c63c739a5f8d2e99954b3d4c7008fcdcef795a1b755ab9287372b01d6ac239;
+
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {
-        bytes32[] memory packageHashes = new bytes32[](packages.length);
+        bytes32[] memory buffer = EfficientHashLib.malloc(packages.length);
         unchecked {
             for (uint256 i = 0; i < packages.length; i++) {
                 Install calldata pkg = packages[i];
-                packageHashes[i] = keccak256(
-                    abi.encode(
-                        keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
+                EfficientHashLib.set(
+                    buffer,
+                    i,
+                    EfficientHashLib.hash(
+                        uint256(INSTALL_STRUCT_HASH),
                         pkg.moduleType,
-                        pkg.module,
-                        calldataKeccak(pkg.moduleData),
-                        calldataKeccak(pkg.internalData)
+                        uint256(uint160(pkg.module)),
+                        uint256(EfficientHashLib.hashCalldata(pkg.moduleData)),
+                        uint256(EfficientHashLib.hashCalldata(pkg.internalData))
                     )
                 );
             }
         }
-        return keccak256(abi.encodePacked(packageHashes));
+        return EfficientHashLib.hash(buffer);
     }
 
     function _installModule(uint256 moduleType, address module, bytes calldata moduleData, bytes calldata internalData)
@@ -275,6 +280,9 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return _moduleStorage().nonce[key] == seq;
     }
 
+    //InstallPackages(uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)
+    bytes32 constant INSTALL_PACKAGES_STRUCT_HASH = 0x633d6810f7f4053622dad4c187707d9c3cd7f57b8b68943473d3437060aefc6d;
+
     function _verifyInstallSignatureRaw(
         bool replayable,
         uint256 _nonce,
@@ -286,14 +294,10 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
             replayable ? _hashTypedDataSansChainId : _hashTypedData;
         require(_checkNonce(_nonce), InvalidNonce());
         bytes32 digest = hashTypedData(
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        "InstallPackages(uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"
-                    ),
-                    _nonce,
-                    _installHash(packages)
-                )
+            EfficientHashLib.hash(
+                INSTALL_PACKAGES_STRUCT_HASH,
+                bytes32(_nonce),
+                _installHash(packages)
             )
         );
         return _verifySignature(vId, address(this), digest, signature);
