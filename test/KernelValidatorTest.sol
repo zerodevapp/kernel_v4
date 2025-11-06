@@ -45,7 +45,7 @@ abstract contract KernelValidatorTest is KernelTestBase {
         if (!success) {
             vm.expectRevert();
         }
-        vm.startPrank(beneficiary,beneficiary);
+        vm.startPrank(beneficiary, beneficiary);
         ep.handleOps(ops, beneficiary);
         vm.stopPrank();
         if (useHook && success) {
