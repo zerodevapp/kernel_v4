@@ -10,6 +10,7 @@ import {
     InvalidPermissionUninstallOrder,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
+    InvalidVid,
     NotInstalled
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
@@ -25,8 +26,6 @@ import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 
 abstract contract ValidationManager {
-    error InvalidVid(ValidationId vId);
-
     ValidationId transient installingPermission;
 
     function _hookEnabled(IHook _hook) internal view virtual returns (bool);
@@ -191,6 +190,7 @@ abstract contract ValidationManager {
             return _verifyFallbackSignature(_hash, _signature) ? 0 : 1;
         }
         ValidationInfo storage vInfo = _validationStorage().vInfo[vId];
+        require(vInfo.hook > address(0), InvalidVid(vId));
         ValidationType vType = getType(vId);
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = getValidator(vId);
