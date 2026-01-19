@@ -28,5 +28,6 @@ error InvalidPermissionId();
 error InvalidNonce();
 error InvalidInitialization();
 error InvalidDataLength();
+error CannotUninstallRoot();
 
 error UnauthorizedCallData();

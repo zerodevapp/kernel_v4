@@ -245,8 +245,9 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     // we are going to let array of pkgs to be installed and use first one as root
     function setRoot(Install[] calldata pkg, bool removeCurrent, bytes calldata uninstallData) external payable {
         _onlyEntryPointOrSelf();
+        ValidationId vId = _validationStorage().root;
+        _setRoot(pkg[0]);
         if (removeCurrent) {
-            ValidationId vId = _validationStorage().root;
             ValidationType vType = getType(vId);
             ValidationInfo memory vInfo = _validationStorage().vInfo[vId];
             if (vType == VALIDATION_TYPE_VALIDATOR) {
@@ -286,7 +287,6 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             }
         }
         _install(pkg);
-        _setRoot(pkg[0]);
     }
 
     function setRoot(ValidationId vId) external payable {
