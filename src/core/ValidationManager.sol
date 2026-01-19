@@ -8,8 +8,8 @@ import {
     OccupiedValidationId,
     ModuleInstallFailed,
     InvalidPermissionUninstallOrder,
-    InvalidPermissionUninstallOrder,
     InvalidPermissionId,
+    InvalidValidationType,
     NotInstalled
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
@@ -309,6 +309,12 @@ abstract contract ValidationManager {
     }
 
     function _setRoot(ValidationId vId) internal {
+        ValidationType vType = getType(vId);
+        require(
+            vType == VALIDATION_TYPE_VALIDATOR || vType == VALIDATION_TYPE_PERMISSION
+                || (_fallbackValidatorAvailable() && vType == VALIDATION_TYPE_ROOT),
+            InvalidValidationType()
+        );
         require(ValidationId.unwrap(vId) != bytes21(0) || _fallbackValidatorAvailable(), InvalidRootValidation());
         ValidationStorage storage $ = _validationStorage();
         $.root = vId;
