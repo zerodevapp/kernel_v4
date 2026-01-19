@@ -8,8 +8,8 @@ import {
     OccupiedValidationId,
     ModuleInstallFailed,
     InvalidPermissionUninstallOrder,
-    InvalidPermissionUninstallOrder,
     InvalidPermissionId,
+    InvalidDataLength,
     NotInstalled
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
@@ -23,6 +23,8 @@ import {
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
+
+import {console} from "forge-std/console.sol";
 
 abstract contract ValidationManager {
     error InvalidVid(ValidationId vId);
@@ -59,6 +61,28 @@ abstract contract ValidationManager {
         }
     }
 
+    /// @dev grant access to selectors
+    /// @param vId validationId
+    /// @param selectors = abi.encodePacked(bytes4 selectors)
+    function _grantAccess(ValidationId vId, bytes calldata selectors) internal {
+        require(selectors.length % 4 == 0, InvalidDataLength());
+        ValidationStorage storage $ = _validationStorage();
+        uint32 nonce = ++$.vInfo[vId].nonce;
+        console.log("Huh ???");
+
+        while (selectors.length >= 4) {
+            bytes4 selector = bytes4(selectors[0:4]);
+            $.allowed[vId][selector] = nonce;
+            selectors = selectors[4:];
+        }
+    }
+
+    /// @dev returns bool if nonce matches the selector allowance, you should also check hook to make sure validation is installed
+    function _allowedSelector(ValidationId vId, bytes4 selector) internal view returns (bool) {
+        ValidationStorage storage $ = _validationStorage();
+        return $.allowed[vId][selector] == $.vInfo[vId].nonce;
+    }
+
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
 
@@ -72,13 +96,8 @@ abstract contract ValidationManager {
         require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
         $.vInfo[vId].hook = hook == address(0) ? address(1) : hook;
         _internalData = _internalData[20:];
-
         // then the rest is the allowed selectors
-        while (_internalData.length >= 4) {
-            bytes4 selector = bytes4(_internalData[0:4]);
-            $.allowed[vId][selector] = true;
-            _internalData = _internalData[4:];
-        }
+        _grantAccess(vId, _internalData);
     }
 
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
