@@ -66,11 +66,8 @@ library Lib4337 {
         pure
         returns (uint256 resValidationData)
     {
-        unchecked {
-            // Short circuit
-            if (preValidationData * validationRes == 0) {
-                return preValidationData | validationRes;
-            }
+        if (preValidationData * validationRes == 0) {
+            return preValidationData | validationRes;
         }
 
         // Time bounds (unchanged)
