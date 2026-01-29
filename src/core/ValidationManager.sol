@@ -312,7 +312,7 @@ abstract contract ValidationManager {
         ValidationType vType = getType(vId);
         require(
             vType == VALIDATION_TYPE_VALIDATOR || vType == VALIDATION_TYPE_PERMISSION
-                || (_fallbackValidatorAvailable() && vType == VALIDATION_TYPE_ROOT),
+                || (_fallbackValidatorAvailable() && vType == VALIDATION_TYPE_FALLBACK),
             InvalidValidationType()
         );
         require(ValidationId.unwrap(vId) != bytes21(0) || _fallbackValidatorAvailable(), InvalidRootValidation());
