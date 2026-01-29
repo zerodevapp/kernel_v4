@@ -1,0 +1,61 @@
+Kernel_validateUserOp
+├── when the caller is not the EntryPoint
+│   └── when the caller is not the account itself
+│       └── it should revert with Unauthorized error
+├── when the caller is the EntryPoint or self
+│   ├── given the validation mode has enable flag set
+│   │   ├── given the enable signature is invalid
+│   │   │   └── it should return SIG_VALIDATION_FAILED
+│   │   ├── given the nonce has already been used
+│   │   │   └── it should revert with InvalidNonce error
+│   │   └── given the enable signature is valid and nonce is unused
+│   │       ├── it should install the packages from the signature
+│   │       ├── it should increment the nonce
+│   │       └── it should continue with userOp validation using the remaining signature
+│   ├── given the validation type is ROOT
+│   │   ├── when the signature is valid
+│   │   │   ├── it should return 0 for success
+│   │   │   └── it should allow any callData without restrictions
+│   │   └── when the signature is invalid
+│   │       └── it should return SIG_VALIDATION_FAILED
+│   ├── given the validation type is VALIDATOR
+│   │   ├── given the validator is not installed
+│   │   │   └── it should revert with InvalidValidator error
+│   │   └── given the validator is installed
+│   │       ├── given the callData selector is in the allowed list and hook is address1
+│   │       │   ├── when the validator signature is valid
+│   │       │   │   └── it should return 0 for success
+│   │       │   └── when the validator signature is invalid
+│   │       │       └── it should return SIG_VALIDATION_FAILED
+│   │       ├── given the callData selector is not directly allowed
+│   │       │   ├── when the callData does not use executeUserOp wrapper
+│   │       │   │   └── it should revert with UnauthorizedCallData error
+│   │       │   └── when the callData uses executeUserOp wrapper
+│   │       │       ├── given the inner selector is in the allowed list
+│   │       │       │   ├── it should set the validation hook for later execution
+│   │       │       │   └── it should continue with signature validation
+│   │       │       └── given the inner selector is not in the allowed list
+│   │       │           └── it should revert with UnauthorizedCallData error
+│   │       └── given a validation hook is configured
+│   │           └── it should store the hook in transient storage for executeUserOp
+│   └── given the validation type is PERMISSION
+│       ├── given the permission is not installed
+│       │   └── it should revert with InvalidPermissionId error
+│       └── given the permission is installed
+│           ├── given the callData selector restrictions are not met
+│           │   └── it should revert with UnauthorizedCallData error
+│           ├── when all policies pass validation
+│           │   ├── when the signer signature is valid
+│           │   │   └── it should return 0 for success
+│           │   └── when the signer signature is invalid
+│           │       └── it should return SIG_VALIDATION_FAILED
+│           └── when any policy fails validation
+│               └── it should return SIG_VALIDATION_FAILED
+├── given the validation mode is replayable
+│   ├── it should compute userOpHash without chainId
+│   └── it should allow the same signature to be valid across different chains
+├── given the validation mode is not replayable
+│   ├── it should compute userOpHash with chainId
+│   └── it should make the signature invalid on different chains
+└── when missingAccountFunds is greater than zero
+    └── it should transfer the funds to the EntryPoint

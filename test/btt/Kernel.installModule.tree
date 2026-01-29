@@ -1,0 +1,70 @@
+Kernel_installModule
+├── when the caller is not the EntryPoint
+│   └── when the caller is not the account itself
+│       └── it should revert with Unauthorized error
+└── when the caller is the EntryPoint or self
+    ├── given moduleType is Validator
+    │   ├── given the validator is already installed
+    │   │   └── it should revert with ValidatorAlreadyInstalled error
+    │   └── given the validator is not installed
+    │       ├── it should call onInstall on the validator with moduleData
+    │       ├── given onInstall reverts
+    │       │   └── it should propagate the revert
+    │       ├── given onInstall succeeds
+    │       │   ├── it should mark the validator as installed
+    │       │   ├── it should set the hook from internalData or address1 if empty
+    │       │   ├── it should parse allowed selectors from internalData
+    │       │   └── it should emit ModuleInstalled event
+    │       └── given internalData contains a hook address
+    │           ├── it should install the hook if not already installed
+    │           └── it should associate the hook with this validator
+    ├── given moduleType is Executor
+    │   ├── given the executor is already installed
+    │   │   └── it should revert with ExecutorAlreadyInstalled error
+    │   └── given the executor is not installed
+    │       ├── it should call onInstall on the executor with moduleData
+    │       ├── given onInstall reverts
+    │       │   └── it should propagate the revert
+    │       └── given onInstall succeeds
+    │           ├── it should mark the executor as installed
+    │           ├── it should set the hook from internalData or address1 if empty
+    │           └── it should emit ModuleInstalled event
+    ├── given moduleType is Fallback
+    │   ├── given the selector is already registered
+    │   │   └── it should revert with FallbackAlreadyInstalled error
+    │   └── given the selector is not registered
+    │       ├── it should call onInstall on the fallback handler with moduleData
+    │       └── given onInstall succeeds
+    │           ├── it should register the selector to the fallback handler
+    │           ├── it should set the callType from internalData
+    │           ├── it should set the hook from internalData or address0 if not specified
+    │           └── it should emit ModuleInstalled event
+    ├── given moduleType is Hook
+    │   ├── given the hook is already enabled
+    │   │   └── it should revert with HookAlreadyInstalled error
+    │   └── given the hook is not enabled
+    │       ├── it should call onInstall on the hook with moduleData
+    │       └── given onInstall succeeds
+    │           ├── it should mark the hook as enabled
+    │           └── it should emit ModuleInstalled event
+    ├── given moduleType is Policy
+    │   ├── it should parse the permissionId from internalData
+    │   ├── given the policy is already installed for this permissionId
+    │   │   └── it should revert with PolicyAlreadyInstalled error
+    │   └── given the policy is not installed for this permissionId
+    │       ├── it should call onInstall on the policy with moduleData
+    │       └── given onInstall succeeds
+    │           ├── it should add the policy to the permissionId policy list
+    │           └── it should emit ModuleInstalled event
+    ├── given moduleType is Signer
+    │   ├── it should parse the permissionId from internalData
+    │   ├── given a signer is already installed for this permissionId
+    │   │   └── it should revert with SignerAlreadyInstalled error
+    │   └── given no signer is installed for this permissionId
+    │       ├── it should call onInstall on the signer with moduleData
+    │       └── given onInstall succeeds
+    │           ├── it should set the signer for the permissionId
+    │           ├── it should mark the permission hook as address1 if policies exist
+    │           └── it should emit ModuleInstalled event
+    └── given moduleType is unsupported
+        └── it should revert with NotImplemented error

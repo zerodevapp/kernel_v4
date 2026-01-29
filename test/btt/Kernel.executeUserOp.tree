@@ -1,0 +1,32 @@
+Kernel_executeUserOp
+├── when the caller is not the EntryPoint
+│   └── when the caller is not the account itself
+│       └── it should revert with Unauthorized error
+└── when the caller is the EntryPoint or self
+    ├── given no validation hook is set in transient storage
+    │   ├── it should skip the preHook call
+    │   ├── it should execute the inner callData via delegatecall
+    │   └── it should skip the postHook call
+    ├── given a validation hook is set in transient storage
+    │   ├── it should call preHook on the hook contract with callData
+    │   ├── given preHook reverts
+    │   │   └── it should propagate the revert
+    │   └── given preHook succeeds
+    │       ├── it should execute the inner callData via delegatecall
+    │       ├── given the inner execution reverts
+    │       │   └── it should propagate the revert message
+    │       └── given the inner execution succeeds
+    │           ├── it should call postHook on the hook contract with context
+    │           ├── given postHook reverts
+    │           │   └── it should propagate the revert
+    │           └── given postHook succeeds
+    │               └── it should complete successfully
+    ├── when the inner callData is execute with single call
+    │   ├── it should execute the target call
+    │   └── it should return the call result
+    ├── when the inner callData is execute with batch calls
+    │   ├── it should execute all calls in order
+    │   └── it should return all results
+    └── when the inner callData is execute with delegatecall
+        ├── it should delegatecall to the target
+        └── it should return the delegatecall result

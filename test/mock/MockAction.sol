@@ -16,4 +16,12 @@ contract MockAction {
     function doSomething() external {
         emit MockActionEvent(address(this));
     }
+
+    function doAction() external {
+        emit MockActionEvent(address(this));
+    }
+
+    function doRevertingAction() external pure {
+        revert("MockAction: revert");
+    }
 }

@@ -9,6 +9,7 @@ contract MockValidator is IValidator, IHook {
     mapping(address => bool) public initialized;
     bool public success;
     uint256 public count;
+    bool public installCalled;
 
     mapping(address => bytes) public validatorData;
     mapping(bytes32 => bool) public validSig;
@@ -30,6 +31,7 @@ contract MockValidator is IValidator, IHook {
     function onInstall(bytes calldata data) external payable {
         initialized[msg.sender] = true;
         validatorData[msg.sender] = data;
+        installCalled = true;
     }
 
     function onUninstall(bytes calldata data) external payable {

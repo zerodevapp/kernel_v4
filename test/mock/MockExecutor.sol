@@ -6,11 +6,13 @@ import {IERC7579Account} from "src/interfaces/IERC7579Account.sol";
 
 contract MockExecutor is IExecutor {
     mapping(address => bytes) public data;
+    bool public installCalled;
 
     event Results(uint256 index, bytes result);
 
     function onInstall(bytes calldata _data) external payable override {
         data[msg.sender] = _data;
+        installCalled = true;
     }
 
     function onUninstall(bytes calldata) external payable override {

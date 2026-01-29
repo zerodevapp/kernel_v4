@@ -1,0 +1,22 @@
+Kernel_setRoot
+├── when caller is not EntryPoint setRoot
+│   └── it should revert with Unauthorized error
+└── when caller is EntryPoint or self setRoot
+    ├── given the overload setRoot with ValidationId is called
+    │   ├── given vId corresponds to an installed validator
+    │   │   └── it should set the new root to vId
+    │   └── given vId corresponds to an installed permission
+    │       └── it should set the new root to vId
+    └── given the overload setRoot with Install array is called
+        ├── given removeCurrent is false
+        │   └── it should install packages and set new root without uninstalling current
+        └── given removeCurrent is true
+            ├── given the current root is a VALIDATOR
+            │   └── it should uninstall validator and set new root
+            ├── given the current root is a PERMISSION
+            │   ├── given uninstallData has incorrect length
+            │   │   └── it should revert
+            │   └── given uninstallData has correct length
+            │       └── it should uninstall permission and set new root
+            └── given the current root is ROOT type
+                └── it should handle the edge case

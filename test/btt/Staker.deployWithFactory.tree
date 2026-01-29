@@ -1,0 +1,9 @@
+Staker_deployWithFactory
+├── given the factory is not approved
+│   └── it should revert with FactoryNotApproved error
+└── given the factory is approved
+    ├── it should call the factory deploy function with the provided data
+    ├── when the factory deployment succeeds
+    │   └── it should return the deployed account address
+    └── when the factory deployment reverts
+        └── it should propagate the revert

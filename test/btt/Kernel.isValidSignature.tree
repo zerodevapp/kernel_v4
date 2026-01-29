@@ -1,0 +1,62 @@
+Kernel_isValidSignature
+├── when hash equals ERC7739_MAGIC_HASH
+│   └── it should return ERC7739 support indicator
+└── when hash is not ERC7739_MAGIC_HASH
+    ├── given the signature mode byte indicates enable mode
+    │   ├── given the enable signature is invalid
+    │   │   └── it should return ERC1271_INVALID
+    │   ├── given the enable signature is valid
+    │   │   ├── it should install the packages from the signature
+    │   │   └── it should continue with the remaining signature validation
+    │   ├── given enable mode is replayable
+    │   │   ├── it should verify the enable signature without chainId
+    │   │   └── it should allow cross-chain enable mode
+    │   └── given enable mode is not replayable
+    │       ├── it should verify the enable signature with chainId
+    │       └── it should fail on different chains
+    ├── given the validation type is ROOT
+    │   ├── given the signature format is TypedDataSign
+    │   │   ├── when the root validator returns valid
+    │   │   │   └── it should return ERC1271_MAGICVALUE
+    │   │   └── when the root validator returns invalid
+    │   │       └── it should return ERC1271_INVALID
+    │   ├── given the signature format is PersonalSign
+    │   │   ├── it should wrap the hash with PersonalSign struct
+    │   │   ├── when the root validator returns valid
+    │   │   │   └── it should return ERC1271_MAGICVALUE
+    │   │   └── when the root validator returns invalid
+    │   │       └── it should return ERC1271_INVALID
+    │   └── given the signature includes domain separator and contents
+    │       └── it should verify the full TypedDataSign structure
+    ├── given the validation type is VALIDATOR
+    │   ├── given the validator is not installed
+    │   │   └── it should revert with InvalidValidator error
+    │   └── given the validator is installed
+    │       ├── given the signature format is TypedDataSign
+    │       │   ├── when the validator returns valid
+    │       │   │   └── it should return ERC1271_MAGICVALUE
+    │       │   └── when the validator returns invalid
+    │       │       └── it should return ERC1271_INVALID
+    │       └── given the signature format is PersonalSign
+    │           ├── when the validator returns valid
+    │           │   └── it should return ERC1271_MAGICVALUE
+    │           └── when the validator returns invalid
+    │               └── it should return ERC1271_INVALID
+    ├── given the validation type is PERMISSION
+    │   ├── given the permission is not installed
+    │   │   └── it should revert with InvalidPermissionId error
+    │   └── given the permission is installed
+    │       ├── given the signature format is TypedDataSign
+    │       │   ├── when all policies pass and signer returns valid
+    │       │   │   └── it should return ERC1271_MAGICVALUE
+    │       │   ├── when any policy fails
+    │       │   │   └── it should return ERC1271_INVALID
+    │       │   └── when signer returns invalid
+    │       │       └── it should return ERC1271_INVALID
+    │       └── given the signature format is PersonalSign
+    │           ├── when all policies pass and signer returns valid
+    │           │   └── it should return ERC1271_MAGICVALUE
+    │           └── when any policy or signer fails
+    │               └── it should return ERC1271_INVALID
+    └── given the validation type is unsupported
+        └── it should revert with InvalidValidationType error

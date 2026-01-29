@@ -7,9 +7,11 @@ contract MockHook is IHook {
     mapping(address => bytes) public data;
     mapping(address => bytes) public preHookData;
     mapping(address => bytes) public postHookData;
+    bool public installCalled;
 
     function onInstall(bytes calldata _data) external payable override {
         data[msg.sender] = _data;
+        installCalled = true;
     }
 
     function onUninstall(bytes calldata) external payable override {

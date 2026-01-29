@@ -1,0 +1,27 @@
+Kernel_uninstallModule
+├── when the caller is not the EntryPoint Uninstall
+│   └── it should revert with Unauthorized error
+└── when the caller is the EntryPoint or self Uninstall
+    ├── given moduleType is Validator Uninstall
+    │   ├── given the validator is not the root
+    │   │   └── it should uninstall the validator
+    │   └── it should clear validator state
+    ├── given moduleType is Executor Uninstall
+    │   ├── given uninstalling an installed executor
+    │   │   └── it should uninstall the executor
+    │   └── it should clear executor hook
+    ├── given moduleType is Fallback Uninstall
+    │   └── given the selector is registered
+    │       └── it should uninstall the fallback
+    ├── given moduleType is Hook Uninstall
+    │   ├── given uninstalling an enabled hook
+    │   │   └── it should disable the hook
+    │   └── it should clear hook state
+    ├── given moduleType is Policy Uninstall
+    │   └── given the policy is installed for this permissionId
+    │       └── it should uninstall the policy
+    ├── given moduleType is Signer Uninstall
+    │   └── given a signer is installed for this permissionId
+    │       └── it should uninstall the signer
+    └── given moduleType is unsupported
+        └── it should revert with NotImplemented error
