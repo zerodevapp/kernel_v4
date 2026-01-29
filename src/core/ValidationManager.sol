@@ -24,8 +24,6 @@ import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from ".
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 
-import {console} from "forge-std/console.sol";
-
 abstract contract ValidationManager {
     error InvalidVid(ValidationId vId);
 
@@ -68,7 +66,6 @@ abstract contract ValidationManager {
         require(selectors.length % 4 == 0, InvalidDataLength());
         ValidationStorage storage $ = _validationStorage();
         uint32 nonce = ++$.vInfo[vId].nonce;
-        console.log("Huh ???");
 
         while (selectors.length >= 4) {
             bytes4 selector = bytes4(selectors[0:4]);
