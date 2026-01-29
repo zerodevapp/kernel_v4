@@ -264,7 +264,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         _moduleStorage().nonce[nonceKey] = seq;
     }
 
-    function _checkAndIncrementNonce(uint256 _nonce) internal virtual returns (bool) {
+    function _checkAndIncrementNonce(uint256 _nonce) internal virtual {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -272,7 +272,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
             _moduleStorage().nonce[key] = _moduleStorage().nonceValidFrom;
         }
-        return _moduleStorage().nonce[key]++ == seq;
+        require(_moduleStorage().nonce[key]++ == seq, InvalidNonce());
     }
 
     function _checkNonce(uint256 _nonce) internal view virtual {
