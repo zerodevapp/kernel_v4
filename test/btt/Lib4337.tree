@@ -1,0 +1,37 @@
+Lib4337_Test
+├── when calling parseValidationData
+│   ├── given validUntil is zero in the packed data
+│   │   └── it should return max uint48 for validUntil
+│   └── given validUntil is non-zero in the packed data
+│       └── it should return the exact validUntil value
+├── when calling checkValidation
+│   ├── given validAfter is greater than current timestamp
+│   │   └── it should return false
+│   ├── given validUntil is less than current timestamp
+│   │   └── it should return false
+│   ├── given result address is not zero
+│   │   └── it should return false
+│   └── given time bounds are valid and result is zero
+│       └── it should return true
+└── when calling intersectValidationData
+    ├── given preValidationData is zero
+    │   └── it should return validationRes via short circuit
+    ├── given validationRes is zero
+    │   └── it should return preValidationData via short circuit
+    ├── given both values are non-zero
+    │   ├── given validUntil1 is zero
+    │   │   └── it should treat validUntil1 as max uint48
+    │   ├── given validUntil2 is zero
+    │   │   └── it should treat validUntil2 as max uint48
+    │   ├── given validUntil1 is greater than validUntil2
+    │   │   └── it should use validUntil2 in the result
+    │   ├── given validUntil1 is less than or equal to validUntil2
+    │   │   └── it should use validUntil1 in the result
+    │   ├── given validAfter1 is less than validAfter2
+    │   │   └── it should use validAfter2 in the result
+    │   ├── given validAfter1 is greater than or equal to validAfter2
+    │   │   └── it should use validAfter1 in the result
+    │   ├── given preValidationData result is 1 for aggregator
+    │   │   └── it should return 1 as the result address
+    │   └── given preValidationData result is not 1
+    │       └── it should return validationRes result address
