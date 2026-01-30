@@ -9,6 +9,12 @@ contract MockHook is IHook {
     mapping(address => bytes) public postHookData;
     bool public installCalled;
 
+    // State for BTT testing
+    bool private _preHookCalled;
+    bool private _postHookCalled;
+    bool private _revertOnPreHook;
+    bool private _revertOnPostHook;
+
     function onInstall(bytes calldata _data) external payable override {
         data[msg.sender] = _data;
         installCalled = true;
@@ -32,11 +38,43 @@ contract MockHook is IHook {
         override
         returns (bytes memory hookData)
     {
+        if (_revertOnPreHook) {
+            revert("preHook reverted");
+        }
+        _preHookCalled = true;
         preHookData[msg.sender] = abi.encodePacked(msgSender, msgData);
         return data[msg.sender];
     }
 
     function postCheck(bytes calldata hookData) external payable override {
+        if (_revertOnPostHook) {
+            revert("postHook reverted");
+        }
+        _postHookCalled = true;
         postHookData[msg.sender] = hookData;
+    }
+
+    // BTT helper functions
+    function preHookCalled() external view returns (bool) {
+        return _preHookCalled;
+    }
+
+    function postHookCalled() external view returns (bool) {
+        return _postHookCalled;
+    }
+
+    function setRevertOnPreHook(bool shouldRevert) external {
+        _revertOnPreHook = shouldRevert;
+    }
+
+    function setRevertOnPostHook(bool shouldRevert) external {
+        _revertOnPostHook = shouldRevert;
+    }
+
+    function resetState() external {
+        _preHookCalled = false;
+        _postHookCalled = false;
+        _revertOnPreHook = false;
+        _revertOnPostHook = false;
     }
 }

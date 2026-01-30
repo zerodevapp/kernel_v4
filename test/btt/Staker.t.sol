@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {IStakeManager} from "account-abstraction/interfaces/IStakeManager.sol";
 import {Staker} from "src/Staker.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
@@ -13,6 +14,7 @@ import {MockValidator} from "../mock/MockValidator.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {APPROVE_FACTORY_STRUCT_HASH} from "src/types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 
 /// @title Staker BTT Tests
 /// @notice Tests for Staker following Branching Tree Technique
@@ -97,7 +99,7 @@ contract Staker_Test is Test {
 
     /// @notice it should revert with Unauthorized error when caller is not owner
     function test_RevertWhen_ApproveFactory_CallerNotOwner() external whenCallerIsNotOwner {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         staker.approveFactory(address(factory), true);
     }
 
@@ -127,7 +129,7 @@ contract Staker_Test is Test {
 
     /// @notice it should revert with Unauthorized error when caller is not owner
     function test_RevertWhen_RevokeFactory_CallerNotOwner() external givenFactoryIsApproved whenCallerIsNotOwner {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         staker.approveFactory(address(factory), false);
     }
 
@@ -175,7 +177,7 @@ contract Staker_Test is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert();
+        vm.expectRevert("InvalidSignature");
         staker.approveFactoryWithSignature(address(factory), true, signature);
     }
 
@@ -213,7 +215,7 @@ contract Staker_Test is Test {
 
     /// @notice it should revert when caller is not owner
     function test_RevertWhen_Stake_CallerNotOwner() external whenCallerIsNotOwner {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         staker.stake{value: 1 ether}(ep, 1 days);
     }
 
@@ -233,7 +235,7 @@ contract Staker_Test is Test {
 
     /// @notice it should revert when caller is not owner
     function test_RevertWhen_UnlockStake_CallerNotOwner() external whenCallerIsNotOwner {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         staker.unlockStake(ep);
     }
 
@@ -255,7 +257,7 @@ contract Staker_Test is Test {
 
     /// @notice it should revert when caller is not owner
     function test_RevertWhen_WithdrawStake_CallerNotOwner() external whenCallerIsNotOwner {
-        vm.expectRevert();
+        vm.expectRevert(Ownable.Unauthorized.selector);
         staker.withdrawStake(ep, payable(owner));
     }
 
@@ -265,7 +267,11 @@ contract Staker_Test is Test {
         staker.unlockStake(ep);
 
         // Try to withdraw immediately (still locked)
-        vm.expectRevert();
+        // The withdrawTime will be block.timestamp + 1 days, and we're at block.timestamp = 1
+        uint256 withdrawTime = block.timestamp + 1 days;
+        vm.expectRevert(
+            abi.encodeWithSelector(IStakeManager.WithdrawalNotDue.selector, withdrawTime, block.timestamp)
+        );
         staker.withdrawStake(ep, payable(owner));
     }
 

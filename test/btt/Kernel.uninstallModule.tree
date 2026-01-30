@@ -3,25 +3,27 @@ Kernel_uninstallModule
 │   └── it should revert with Unauthorized error
 └── when the caller is the EntryPoint or self Uninstall
     ├── given moduleType is Validator Uninstall
-    │   ├── given the validator is not the root
-    │   │   └── it should uninstall the validator
-    │   └── it should clear validator state
+    │   ├── given the validator is installed Uninstall
+    │   │   └── it should clear validator hook state
+    │   └── given the validator is not installed Uninstall
+    │       └── it should be a no-op and leave root unchanged
     ├── given moduleType is Executor Uninstall
-    │   ├── given uninstalling an installed executor
-    │   │   └── it should uninstall the executor
     │   └── it should clear executor hook
     ├── given moduleType is Fallback Uninstall
-    │   └── given the selector is registered
-    │       └── it should uninstall the fallback
+    │   └── it should clear selector config for the selector
     ├── given moduleType is Hook Uninstall
-    │   ├── given uninstalling an enabled hook
-    │   │   └── it should disable the hook
-    │   └── it should clear hook state
+    │   └── it should disable the hook
     ├── given moduleType is Policy Uninstall
-    │   └── given the policy is installed for this permissionId
-    │       └── it should uninstall the policy
+    │   ├── given the policy is the last installed policy
+    │   │   └── it should pop the policy from the list
+    │   └── given the policy is not the last installed policy
+    │       └── it should revert with InvalidPermissionUninstallOrder error
     ├── given moduleType is Signer Uninstall
-    │   └── given a signer is installed for this permissionId
-    │       └── it should uninstall the signer
+    │   ├── given policies remain installed
+    │   │   └── it should revert with InvalidPermissionUninstallOrder error
+    │   ├── given the signer does not match current signer
+    │   │   └── it should revert with InvalidPermissionId error
+    │   └── given the signer matches and no policies remain
+    │       └── it should clear signer and hook state
     └── given moduleType is unsupported
         └── it should revert with NotImplemented error

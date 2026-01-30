@@ -1,0 +1,8 @@
+Kernel_setValidNonceFrom
+├── when caller is not EntryPoint
+│   └── it should revert with Unauthorized error
+└── when caller is EntryPoint or self
+    ├── given seq is less than or equal to current validNonceFrom
+    │   └── it should revert with InvalidNonce error
+    └── given seq is greater than current validNonceFrom
+        └── it should update validNonceFrom to seq

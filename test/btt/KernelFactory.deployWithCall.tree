@@ -1,0 +1,14 @@
+KernelFactory_deployWithCall
+├── when the address is already deployed for this initPackages hash and nonce
+│   ├── it should return the existing account address
+│   ├── it should execute extraCall on the account
+│   └── when extraCall reverts
+│       └── it should revert with "call failed"
+└── when the address is not yet deployed
+    ├── it should deploy a new KernelUUPS proxy using CREATE2
+    ├── it should initialize the account with the packages
+    ├── it should execute extraCall on the account
+    ├── when extraCall reverts
+    │   └── it should revert with "call failed"
+    └── given msg value is sent
+        └── it should fund the deployed account

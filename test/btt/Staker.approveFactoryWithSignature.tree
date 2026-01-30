@@ -1,0 +1,6 @@
+Staker_approveFactoryWithSignature
+├── given the signature is invalid
+│   └── it should revert with "InvalidSignature"
+└── given the signature is valid
+    ├── it should set the factory approval
+    └── it should allow cross-chain signatures (sans chainId)

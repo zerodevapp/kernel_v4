@@ -8,7 +8,6 @@ import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 /// @notice Tests for supportsExecutionMode following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.supportsExecutionMode.tree
 abstract contract Kernel_supportsExecutionMode is BTTModifiers {
-
     function _encodeMode(bytes1 callType, bytes1 execType) internal pure returns (bytes32) {
         return bytes32(abi.encodePacked(callType, execType, bytes4(0), bytes4(0), bytes22(0)));
     }

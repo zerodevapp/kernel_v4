@@ -14,7 +14,6 @@ import {NotImplemented} from "src/types/Error.sol";
 /// @notice Tests for isModuleInstalled following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.isModuleInstalled.tree
 abstract contract Kernel_isModuleInstalled is BTTModifiers {
-
     /*//////////////////////////////////////////////////////////////
                         VALIDATOR (TYPE 1) TESTS
     //////////////////////////////////////////////////////////////*/
@@ -29,17 +28,13 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
         vm.prank(address(ep));
         kernel.installModule(1, address(mockValidator), abi.encode(hex"", hex""));
 
-        assertTrue(
-            kernel.isModuleInstalled(1, address(mockValidator), ""),
-            "Installed validator should return true"
-        );
+        assertTrue(kernel.isModuleInstalled(1, address(mockValidator), ""), "Installed validator should return true");
     }
 
     function test_GivenTheValidatorIsNotInstalled() external givenModuleTypeIdIs1Validator {
         MockValidator mockValidator = new MockValidator();
         assertFalse(
-            kernel.isModuleInstalled(1, address(mockValidator), ""),
-            "Not installed validator should return false"
+            kernel.isModuleInstalled(1, address(mockValidator), ""), "Not installed validator should return false"
         );
     }
 
@@ -56,17 +51,13 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
         vm.prank(address(ep));
         kernel.installModule(2, address(mockExecutor), abi.encode(hex"", hex""));
 
-        assertTrue(
-            kernel.isModuleInstalled(2, address(mockExecutor), ""),
-            "Installed executor should return true"
-        );
+        assertTrue(kernel.isModuleInstalled(2, address(mockExecutor), ""), "Installed executor should return true");
     }
 
     function test_GivenTheExecutorIsNotInstalled() external givenModuleTypeIdIs2Executor {
         MockExecutor mockExecutor = new MockExecutor();
         assertFalse(
-            kernel.isModuleInstalled(2, address(mockExecutor), ""),
-            "Not installed executor should return false"
+            kernel.isModuleInstalled(2, address(mockExecutor), ""), "Not installed executor should return false"
         );
     }
 
@@ -116,18 +107,12 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
         vm.prank(address(ep));
         kernel.installModule(4, address(mockHook), abi.encode(hex"", ""));
 
-        assertTrue(
-            kernel.isModuleInstalled(4, address(mockHook), ""),
-            "Enabled hook should return true"
-        );
+        assertTrue(kernel.isModuleInstalled(4, address(mockHook), ""), "Enabled hook should return true");
     }
 
     function test_GivenTheHookIsNotEnabled() external givenModuleTypeIdIs4Hook {
         MockHook mockHook = new MockHook();
-        assertFalse(
-            kernel.isModuleInstalled(4, address(mockHook), ""),
-            "Not enabled hook should return false"
-        );
+        assertFalse(kernel.isModuleInstalled(4, address(mockHook), ""), "Not enabled hook should return false");
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -1,35 +1,92 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {FactoryBTTModifiers} from "./FactoryBTTModifiers.sol";
+import {Kernel} from "src/Kernel.sol";
+import {Install} from "src/types/Structs.sol";
+import {InvalidRootValidation} from "src/types/Error.sol";
 
-abstract contract KernelFactory_deploy is Test {
-    function test_WhenTheSaltHasAlreadyBeenUsedForThisInitPackagesHash() external {
-        // it should revert with CREATE2 collision
-    }
+abstract contract KernelFactory_deploy is FactoryBTTModifiers {
 
-    modifier whenTheSaltIsUnique() {
+    modifier whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce() {
         _;
     }
 
-    function test_GivenPackagesArrayIsEmpty() external whenTheSaltIsUnique {
-        // it should revert during initialization
+    function test_WhenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce()
+        external
+        whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce
+    {
+        _initializeFactory();
+        // it should return the existing account address
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        // Deploy first time
+        Kernel account1 = factory.deploy(packages, 0);
+
+        // Deploy again with same params - should return existing
+        Kernel account2 = factory.deploy(packages, 0);
+
+        assertEq(address(account1), address(account2), "Should return existing account address");
     }
 
-    function test_GivenPackagesArrayHasValidModules() external whenTheSaltIsUnique {
+    function test_GivenMsgValueIsSent()
+        external
+        whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce
+    {
+        _initializeFactory();
+        // it should forward the ETH to the existing account
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        // Deploy first time
+        Kernel account = factory.deploy(packages, 0);
+        uint256 balanceBefore = address(account).balance;
+
+        // Deploy again with ETH - should forward to existing
+        vm.deal(address(this), 1 ether);
+        factory.deploy{value: 1 ether}(packages, 0);
+
+        assertEq(address(account).balance, balanceBefore + 1 ether, "ETH should be forwarded to existing account");
+    }
+
+    modifier whenTheAddressIsNotYetDeployed() {
+        _;
+    }
+
+    function test_GivenPackagesArrayIsEmpty() external whenTheAddressIsNotYetDeployed {
+        _initializeFactory();
+        // it should revert during initialization
+        Install[] memory packages = new Install[](0);
+
+        vm.expectRevert(InvalidRootValidation.selector);
+        factory.deploy(packages, 0);
+    }
+
+    function test_GivenPackagesArrayHasValidModules() external whenTheAddressIsNotYetDeployed {
+        _initializeFactory();
         // it should deploy a new KernelUUPS proxy using CREATE2
         // it should initialize the account with the packages
-        // it should set the first package as the root validator
         // it should return the deployed account address
-        // it should emit AccountCreated event
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        Kernel account = factory.deploy(packages, 0);
+
+        assertTrue(address(account) != address(0), "Account should be deployed");
+        assertTrue(address(account).code.length > 0, "Account should have code");
+        assertTrue(account.isModuleInstalled(1, address(rootValidator), ""), "Validator should be installed");
     }
 
-    function test_GivenThePredictedAddressAlreadyHasCode() external whenTheSaltIsUnique {
-        // it should return the existing address without redeploying
-    }
+    function test_GivenMsgValueIsSent_WhenTheAddressIsNotYetDeployed() external whenTheAddressIsNotYetDeployed {
+        _initializeFactory();
+        // it should fund the deployed account
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-    function test_GivenMsgValueIsSentWithTheCall() external whenTheSaltIsUnique {
-        // it should forward the ETH to the deployed account
-        // it should initialize the account with the ETH balance
+        vm.deal(address(this), 1 ether);
+        Kernel account = factory.deploy{value: 1 ether}(packages, 0);
+
+        assertEq(address(account).balance, 1 ether, "Account should receive ETH");
     }
 }

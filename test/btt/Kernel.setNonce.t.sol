@@ -8,7 +8,6 @@ import {Unauthorized, InvalidNonce} from "src/types/Error.sol";
 /// @notice Tests for setNonce following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.setNonce.tree
 abstract contract Kernel_setNonce is BTTModifiers {
-
     /*//////////////////////////////////////////////////////////////
                         UNAUTHORIZED CALLER TESTS
     //////////////////////////////////////////////////////////////*/

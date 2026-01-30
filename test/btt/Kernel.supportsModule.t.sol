@@ -7,7 +7,6 @@ import {BTTModifiers} from "./BTTModifiers.sol";
 /// @notice Tests for supportsModule following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.supportsModule.tree
 abstract contract Kernel_supportsModule is BTTModifiers {
-
     function test_GivenModuleTypeIdIs0() external {
         assertFalse(kernel.supportsModule(0), "Should not support moduleType 0");
     }

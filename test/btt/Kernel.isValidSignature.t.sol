@@ -6,7 +6,10 @@ import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {BTTModifiers} from "./BTTModifiers.sol";
 import {Install} from "src/types/Structs.sol";
 import {Kernel} from "src/Kernel.sol";
-import {InvalidValidationType, InvalidValidator, InvalidPermissionId} from "src/types/Error.sol";
+import {InvalidValidationType, InvalidValidator, InvalidPermissionId, InvalidNonce} from "src/types/Error.sol";
+import {MockPolicy} from "../mock/MockPolicy.sol";
+import {MockSigner} from "../mock/MockSigner.sol";
+import {PermissionId} from "src/types/Types.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
 
 /// @title Kernel.isValidSignature BTT Tests
@@ -25,6 +28,80 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
 
     modifier givenTheSignatureModeByteIndicatesEnableMode() {
         _;
+    }
+
+    function test_GivenTheValidationTypeIsROOT()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureModeByteIndicatesEnableMode
+    {
+        // it should revert with InvalidValidationType error
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _rootSignHash, false, true);
+
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+
+        uint8 uMode = 0;
+        uMode += 2 ** 3; // enable mode flag
+
+        // ROOT validation type (0x00) is not allowed with enable mode
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x00), // ROOT validation type
+            bytes20(0),   // No validator address for root
+            abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
+        );
+
+        vm.expectRevert(InvalidValidationType.selector);
+        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
+    }
+
+    function test_GivenTheEnableNonceIsInvalid()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureModeByteIndicatesEnableMode
+    {
+        // it should revert with InvalidNonce error
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
+
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+
+        uint8 uMode = 0;
+        uMode += 2 ** 3; // enable mode flag
+
+        // First, use nonce 0
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x01),
+            newValidator,
+            abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
+        );
+
+        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
+
+        // Now try to use nonce 0 again - should fail
+        bytes32 messageHash2 = keccak256("Hello world 2");
+        (bytes32 contentsHash2, bytes memory sig2) =
+            _erc1271Signature(messageHash2, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
+
+        MockValidator newValidator2 = new MockValidator();
+        Install[] memory packages2 = new Install[](1);
+        packages2[0] = Install({moduleType: 1, module: address(newValidator2), moduleData: hex"", internalData: hex""});
+
+        bytes memory sigWithEnable2 = abi.encodePacked(
+            uMode,
+            bytes1(0x01),
+            newValidator2,
+            abi.encode(uint256(0), packages2, enableSig(0, true, false, packages2, _rootSignHash), sig2)
+        );
+
+        vm.expectRevert(InvalidNonce.selector);
+        kernel.isValidSignature(_toContentsHash(contentsHash2), sigWithEnable2);
     }
 
     function test_GivenTheEnableSignatureIsInvalid()
@@ -55,6 +132,10 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         assertEq(res, ERC1271_INVALID, "Enable mode with invalid signature should return INVALID");
     }
 
+    modifier givenTheEnableSignatureIsValid() {
+        _;
+    }
+
     function test_GivenTheEnableSignatureIsValid()
         external
         whenHashIsNotERC7739_MAGIC_HASH
@@ -81,6 +162,82 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
 
         bytes4 res = kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
         assertEq(res, ERC1271_MAGICVALUE, "Enable mode with valid signature should return MAGICVALUE");
+    }
+
+    function test_GivenTheValidatorPackageIsMissing()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureModeByteIndicatesEnableMode
+        givenTheEnableSignatureIsValid
+    {
+        // it should revert with InvalidValidator error
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
+
+        // Create packages that don't include the validator specified in the signature
+        MockValidator wrongValidator = new MockValidator();
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(wrongValidator), moduleData: hex"", internalData: hex""});
+
+        uint8 uMode = 0;
+        uMode += 2 ** 3; // enable mode flag
+
+        // The signature specifies newValidator but packages install wrongValidator
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x01),
+            newValidator, // This validator is NOT in the packages
+            abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
+        );
+
+        vm.expectRevert(InvalidValidator.selector);
+        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
+    }
+
+    function test_GivenThePermissionSignaturesAreInconsistent()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureModeByteIndicatesEnableMode
+        givenTheEnableSignatureIsValid
+    {
+        // it should revert with InvalidPermissionId error
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
+
+        // Create packages with inconsistent permissionIds
+        MockPolicy mockPolicy = new MockPolicy();
+        MockSigner mockSigner = new MockSigner();
+        PermissionId permId1 = PermissionId.wrap(bytes4(keccak256("permId1")));
+        PermissionId permId2 = PermissionId.wrap(bytes4(keccak256("permId2"))); // Different!
+
+        Install[] memory packages = new Install[](2);
+        packages[0] = Install({
+            moduleType: 5,
+            module: address(mockPolicy),
+            moduleData: hex"",
+            internalData: abi.encodePacked(permId1)
+        });
+        packages[1] = Install({
+            moduleType: 6,
+            module: address(mockSigner),
+            moduleData: hex"",
+            internalData: abi.encodePacked(permId2) // Different permissionId!
+        });
+
+        uint8 uMode = 0;
+        uMode += 2 ** 3; // enable mode flag
+
+        bytes memory sigWithEnable = abi.encodePacked(
+            uMode,
+            bytes1(0x02), // PERMISSION validation type
+            permId1,
+            abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
+        );
+
+        vm.expectRevert(InvalidPermissionId.selector);
+        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
     }
 
     function test_GivenEnableModeIsReplayable()
@@ -374,7 +531,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
 
-        vm.expectRevert();
+        vm.expectRevert(InvalidPermissionId.selector);
         kernel.isValidSignature(
             _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
         );
@@ -695,11 +852,12 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         givenHashIsNotERC7739MagicHash
         givenValidationTypeIsPermission
     {
+        // it should revert with InvalidPermissionId error
         bytes32 messageHash = keccak256("Hello world");
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
 
-        vm.expectRevert();
+        vm.expectRevert(InvalidPermissionId.selector);
         kernel.isValidSignature(
             _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
         );

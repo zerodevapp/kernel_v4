@@ -13,6 +13,7 @@ import {MockCallee} from "../mock/MockCallee.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
+import {InvalidRootValidation} from "src/types/Error.sol";
 
 /// @title KernelFactory BTT Tests
 /// @notice Tests for KernelFactory following Branching Tree Technique
@@ -72,7 +73,8 @@ contract KernelFactory_Test is Test {
     function test_RevertWhen_PackagesArrayIsEmpty() external givenPackagesArrayIsEmpty {
         Install[] memory packages = new Install[](0);
 
-        vm.expectRevert();
+        // it should revert with InvalidRootValidation error
+        vm.expectRevert(InvalidRootValidation.selector);
         factory.deploy(packages, 0);
     }
 
@@ -176,7 +178,7 @@ contract KernelFactory_Test is Test {
             abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
         );
 
-        vm.expectRevert();
+        vm.expectRevert("call failed");
         factory.deployWithCall(packages, 0, callData);
     }
 

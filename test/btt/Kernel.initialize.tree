@@ -1,9 +1,9 @@
 Kernel_initialize
 ├── given the account has already been initialized
-│   └── it should revert
+│   └── it should revert with InvalidInitialization error
 └── given the account has not been initialized
     ├── when packages array is empty
-    │   └── it should revert
+    │   └── it should revert with InvalidInitialization error
     └── when packages array has one or more elements
         ├── it should install all packages in order
         ├── given the first package is a validator
@@ -16,6 +16,8 @@ Kernel_initialize
         │   │   ├── it should install the signer
         │   │   └── it should set the permission as the root
         │   └── given the permission setup is incomplete
-        │       └── it should revert or have invalid state
+        │       └── it should revert with "Permission Install not finished"
+        ├── given the first package is not a validator or permission
+        │   └── it should revert with InvalidRootValidation error
         └── given subsequent packages contain executors hooks or fallbacks
             └── it should install all modules correctly

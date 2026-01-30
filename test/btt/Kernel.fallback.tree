@@ -18,19 +18,31 @@ Kernel_fallback
     │       │   │   └── it should return the call result
     │       │   └── when the target call reverts
     │       │       └── it should propagate the revert
-    │       └── given callType is DELEGATECALL
-    │           ├── it should delegatecall the target with msgdata
-    │           ├── when the delegatecall succeeds
-    │           │   └── it should return the delegatecall result
-    │           └── when the delegatecall reverts
-    │               └── it should propagate the revert
+    │       ├── given callType is DELEGATECALL
+    │       │   ├── it should delegatecall the target with msgdata
+    │       │   ├── when the delegatecall succeeds
+    │       │   │   └── it should return the delegatecall result
+    │       │   └── when the delegatecall reverts
+    │       │       └── it should propagate the revert
+    │       └── given callType is unsupported
+    │           └── it should revert with InvalidCallType error
     ├── given the selector is registered with hook set to address1
     │   ├── it should skip preHook and postHook
     │   ├── it should allow any caller
     │   ├── given callType is CALL
-    │   │   └── it should call the target with msgdata plus msgsender
-    │   └── given callType is DELEGATECALL
-    │       └── it should delegatecall the target with msgdata
+    │   │   ├── it should call the target with msgdata plus msgsender
+    │   │   ├── when the target call succeeds
+    │   │   │   └── it should return the call result
+    │   │   └── when the target call reverts
+    │   │       └── it should propagate the revert
+    │   ├── given callType is DELEGATECALL
+    │   │   ├── it should delegatecall the target with msgdata
+    │   │   ├── when the delegatecall succeeds
+    │   │   │   └── it should return the delegatecall result
+    │   │   └── when the delegatecall reverts
+    │   │       └── it should propagate the revert
+    │   └── given callType is unsupported
+    │       └── it should revert with InvalidCallType error
     └── given the selector is registered with a hook contract
         ├── it should call preHook on the hook with msgdata
         ├── given preHook reverts
@@ -40,13 +52,21 @@ Kernel_fallback
             │   ├── it should call the target with msgdata plus msgsender
             │   ├── when the target call succeeds
             │   │   ├── it should call postHook with the context from preHook
-            │   │   └── it should return the call result
+            │   │   ├── given postHook reverts
+            │   │   │   └── it should propagate the revert
+            │   │   └── given postHook succeeds
+            │   │       └── it should return the call result
             │   └── when the target call reverts
             │       └── it should propagate the revert and skip postHook
-            └── given callType is DELEGATECALL
-                ├── it should delegatecall the target with msgdata
-                ├── when the delegatecall succeeds
-                │   ├── it should call postHook with the context from preHook
-                │   └── it should return the delegatecall result
-                └── when the delegatecall reverts
-                    └── it should propagate the revert and skip postHook
+            ├── given callType is DELEGATECALL
+            │   ├── it should delegatecall the target with msgdata
+            │   ├── when the delegatecall succeeds
+            │   │   ├── it should call postHook with the context from preHook
+            │   │   ├── given postHook reverts
+            │   │   │   └── it should propagate the revert
+            │   │   └── given postHook succeeds
+            │   │       └── it should return the delegatecall result
+            │   └── when the delegatecall reverts
+            │       └── it should propagate the revert and skip postHook
+            └── given callType is unsupported
+                └── it should revert with InvalidCallType error

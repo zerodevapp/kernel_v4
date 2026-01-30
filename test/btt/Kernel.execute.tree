@@ -3,6 +3,8 @@ Kernel_execute
 │   └── when the caller is not the account itself
 │       └── it should revert with Unauthorized error
 └── when the caller is the EntryPoint or self
+    ├── given the execution mode execType is unsupported
+    │   └── it should revert with InvalidExecType error
     ├── given the execution mode callType is SINGLE
     │   ├── given the execution mode execType is DEFAULT
     │   │   ├── when the target call succeeds
@@ -47,4 +49,4 @@ Kernel_execute
     │           ├── it should NOT propagate the revert
     │           └── it should return empty bytes
     └── given the execution mode callType is unsupported
-        └── it should revert
+        └── it should revert with InvalidCallType error

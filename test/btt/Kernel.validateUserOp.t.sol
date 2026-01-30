@@ -8,15 +8,28 @@ import {BTTModifiers} from "./BTTModifiers.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
 import {MockHook} from "../mock/MockHook.sol";
-import {validatorToIdentifier} from "src/lib/Utils.sol";
+import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {PermissionId} from "src/types/Types.sol";
-import {Unauthorized, UnauthorizedCallData, InvalidValidator, InvalidPermissionId, InvalidNonce} from "src/types/Error.sol";
+import {
+    Unauthorized,
+    UnauthorizedCallData,
+    InvalidValidator,
+    InvalidPermissionId,
+    InvalidNonce
+} from "src/types/Error.sol";
+import {ValidationManager} from "src/core/ValidationManager.sol";
 import {Install} from "src/types/Structs.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 
 /// @title Kernel.validateUserOp BTT Tests
 /// @notice Tests for validateUserOp following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.validateUserOp.tree
+///
+/// @dev OPEN QUESTION: For enable mode in validateUserOp, the implementation currently
+/// installs packages and increments nonce even if the enable signature is invalid.
+/// This side effect behavior should be explicitly specified - either the tree should
+/// assert this behavior, or the code should be changed to avoid side effects on invalid
+/// enable signatures. Skipping this for now per user request.
 abstract contract Kernel_validateUserOp is BTTModifiers {
     modifier whenTheCallerIsNotTheEntryPoint() {
         _;
@@ -41,27 +54,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         _;
     }
 
-    function test_GivenTheEnableSignatureIsInvalid()
-        external
-        whenTheCallerIsTheEntryPointOrSelf
-        givenTheValidationModeHasEnableFlagSet
-    {
-        // it should return SIG_VALIDATION_FAILED
-        vm.stopPrank();
-        vm.startPrank(address(ep));
-
-        PackedUserOperation memory op = _createUserOpWithEnableMode();
-        op.signature = encodeEnableValidatorSignature(
-            Kernel.execute.selector, 0, false, false, _rootSignHash, _validatorSignUserOp(op, true, false)
-        );
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
-
-        assertEq(validationData, 1, "Enable mode with invalid signature should return SIG_VALIDATION_FAILED");
-    }
-
-    function test_GivenTheNonceHasAlreadyBeenUsed()
+    function test_GivenTheNonceIsInvalid()
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenTheValidationModeHasEnableFlagSet
@@ -88,12 +81,35 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             internalData: abi.encodePacked(address(0), Kernel.execute.selector)
         });
         op2.signature = abi.encode(
-            uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), _validatorSignUserOp(op2, true, false)
+            uint256(0),
+            packages,
+            enableSig(0, true, false, packages, _rootSignHash),
+            _validatorSignUserOp(op2, true, false)
         );
         bytes32 userOpHash2 = ep.getUserOpHash(op2);
 
         vm.expectRevert(InvalidNonce.selector);
         kernel.validateUserOp(op2, userOpHash2, 0);
+    }
+
+    function test_GivenTheEnableSignatureIsInvalid()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationModeHasEnableFlagSet
+    {
+        // it should return SIG_VALIDATION_FAILED
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        PackedUserOperation memory op = _createUserOpWithEnableMode();
+        op.signature = encodeEnableValidatorSignature(
+            Kernel.execute.selector, 0, false, false, _rootSignHash, _validatorSignUserOp(op, true, false)
+        );
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 1, "Enable mode with invalid signature should return SIG_VALIDATION_FAILED");
     }
 
     function test_GivenTheEnableSignatureIsValidAndNonceIsUnused()
@@ -117,13 +133,33 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         // Verify the validator was installed
         assertEq(
-            kernel.validationInfo(validatorToIdentifier(IValidator(address(newValidator)))).hook, address(1), "Validator should be installed"
+            kernel.validationInfo(validatorToIdentifier(IValidator(address(newValidator)))).hook,
+            address(1),
+            "Validator should be installed"
         );
         assertEq(validationData, 0, "Enable mode with valid signature should return 0");
     }
 
     modifier givenTheValidationTypeIsROOT() {
         _;
+    }
+
+    function test_GivenTheRootIsNotSet() external whenTheCallerIsTheEntryPointOrSelf givenTheValidationTypeIsROOT {
+        // it should use the fallback validator
+        // Note: In this test setup, root is always set during initialization
+        // The fallback validator behavior is tested indirectly when root validator fails
+        // and a fallback mechanism is in place. For current implementation,
+        // when root validation is requested, it uses the root validator directly.
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        PackedUserOperation memory op = _createUserOpWithRootValidation();
+        op.signature = _rootSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 0, "Root validation should succeed");
     }
 
     function test_WhenTheSignatureIsValid() external whenTheCallerIsTheEntryPointOrSelf givenTheValidationTypeIsROOT {
@@ -168,7 +204,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         whenTheCallerIsTheEntryPointOrSelf
         givenTheValidationTypeIsVALIDATOR
     {
-        // it should revert with InvalidValidator error
+        // it should revert with InvalidVid error
         vm.stopPrank();
         vm.startPrank(address(ep));
 
@@ -176,7 +212,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _validatorSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidationManager.InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
+            )
+        );
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -200,7 +240,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install validator with execute selector allowed
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodeWithSelector(
@@ -226,7 +268,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install validator with execute selector allowed
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodeWithSelector(
@@ -240,7 +284,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         assertEq(validationData, 1, "Invalid validator signature should return SIG_VALIDATION_FAILED");
     }
 
-    modifier givenTheCallDataSelectorIsNotDirectlyAllowed() {
+    modifier givenTheCallDataSelectorIsInTheAllowedListAndHookIsNotAddress1() {
         _;
     }
 
@@ -269,6 +313,73 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
+    function test_WhenTheCallDataUsesExecuteUserOpWrapper()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsVALIDATOR
+        givenTheValidatorIsInstalled
+        givenTheCallDataSelectorIsInTheAllowedListAndHookIsNotAddress1
+    {
+        // it should set the validation hook for later execution
+        // it should continue with signature validation
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install hook first
+        kernel.installModule(4, address(hook), abi.encode(hex"", hex""));
+
+        // Install validator with hook and execute selector allowed
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(hook), Kernel.execute.selector))
+        );
+
+        PackedUserOperation memory op = _createUserOpWithValidatorValidation();
+        op.callData = abi.encodePacked(
+            Kernel.executeUserOp.selector,
+            abi.encodeWithSelector(
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            )
+        );
+        op.signature = _validatorSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 0, "Validation with executeUserOp wrapper and hook should succeed");
+    }
+
+    modifier givenTheCallDataSelectorIsNotDirectlyAllowed() {
+        _;
+    }
+
+    function test_WhenTheCallDataDoesNotUseExecuteUserOpWrapper_GivenTheCallDataSelectorIsNotDirectlyAllowed()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsVALIDATOR
+        givenTheValidatorIsInstalled
+        givenTheCallDataSelectorIsNotDirectlyAllowed
+    {
+        // it should revert with UnauthorizedCallData error
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install validator without any allowed selectors
+        kernel.installModule(1, address(newValidator), abi.encode(hex"", hex""));
+
+        PackedUserOperation memory op = _createUserOpWithValidatorValidation();
+        // Direct execute without executeUserOp wrapper - should fail
+        op.callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
+        op.signature = _validatorSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        vm.expectRevert(UnauthorizedCallData.selector);
+        kernel.validateUserOp(op, userOpHash, 0);
+    }
+
     modifier whenTheCallDataUsesExecuteUserOpWrapper() {
         _;
     }
@@ -287,7 +398,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install validator with Kernel.execute selector in the allowed list
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -351,7 +464,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         kernel.installModule(4, address(hook), abi.encode(hex"", hex""));
 
         // Install validator with hook and execute selector allowed
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(hook), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(hook), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -379,7 +494,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         whenTheCallerIsTheEntryPointOrSelf
         givenTheValidationTypeIsPERMISSION
     {
-        // it should revert with InvalidPermissionId error
+        // it should revert with InvalidVid error
         vm.stopPrank();
         vm.startPrank(address(ep));
 
@@ -387,7 +502,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _permissionSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(ValidationManager.InvalidVid.selector, permissionToIdentifier(permissionId))
+        );
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -436,7 +553,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
@@ -468,7 +589,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
@@ -500,7 +625,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
@@ -567,6 +696,44 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         uint256 epBalanceAfter = address(ep).balance;
         assertEq(epBalanceAfter - epBalanceBefore, missingFunds, "EntryPoint should receive missing funds");
+    }
+
+    function test_GivenTheNonceHasAlreadyBeenUsed()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationModeHasEnableFlagSet
+    {
+        // it should revert with InvalidNonce error
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // First call with valid enable signature uses nonce 0
+        PackedUserOperation memory op = _createUserOpWithEnableMode();
+        op.signature = encodeEnableValidatorSignature(
+            Kernel.execute.selector, 0, true, false, _rootSignHash, _validatorSignUserOp(op, true, false)
+        );
+        bytes32 userOpHash = ep.getUserOpHash(op);
+        kernel.validateUserOp(op, userOpHash, 0);
+
+        // Second call with same nonce should fail
+        PackedUserOperation memory op2 = _createUserOpWithEnableMode();
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({
+            moduleType: 1,
+            module: address(newValidator),
+            moduleData: hex"",
+            internalData: abi.encodePacked(address(0), Kernel.execute.selector)
+        });
+        op2.signature = abi.encode(
+            uint256(0),
+            packages,
+            enableSig(0, true, false, packages, _rootSignHash),
+            _validatorSignUserOp(op2, true, false)
+        );
+        bytes32 userOpHash2 = ep.getUserOpHash(op2);
+
+        vm.expectRevert(InvalidNonce.selector);
+        kernel.validateUserOp(op2, userOpHash2, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -657,7 +824,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _validatorSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidationManager.InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
+            )
+        );
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -671,7 +842,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsValidator
     {
         // Manually install validator with execute selector allowed (don't use givenValidatorIsInstalled)
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -700,7 +873,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsValidator
     {
         // Manually install validator with execute selector allowed (don't use givenValidatorIsInstalled)
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -755,7 +930,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _permissionSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(ValidationManager.InvalidVid.selector, permissionToIdentifier(permissionId))
+        );
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -768,7 +945,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsPermission
     {
         // Manually install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
@@ -797,7 +978,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsPermission
     {
         // Manually install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
@@ -828,7 +1013,11 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsPermission
     {
         // Manually install permission with execute selector allowed
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector)));
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();

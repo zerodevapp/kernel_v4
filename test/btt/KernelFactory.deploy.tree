@@ -1,17 +1,14 @@
 KernelFactory_deploy
-├── when the salt has already been used for this initPackages hash
-│   └── it should revert with CREATE2 collision
-└── when the salt is unique
+├── when the address is already deployed for this initPackages hash and nonce
+│   ├── it should return the existing account address
+│   └── given msg value is sent
+│       └── it should forward the ETH to the existing account
+└── when the address is not yet deployed
     ├── given packages array is empty
-    │   └── it should revert during initialization
+    │   └── it should revert with InvalidRootValidation error
     ├── given packages array has valid modules
     │   ├── it should deploy a new KernelUUPS proxy using CREATE2
     │   ├── it should initialize the account with the packages
-    │   ├── it should set the first package as the root validator
-    │   ├── it should return the deployed account address
-    │   └── it should emit AccountCreated event
-    ├── given the predicted address already has code
-    │   └── it should return the existing address without redeploying
-    └── given msg value is sent with the call
-        ├── it should forward the ETH to the deployed account
-        └── it should initialize the account with the ETH balance
+    │   └── it should return the deployed account address
+    └── given msg value is sent
+        └── it should fund the deployed account

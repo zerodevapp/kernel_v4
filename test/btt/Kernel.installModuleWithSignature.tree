@@ -1,24 +1,24 @@
 Kernel_installModuleWithSignature
 ├── when replayable is false
 │   ├── given the signature is valid for this chain
-│   │   ├── given the nonce has not been used
+│   │   ├── given the nonce is valid
 │   │   │   ├── it should verify the root validator signature
 │   │   │   ├── it should increment the nonce
 │   │   │   ├── it should install all packages
 │   │   │   └── it should emit ModuleInstalled events for each package
-│   │   └── given the nonce has already been used
-│   │       └── it should revert with NonceAlreadyUsed error
+│   │   └── given the nonce is invalid
+│   │       └── it should revert with InvalidNonce error
 │   └── given the signature is invalid
 │       └── it should revert with InstallSignatureVerificationFailed error
 ├── when replayable is true
 │   ├── given the signature is valid
-│   │   ├── given the nonce has not been used on this chain
+│   │   ├── given the nonce is valid on this chain
 │   │   │   ├── it should verify the root validator signature
 │   │   │   ├── it should increment the nonce on this chain
 │   │   │   ├── it should install all packages
 │   │   │   └── it should allow the same signature on different chains
-│   │   └── given the nonce has already been used on this chain
-│   │       └── it should revert with NonceAlreadyUsed error
+│   │   └── given the nonce is invalid on this chain
+│   │       └── it should revert with InvalidNonce error
 │   └── given the signature is invalid
 │       └── it should revert with InstallSignatureVerificationFailed error
 ├── given packages contain a validator

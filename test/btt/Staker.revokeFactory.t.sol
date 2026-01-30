@@ -1,23 +1,57 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 
-abstract contract Staker_revokeFactory is Test {
+abstract contract Staker_revokeFactory is StakerBTTModifiers {
     function test_WhenTheCallerIsNotTheOwner() external {
+        _initializeStaker();
         // it should revert with Unauthorized error
+
+        // First approve the factory
+        vm.prank(owner);
+        staker.approveFactory(factoryAddr, true);
+
+        address notOwner = makeAddr("notOwner");
+        vm.deal(notOwner, 10 ether);
+
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        staker.approveFactory(factoryAddr, false);
     }
 
-    modifier whenTheCallerIsTheOwner() {
+    modifier whenTheCallerIsTheOwner() override {
+        vm.startPrank(owner);
         _;
+        vm.stopPrank();
     }
 
     function test_GivenTheFactoryIsApproved() external whenTheCallerIsTheOwner {
+        _initializeStaker();
         // it should set the factory as not approved
-        // it should emit FactoryRevoked event
+
+        // First approve the factory
+        vm.prank(owner);
+        staker.approveFactory(factoryAddr, true);
+        assertTrue(staker.approved(factoryAddr), "Factory should be approved");
+
+        // Revoke approval
+        vm.prank(owner);
+        staker.approveFactory(factoryAddr, false);
+
+        assertFalse(staker.approved(factoryAddr), "Factory should be revoked");
     }
 
     function test_GivenTheFactoryIsNotApproved() external whenTheCallerIsTheOwner {
+        _initializeStaker();
         // it should remain not approved
+        assertFalse(staker.approved(factoryAddr), "Factory should not be approved initially");
+
+        // Revoke (already not approved) - should be idempotent
+        vm.prank(owner);
+        staker.approveFactory(factoryAddr, false);
+
+        assertFalse(staker.approved(factoryAddr), "Factory should still not be approved");
     }
 }
