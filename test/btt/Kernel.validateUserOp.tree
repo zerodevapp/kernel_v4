@@ -65,6 +65,15 @@ Kernel_validateUserOp
     ├── given the validation mode is not replayable
     │   ├── it should compute userOpHash with chainId
     │   └── it should make the signature invalid on different chains
-    └── when missingAccountFunds is greater than zero
-        ├── it should attempt to transfer the funds to the EntryPoint
-        └── it should not revert if the transfer fails
+    ├── when missingAccountFunds is greater than zero
+    │   ├── it should attempt to transfer the funds to the EntryPoint
+    │   └── it should not revert if the transfer fails
+    ├── when validation returns time bounded data
+    │   ├── given validAfter is in the future
+    │   │   └── it should return the validAfter in the validation result
+    │   ├── given validUntil is in the past
+    │   │   └── it should return the validUntil in the validation result
+    │   └── given both validAfter and validUntil are set
+    │       └── it should return intersected validation data
+    └── when multiple validations return time bounded data
+        └── it should intersect all validation results

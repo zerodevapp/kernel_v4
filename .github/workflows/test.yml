@@ -41,3 +41,52 @@ jobs:
         run: |
           forge test -vvv
         id: test
+
+  btt-check:
+    name: BTT Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install bulloak
+        run: |
+          cargo install bulloak
+
+      - name: Run BTT check
+        run: |
+          uv run python tool/btt_check.py
+
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run Full Test Coverage
+        run: |
+          echo "## Full Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          forge coverage --no-match-coverage "test/**" 2>&1 | tee coverage-full.txt
+          cat coverage-full.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Run BTT Test Coverage
+        run: |
+          echo "## BTT Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          forge coverage --match-path "test/btt/*.t.sol" --no-match-coverage "test/**" 2>&1 | tee coverage-btt.txt
+          cat coverage-btt.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

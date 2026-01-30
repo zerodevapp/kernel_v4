@@ -1,6 +1,7 @@
 {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   "Install - 3": "235022",
   "Root - foo()": "131053",
   "Simple - foo()": "100568"
@@ -12,6 +13,10 @@
 =======
   "Install - 3": "262214",
   "Root - foo()": "136682",
+=======
+  "Install - 3": "262258",
+  "Root - foo()": "138716",
+>>>>>>> fd9b588 (workflow)
   "Simple - foo()": "102499"
 >>>>>>> 461fcf9 (coverage, needs fix)
 }

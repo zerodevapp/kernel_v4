@@ -1,6 +1,7 @@
 {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   "Mock - deploy()": "204396"
 =======
   "Mock - deploy()": "206363"
@@ -8,4 +9,7 @@
 =======
   "Mock - deploy()": "211509"
 >>>>>>> 461fcf9 (coverage, needs fix)
+=======
+  "Mock - deploy()": "211531"
+>>>>>>> fd9b588 (workflow)
 }

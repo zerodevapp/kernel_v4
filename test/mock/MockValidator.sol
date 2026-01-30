@@ -15,6 +15,7 @@ contract MockValidator is IValidator, IHook {
     mapping(bytes32 => bool) public validSig;
 
     bool public isHook;
+    uint256 public customValidationData;
 
     function setHook(bool _isHook) external {
         isHook = _isHook;
@@ -26,6 +27,10 @@ contract MockValidator is IValidator, IHook {
 
     function sudoSetValidSig(bytes calldata sig) external {
         validSig[keccak256(sig)] = true;
+    }
+
+    function sudoSetValidationData(uint256 _validationData) external {
+        customValidationData = _validationData;
     }
 
     function onInstall(bytes calldata data) external payable {
@@ -52,6 +57,11 @@ contract MockValidator is IValidator, IHook {
 
     function validateUserOp(PackedUserOperation calldata, bytes32) external payable returns (uint256) {
         count++;
+
+        // If customValidationData is set, return it (allows testing time bounds)
+        if (customValidationData != 0) {
+            return customValidationData;
+        }
 
         if (success) {
             return 0;

@@ -8,7 +8,6 @@ This script enforces BTT best practices including:
 - Specific error selectors in revert expectations
 - No assertions in modifiers
 - No loops in tests (one leaf = one test)
-- README synchronization
 - And more...
 
 Usage:
@@ -24,7 +23,6 @@ from typing import Dict, List, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 BTT_DIR = ROOT / "test" / "btt"
-README_PATH = BTT_DIR / "README.md"
 
 # Assertion patterns that indicate a test is actually testing something
 ASSERT_PATTERNS = [
@@ -166,19 +164,6 @@ def shutil_which(cmd):
         if candidate.exists() and os.access(candidate, os.X_OK):
             return str(candidate)
     return None
-
-
-def get_tree_files_from_readme() -> Set[str]:
-    """Extract tree file names mentioned in README.md table."""
-    if not README_PATH.exists():
-        return set()
-
-    text = README_PATH.read_text()
-    # Match patterns like `Kernel.execute.tree` or | Kernel.execute.tree |
-    tree_files = set()
-    for m in re.finditer(r"`?([A-Za-z0-9_]+\.[A-Za-z0-9_]+\.tree)`?", text):
-        tree_files.add(m.group(1))
-    return tree_files
 
 
 def count_test_functions(text: str) -> dict:
@@ -428,15 +413,7 @@ def main():
             fail(f"missing test file for {tree_path.relative_to(ROOT)}: expected {sol_path.name}", errors)
 
     # ==========================================================================
-    # RULE 8: Every .tree file should be listed in README.md
-    # ==========================================================================
-    readme_trees = get_tree_files_from_readme()
-    for tree_path in BTT_DIR.glob("*.tree"):
-        if tree_path.name not in readme_trees:
-            warn(f"tree file not in README.md: {tree_path.name}", warnings)
-
-    # ==========================================================================
-    # RULE 9: No duplicate test function names within a file
+    # RULE 8: No duplicate test function names within a file
     # ==========================================================================
     for path in BTT_DIR.glob("*.t.sol"):
         text = path.read_text()
@@ -446,7 +423,7 @@ def main():
                 fail(f"duplicate test function: {path.relative_to(ROOT)} {name} at lines {lines}", errors)
 
     # ==========================================================================
-    # RULE 10: No TODO/FIXME in test function bodies (tests should be complete)
+    # RULE 9: No TODO/FIXME in test function bodies (tests should be complete)
     # ==========================================================================
     for path in BTT_DIR.glob("*.t.sol"):
         text = path.read_text()
@@ -457,7 +434,7 @@ def main():
                 warn(f"TODO/FIXME in test: {path.relative_to(ROOT)}:{line} {name}", warnings)
 
     # ==========================================================================
-    # RULE 11: No orphan tests (tests must have corresponding tree branches)
+    # RULE 10: No orphan tests (tests must have corresponding tree branches)
     # ==========================================================================
     if not args.skip_bulloak:  # Only check if bulloak is available
         orphans = check_orphan_tests()

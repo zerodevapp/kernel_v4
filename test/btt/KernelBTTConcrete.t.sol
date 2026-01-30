@@ -27,6 +27,7 @@ import {Kernel_initialize} from "./Kernel.initialize.t.sol";
 import {Kernel_setNonce} from "./Kernel.setNonce.t.sol";
 import {Kernel_setRoot} from "./Kernel.setRoot.t.sol";
 import {Kernel_uninstallModule} from "./Kernel.uninstallModule.t.sol";
+import {Kernel_viewFunctions} from "./Kernel.viewFunctions.t.sol";
 
 /// @title Kernel BTT Concrete Tests
 /// @notice Concrete implementation of BTT tests using MockValidator as root
@@ -37,7 +38,8 @@ contract KernelBTT_Concrete_Test is
     Kernel_initialize,
     Kernel_setNonce,
     Kernel_setRoot,
-    Kernel_uninstallModule
+    Kernel_uninstallModule,
+    Kernel_viewFunctions
 {
     function setUp() public {
         _initialize();

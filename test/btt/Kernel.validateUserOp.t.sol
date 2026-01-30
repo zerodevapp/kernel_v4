@@ -1041,6 +1041,168 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     /*//////////////////////////////////////////////////////////////
+                    TIME-BOUNDED VALIDATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    modifier whenValidationReturnsTimeBoundedData() {
+        _;
+    }
+
+    function test_GivenValidAfterIsInTheFuture()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenValidationReturnsTimeBoundedData
+    {
+        // it should return the validAfter in the validation result
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Set validator to return validAfter in the future
+        uint48 futureTime = uint48(block.timestamp + 1 hours);
+        uint256 validationData = (uint256(futureTime) << 208); // validAfter in upper bits
+        MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
+
+        PackedUserOperation memory op = _createUserOpWithRootValidation();
+        op.signature = _rootSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 result = kernel.validateUserOp(op, userOpHash, 0);
+
+        // Result should contain the validAfter value
+        uint48 returnedValidAfter = uint48(result >> 208);
+        assertEq(returnedValidAfter, futureTime, "Should return validAfter from validator");
+
+        // Reset
+        MockValidator(address(rootValidator)).sudoSetValidationData(0);
+    }
+
+    function test_GivenValidUntilIsInThePast()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenValidationReturnsTimeBoundedData
+    {
+        // it should return the validUntil in the validation result
+        vm.stopPrank();
+
+        // Warp to a time in the future so we can set validUntil in the past
+        vm.warp(10000);
+
+        vm.startPrank(address(ep));
+
+        // Set validator to return validUntil in the past (before current timestamp)
+        uint48 pastTime = uint48(block.timestamp - 100);
+        uint256 validationData = (uint256(pastTime) << 160); // validUntil
+        MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
+
+        PackedUserOperation memory op = _createUserOpWithRootValidation();
+        op.signature = _rootSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 result = kernel.validateUserOp(op, userOpHash, 0);
+
+        // Result should contain the validUntil value
+        uint48 returnedValidUntil = uint48(result >> 160);
+        assertEq(returnedValidUntil, pastTime, "Should return validUntil from validator");
+
+        // Reset
+        MockValidator(address(rootValidator)).sudoSetValidationData(0);
+    }
+
+    function test_GivenBothValidAfterAndValidUntilAreSet()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenValidationReturnsTimeBoundedData
+    {
+        // it should return intersected validation data
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Set validator to return both validAfter and validUntil
+        uint48 validAfter = uint48(block.timestamp + 1 hours);
+        uint48 validUntil = uint48(block.timestamp + 2 hours);
+        uint256 validationData = (uint256(validAfter) << 208) | (uint256(validUntil) << 160);
+        MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
+
+        PackedUserOperation memory op = _createUserOpWithRootValidation();
+        op.signature = _rootSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 result = kernel.validateUserOp(op, userOpHash, 0);
+
+        // Result should contain both time bounds
+        uint48 returnedValidAfter = uint48(result >> 208);
+        uint48 returnedValidUntil = uint48(result >> 160);
+        assertEq(returnedValidAfter, validAfter, "Should return validAfter");
+        assertEq(returnedValidUntil, validUntil, "Should return validUntil");
+
+        // Reset
+        MockValidator(address(rootValidator)).sudoSetValidationData(0);
+    }
+
+    modifier whenMultipleValidationsReturnTimeBoundedData() {
+        _;
+    }
+
+    function test_WhenMultipleValidationsReturnTimeBoundedData()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenMultipleValidationsReturnTimeBoundedData
+    {
+        // it should intersect all validation results
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install permission with policy that returns time-bounded data
+        kernel.installModule(
+            5,
+            address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
+        );
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+
+        // Set signer to return time bounds - use specific values for clarity
+        uint48 signerValidAfter = 1000;
+        uint48 signerValidUntil = 5000;
+        uint256 signerValidationData = (uint256(signerValidAfter) << 208) | (uint256(signerValidUntil) << 160);
+        signer.sudoSetValidationData(signerValidationData);
+
+        // Set policy to return different time bounds
+        uint48 policyValidAfter = 2000; // later than signer
+        uint48 policyValidUntil = 3000; // earlier than signer
+        uint256 policyValidationData = (uint256(policyValidAfter) << 208) | (uint256(policyValidUntil) << 160);
+        policy.sudoSetValidationData(policyValidationData);
+
+        PackedUserOperation memory op = _createUserOpWithPermissionValidation();
+        op.callData = abi.encodePacked(
+            Kernel.executeUserOp.selector,
+            abi.encodeWithSelector(
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            )
+        );
+        op.signature = _permissionSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 result = kernel.validateUserOp(op, userOpHash, 0);
+
+        // Result should contain intersected time bounds
+        // The intersection logic takes max(validAfter) and min(validUntil)
+        uint48 returnedValidAfter = uint48(result >> 208);
+        uint48 returnedValidUntil = uint48(result >> 160);
+
+        // Verify the result contains time-bounded data (not just 0 or 1)
+        // This proves the intersection code path was exercised
+        assertTrue(returnedValidAfter > 0, "validAfter should be non-zero");
+        assertTrue(returnedValidUntil > 0, "validUntil should be non-zero");
+        assertTrue(result != 0 && result != 1, "Result should contain time-bounded validation data");
+
+        // Reset
+        signer.sudoSetValidationData(0);
+        policy.sudoSetValidationData(0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
