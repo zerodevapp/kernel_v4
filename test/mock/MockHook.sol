@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 import {IHook} from "src/interfaces/IERC7579Modules.sol";
 
 contract MockHook is IHook {
+    error PreHookReverted();
+    error PostHookReverted();
+
     mapping(address => bytes) public data;
     mapping(address => bytes) public preHookData;
     mapping(address => bytes) public postHookData;
@@ -39,7 +42,7 @@ contract MockHook is IHook {
         returns (bytes memory hookData)
     {
         if (_revertOnPreHook) {
-            revert("preHook reverted");
+            revert PreHookReverted();
         }
         _preHookCalled = true;
         preHookData[msg.sender] = abi.encodePacked(msgSender, msgData);
@@ -48,7 +51,7 @@ contract MockHook is IHook {
 
     function postCheck(bytes calldata hookData) external payable override {
         if (_revertOnPostHook) {
-            revert("postHook reverted");
+            revert PostHookReverted();
         }
         _postHookCalled = true;
         postHookData[msg.sender] = hookData;

@@ -14,11 +14,14 @@ import {NotImplemented} from "src/types/Error.sol";
 /// @notice Tests for isModuleInstalled following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.isModuleInstalled.tree
 abstract contract Kernel_isModuleInstalled is BTTModifiers {
+    // Note: _moduleTypeId is inherited from BTTModifiers
+
     /*//////////////////////////////////////////////////////////////
                         VALIDATOR (TYPE 1) TESTS
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs1Validator() {
+        _moduleTypeId = 1;
         _;
     }
 
@@ -43,6 +46,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs2Executor() {
+        _moduleTypeId = 2;
         _;
     }
 
@@ -66,6 +70,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs3Fallback() {
+        _moduleTypeId = 3;
         _;
     }
 
@@ -99,6 +104,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs4Hook() {
+        _moduleTypeId = 4;
         _;
     }
 
@@ -120,6 +126,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs5Policy() {
+        _moduleTypeId = 5;
         _;
     }
 
@@ -149,6 +156,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenModuleTypeIdIs6Signer() {
+        _moduleTypeId = 6;
         _;
     }
 

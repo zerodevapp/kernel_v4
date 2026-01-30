@@ -5,8 +5,11 @@ import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_revokeFactory is StakerBTTModifiers {
-    function test_WhenTheCallerIsNotTheOwner() external {
+    function setUp() public {
         _initializeStaker();
+    }
+
+    function test_WhenTheCallerIsNotTheOwner() external {
         // it should revert with Unauthorized error
 
         // First approve the factory
@@ -28,7 +31,6 @@ abstract contract Staker_revokeFactory is StakerBTTModifiers {
     }
 
     function test_GivenTheFactoryIsApproved() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should set the factory as not approved
 
         // First approve the factory
@@ -44,7 +46,6 @@ abstract contract Staker_revokeFactory is StakerBTTModifiers {
     }
 
     function test_GivenTheFactoryIsNotApproved() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should remain not approved
         assertFalse(staker.approved(factoryAddr), "Factory should not be approved initially");
 

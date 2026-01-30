@@ -19,6 +19,9 @@ import {InvalidRootValidation} from "src/types/Error.sol";
 /// @notice Tests for KernelFactory following Branching Tree Technique
 /// @dev Tree specification: test/btt/KernelFactory.deploy.tree
 contract KernelFactory_Test is Test {
+    // Expected error selector (to be added to KernelFactory.sol)
+    error CallFailed();
+
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
@@ -48,11 +51,17 @@ contract KernelFactory_Test is Test {
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
+    // State variables for BTT branch tracking
+    bool internal _packagesEmpty;
+    address internal _ecdsaOwner;
+
     modifier givenPackagesArrayIsEmpty() {
+        _packagesEmpty = true;
         _;
     }
 
     modifier givenPackagesArrayHasValidModules() {
+        _packagesEmpty = false;
         _;
     }
 
@@ -62,6 +71,7 @@ contract KernelFactory_Test is Test {
     }
 
     modifier givenECDSAOwnerIsValid() {
+        _ecdsaOwner = makeAddr("ecdsaOwner");
         _;
     }
 
@@ -178,7 +188,7 @@ contract KernelFactory_Test is Test {
             abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
         );
 
-        vm.expectRevert("call failed");
+        vm.expectRevert(CallFailed.selector);
         factory.deployWithCall(packages, 0, callData);
     }
 

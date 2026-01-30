@@ -7,8 +7,15 @@ import {IERC721Receiver} from "@openzeppelin/contracts/interfaces/IERC721Receive
 import {IERC1155Receiver} from "@openzeppelin/contracts/interfaces/IERC1155Receiver.sol";
 import {InvalidSelector, InvalidCallType} from "src/types/Error.sol";
 import {MockFallback} from "../mock/MockFallback.sol";
+import {MockHook} from "../mock/MockHook.sol";
 
 abstract contract Kernel_fallback is BTTModifiers {
+    bool internal _customSelector;
+    address internal _hookAddress;
+    bytes1 internal _callType;
+    bool internal _preHookSucceeds;
+    bool internal _targetCallSucceeds;
+
     function test_WhenTheSelectorIsOnERC721Received() external {
         // it should return the selector as magic value
         bytes4 selector = IERC721Receiver.onERC721Received.selector;
@@ -39,6 +46,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     }
 
     modifier whenTheSelectorIsACustomRegisteredSelector() {
+        _customSelector = true;
         _;
     }
 
@@ -55,6 +63,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheSelectorIsRegisteredButHookIsAddress0() {
+        _hookAddress = address(0);
         _;
     }
 
@@ -70,7 +79,7 @@ abstract contract Kernel_fallback is BTTModifiers {
         // Register fallback with hook=address(0)
         bytes4 testSelector = MockFallback.getData.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
         vm.stopPrank();
 
@@ -82,10 +91,13 @@ abstract contract Kernel_fallback is BTTModifiers {
     }
 
     modifier whenTheCallerIsTheEntryPoint() {
+        vm.stopPrank();
+        vm.startPrank(address(ep));
         _;
     }
 
     modifier givenCallTypeIsCALL() {
+        _callType = bytes1(0x00);
         _;
     }
 
@@ -102,7 +114,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -122,7 +134,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success, bytes memory result) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -142,7 +154,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -150,6 +162,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     }
 
     modifier givenCallTypeIsDELEGATECALL() {
+        _callType = bytes1(0xff);
         _;
     }
 
@@ -166,7 +179,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -186,7 +199,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -206,7 +219,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(0)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -237,6 +250,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheSelectorIsRegisteredWithHookSetToAddress1() {
+        _hookAddress = address(1);
         _;
     }
 
@@ -252,7 +266,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
         vm.stopPrank();
 
@@ -275,7 +289,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -294,7 +308,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -313,7 +327,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -332,7 +346,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -351,7 +365,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -370,7 +384,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -408,7 +422,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -427,7 +441,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -446,7 +460,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -465,7 +479,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -484,7 +498,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -503,7 +517,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -533,6 +547,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheSelectorIsRegisteredWithAHookContract() {
+        _hookAddress = address(hook);
         _;
     }
 
@@ -546,11 +561,9 @@ abstract contract Kernel_fallback is BTTModifiers {
         vm.startPrank(address(ep));
 
         bytes4 testSelector = MockFallback.getCaller.selector;
-        kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
-        );
-
-        hook.resetState();
+        _installFallback(testSelector);
+        _preHookSucceeds = true;
+        _configureHook();
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
         assertTrue(success, "Call should succeed");
         assertTrue(hook.preHookCalled(), "preHook should be called");
@@ -566,16 +579,15 @@ abstract contract Kernel_fallback is BTTModifiers {
         vm.startPrank(address(ep));
 
         bytes4 testSelector = MockFallback.getCaller.selector;
-        kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
-        );
-
-        hook.setRevertOnPreHook(true);
-        vm.expectRevert("preHook reverted");
+        _installFallback(testSelector);
+        _preHookSucceeds = false;
+        _configureHook();
+        vm.expectRevert(MockHook.PreHookReverted.selector);
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     modifier givenPreHookSucceeds() {
+        _preHookSucceeds = true;
         _;
     }
 
@@ -591,35 +603,15 @@ abstract contract Kernel_fallback is BTTModifiers {
         vm.startPrank(address(ep));
 
         bytes4 testSelector = MockFallback.getCaller.selector;
-        kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
-        );
+        _installFallback(testSelector);
+        _configureHook();
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
         assertTrue(success, "Should call target with msgdata plus msgsender");
     }
 
-    function test_GivenCallTypeIsCALL_HookContract()
-        external
-        whenTheSelectorIsACustomRegisteredSelector
-        givenTheSelectorIsRegisteredWithAHookContract
-        givenPreHookSucceeds
-        givenCallTypeIsCALL
-    {
-        // it should call the target with msgdata plus msgsender
-        vm.stopPrank();
-        vm.startPrank(address(ep));
-
-        bytes4 testSelector = MockFallback.getCaller.selector;
-        kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
-        );
-
-        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
-        assertTrue(success, "Call should succeed");
-    }
-
     modifier whenTheTargetCallSucceeds() {
+        _targetCallSucceeds = true;
         _;
     }
 
@@ -635,9 +627,9 @@ abstract contract Kernel_fallback is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        bytes4 testSelector = MockFallback.getCaller.selector;
+        bytes4 testSelector = _targetSelector();
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -660,7 +652,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -683,11 +675,11 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.setRevertOnPostHook(true);
-        vm.expectRevert("postHook reverted");
+        vm.expectRevert(MockHook.PostHookReverted.selector);
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
@@ -705,7 +697,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.getCaller.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -725,7 +717,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -746,7 +738,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -766,7 +758,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -787,7 +779,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -795,6 +787,7 @@ abstract contract Kernel_fallback is BTTModifiers {
     }
 
     modifier whenTheDelegatecallSucceeds() {
+        _targetCallSucceeds = true;
         _;
     }
 
@@ -810,9 +803,9 @@ abstract contract Kernel_fallback is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        bytes4 testSelector = MockFallback.testFunction.selector;
+        bytes4 testSelector = _targetSelector();
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -835,11 +828,11 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.setRevertOnPostHook(true);
-        vm.expectRevert("postHook reverted");
+        vm.expectRevert(MockHook.PostHookReverted.selector);
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
@@ -857,7 +850,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -877,7 +870,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -918,7 +911,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.resetState();
@@ -941,11 +934,11 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         hook.setRevertOnPostHook(true);
-        vm.expectRevert("postHook reverted");
+        vm.expectRevert(MockHook.PostHookReverted.selector);
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
@@ -963,7 +956,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.testFunction.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
@@ -983,7 +976,7 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         bytes4 testSelector = MockFallback.forceRevert.selector;
         kernel.installModule(
-            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, _callType, _hookAddress))
         );
 
         vm.expectRevert(MockFallback.FallbackRevert.selector);
@@ -1007,5 +1000,27 @@ abstract contract Kernel_fallback is BTTModifiers {
 
         vm.expectRevert(InvalidCallType.selector);
         (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _installFallback(bytes4 selector) internal {
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(selector, _callType, _hookAddress))
+        );
+    }
+
+    function _configureHook() internal {
+        hook.resetState();
+        hook.setRevertOnPreHook(!_preHookSucceeds);
+    }
+
+    function _targetSelector() internal view returns (bytes4) {
+        if (_targetCallSucceeds) {
+            return _callType == bytes1(0xff) ? MockFallback.testFunction.selector : MockFallback.getCaller.selector;
+        }
+        return MockFallback.forceRevert.selector;
     }
 }

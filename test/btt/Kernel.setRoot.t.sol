@@ -22,6 +22,11 @@ import {
 /// @notice Tests for setRoot following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.setRoot.tree
 abstract contract Kernel_setRoot is BTTModifiers {
+    bool internal _useInstallArrayOverload;
+    bool internal _removeCurrent;
+    bool internal _currentRootIsPermission;
+    bool internal _uninstallDataCorrectLength;
+
     /*//////////////////////////////////////////////////////////////
                         UNAUTHORIZED CALLER TESTS
     //////////////////////////////////////////////////////////////*/
@@ -29,13 +34,15 @@ abstract contract Kernel_setRoot is BTTModifiers {
     modifier whenCallerIsNotEntryPointSetRoot() {
         vm.stopPrank();
         vm.startPrank(makeAddr("randomCaller"));
+        _useInstallArrayOverload = false;
+        _removeCurrent = false;
         _;
     }
 
     function test_WhenCallerIsNotEntryPointSetRoot() external whenCallerIsNotEntryPointSetRoot {
         ValidationId vId = validatorToIdentifier(IValidator(address(newValidator)));
         vm.expectRevert(Unauthorized.selector);
-        kernel.setRoot(vId);
+        _callSetRoot(vId, new Install[](0), hex"");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -49,6 +56,10 @@ abstract contract Kernel_setRoot is BTTModifiers {
     }
 
     modifier givenTheOverloadSetRootWithValidationIdIsCalled() {
+        _useInstallArrayOverload = false;
+        _removeCurrent = false;
+        _currentRootIsPermission = false;
+        _uninstallDataCorrectLength = false;
         _;
     }
 
@@ -61,7 +72,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         ValidationId zeroVId = ValidationId.wrap(bytes21(0));
 
         vm.expectRevert(InvalidRootValidation.selector);
-        kernel.setRoot(zeroVId);
+        _callSetRoot(zeroVId, new Install[](0), hex"");
     }
 
     function test_GivenVIdCorrespondsToAnInstalledValidator()
@@ -75,7 +86,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
 
         // Set it as root
         ValidationId vId = validatorToIdentifier(IValidator(address(mockValidator)));
-        kernel.setRoot(vId);
+        _callSetRoot(vId, new Install[](0), hex"");
 
         // Verify the root was changed
         assertEq(kernel.validationInfo(vId).hook, address(1), "New validator should be root");
@@ -96,7 +107,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
 
         // Set permission as root
         ValidationId vId = permissionToIdentifier(testPermId);
-        kernel.setRoot(vId);
+        _callSetRoot(vId, new Install[](0), hex"");
 
         // Verify the root was changed
         assertEq(kernel.validationInfo(vId).hook, address(1), "Permission should be root");
@@ -107,6 +118,10 @@ abstract contract Kernel_setRoot is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheOverloadSetRootWithInstallArrayIsCalled() {
+        _useInstallArrayOverload = true;
+        _removeCurrent = false;
+        _currentRootIsPermission = false;
+        _uninstallDataCorrectLength = false;
         _;
     }
 
@@ -119,7 +134,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         Install[] memory packages = new Install[](0);
 
         vm.expectRevert(InvalidInitialization.selector);
-        kernel.setRoot(packages, false, hex"");
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
     }
 
     function test_GivenRemoveCurrentIsFalse()
@@ -132,7 +147,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
-        kernel.setRoot(packages, false, hex"");
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
 
         // Both old root and new root should be installed
         assertTrue(kernel.isModuleInstalled(1, address(rootValidator), ""), "Old root should still be installed");
@@ -147,6 +162,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
     }
 
     modifier givenRemoveCurrentIsTrue() {
+        _removeCurrent = true;
         _;
     }
 
@@ -161,7 +177,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
-        kernel.setRoot(packages, true, hex"");
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
 
         // Old root should be uninstalled
         assertFalse(kernel.isModuleInstalled(1, address(rootValidator), ""), "Old root should be uninstalled");
@@ -176,6 +192,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
     }
 
     modifier givenTheCurrentRootIsAPERMISSION() {
+        _currentRootIsPermission = true;
         _;
     }
 
@@ -189,13 +206,12 @@ abstract contract Kernel_setRoot is BTTModifiers {
         // it should revert with InvalidDataLength error
 
         // First set a permission as root
+        PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("testIncorrectLen")));
         MockPolicy mockPolicy = new MockPolicy();
         MockSigner mockSigner = new MockSigner();
-        PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("testIncorrectLen")));
-
         kernel.installModule(5, address(mockPolicy), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(testPermId)));
-        kernel.setRoot(permissionToIdentifier(testPermId));
+        _setPermissionRootIfNeeded(testPermId);
 
         // Try to replace with new root but with incorrect uninstall data length
         MockValidator newRoot = new MockValidator();
@@ -203,14 +219,12 @@ abstract contract Kernel_setRoot is BTTModifiers {
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
         // Incorrect uninstall data - should have 2 elements (1 for policy, 1 for signer)
-        bytes[] memory badData = new bytes[](1);
-        badData[0] = hex"";
-
         vm.expectRevert(InvalidDataLength.selector);
-        kernel.setRoot(packages, true, abi.encode(badData));
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, _buildPermissionUninstallData());
     }
 
     modifier givenUninstallDataHasCorrectLength() {
+        _uninstallDataCorrectLength = true;
         _;
     }
 
@@ -234,7 +248,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         kernel.installModule(5, address(mockPolicy1), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(5, address(mockPolicy2), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(testPermId)));
-        kernel.setRoot(permissionToIdentifier(testPermId));
+        _setPermissionRootIfNeeded(testPermId);
 
         // Try to replace with new root
         MockValidator newRoot = new MockValidator();
@@ -244,13 +258,15 @@ abstract contract Kernel_setRoot is BTTModifiers {
         // Uninstall data with wrong order - policies must be uninstalled in reverse order
         // (policy2 should be first, then policy1, then signer)
         // But we provide policy1 first (wrong order)
-        bytes[] memory wrongOrderData = new bytes[](3);
+        bytes[] memory wrongOrderData = new bytes[](_uninstallDataCorrectLength ? 3 : 1);
         wrongOrderData[0] = hex""; // Policy1 uninstall data (wrong - should be policy2)
-        wrongOrderData[1] = hex""; // Policy2 uninstall data
-        wrongOrderData[2] = hex""; // Signer uninstall data
+        if (_uninstallDataCorrectLength) {
+            wrongOrderData[1] = hex""; // Policy2 uninstall data
+            wrongOrderData[2] = hex""; // Signer uninstall data
+        }
 
         vm.expectRevert(InvalidPermissionUninstallOrder.selector);
-        kernel.setRoot(packages, true, abi.encode(wrongOrderData));
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, abi.encode(wrongOrderData));
     }
 
     function test_GivenPoliciesAreUninstalledInReverseOrder()
@@ -273,7 +289,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         kernel.installModule(5, address(mockPolicy1), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(5, address(mockPolicy2), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(testPermId)));
-        kernel.setRoot(permissionToIdentifier(testPermId));
+        _setPermissionRootIfNeeded(testPermId);
 
         // Replace with new root
         MockValidator newRoot = new MockValidator();
@@ -281,12 +297,14 @@ abstract contract Kernel_setRoot is BTTModifiers {
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
         // Correct uninstall order - policies in reverse order (policy2, policy1, signer)
-        bytes[] memory correctOrderData = new bytes[](3);
+        bytes[] memory correctOrderData = new bytes[](_uninstallDataCorrectLength ? 3 : 1);
         correctOrderData[0] = hex""; // Policy2 uninstall data (last installed policy first)
-        correctOrderData[1] = hex""; // Policy1 uninstall data
-        correctOrderData[2] = hex""; // Signer uninstall data
+        if (_uninstallDataCorrectLength) {
+            correctOrderData[1] = hex""; // Policy1 uninstall data
+            correctOrderData[2] = hex""; // Signer uninstall data
+        }
 
-        kernel.setRoot(packages, true, abi.encode(correctOrderData));
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, abi.encode(correctOrderData));
 
         // Verify old permission components are uninstalled
         assertFalse(
@@ -325,7 +343,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
 
         kernel.installModule(5, address(mockPolicy), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(testPermId)));
-        kernel.setRoot(permissionToIdentifier(testPermId));
+        _setPermissionRootIfNeeded(testPermId);
 
         // Replace with new root with correct uninstall data
         MockValidator newRoot = new MockValidator();
@@ -333,11 +351,8 @@ abstract contract Kernel_setRoot is BTTModifiers {
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
         // Correct uninstall data - 2 elements (1 for policy, 1 for signer)
-        bytes[] memory uninstallDataArr = new bytes[](2);
-        uninstallDataArr[0] = hex""; // Policy uninstall data
-        uninstallDataArr[1] = hex""; // Signer uninstall data
-
-        kernel.setRoot(packages, true, abi.encode(uninstallDataArr));
+        bytes memory uninstallData = _buildPermissionUninstallData();
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, uninstallData);
 
         // Old permission components should be uninstalled
         assertFalse(
@@ -389,7 +404,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
 
         // Should revert with InvalidRootValidation because current root has type 0x00
         vm.expectRevert(InvalidRootValidation.selector);
-        kernel.setRoot(packages, true, hex"");
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
     }
 
     function test_GivenTheFirstPackageIsNotAValidatorOrPermissionSetRoot()
@@ -409,6 +424,36 @@ abstract contract Kernel_setRoot is BTTModifiers {
         });
 
         vm.expectRevert(InvalidRootValidation.selector);
-        kernel.setRoot(packages, false, hex"");
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function _callSetRoot(ValidationId vId, Install[] memory packages, bytes memory uninstallData) internal {
+        if (_useInstallArrayOverload) {
+            kernel.setRoot(packages, _removeCurrent, uninstallData);
+        } else {
+            kernel.setRoot(vId);
+        }
+    }
+
+    function _setPermissionRootIfNeeded(PermissionId testPermId) internal {
+        if (_currentRootIsPermission) {
+            kernel.setRoot(permissionToIdentifier(testPermId));
+        }
+    }
+
+    function _buildPermissionUninstallData() internal view returns (bytes memory) {
+        if (_uninstallDataCorrectLength) {
+            bytes[] memory data = new bytes[](2);
+            data[0] = hex"";
+            data[1] = hex"";
+            return abi.encode(data);
+        }
+        bytes[] memory badData = new bytes[](1);
+        badData[0] = hex"";
+        return abi.encode(badData);
     }
 }

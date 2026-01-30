@@ -10,6 +10,10 @@ import {Call} from "src/types/Structs.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 
 abstract contract Kernel_executeUserOp is BTTModifiers {
+    bool internal _validationHookSet;
+    bool internal _transientHookSet;
+    bool internal _innerExecutionSucceeds;
+
     function test_WhenTheCallerIsNotTheEntryPointOrSelf() external {
         // it should revert with Unauthorized error
         vm.stopPrank();
@@ -23,10 +27,14 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     modifier whenTheCallerIsTheEntryPointOrSelf() {
+        vm.stopPrank();
+        vm.startPrank(address(ep));
         _;
     }
 
     modifier givenTheValidationHookIsSet() {
+        _validationHookSet = true;
+        _innerExecutionSucceeds = true;
         _;
     }
 
@@ -41,7 +49,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        PackedUserOperation memory op = _createUserOpWithSingleExecution();
+        PackedUserOperation memory op = _userOpForExecution();
         kernel.executeUserOp(op, bytes32(0));
 
         assertEq(callee.bar(), 1, "Execution should succeed with hook set");
@@ -56,7 +64,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        PackedUserOperation memory op = _createUserOpWithSingleExecution();
+        PackedUserOperation memory op = _userOpForExecution();
         kernel.executeUserOp(op, bytes32(0));
 
         assertEq(callee.bar(), 1, "Inner delegatecall should succeed and postHook called");
@@ -78,6 +86,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     modifier givenNoValidationHookIsSet() {
+        _validationHookSet = false;
+        _innerExecutionSucceeds = true;
         _;
     }
 
@@ -90,7 +100,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        PackedUserOperation memory op = _createUserOpWithSingleExecution();
+        PackedUserOperation memory op = _userOpForExecution();
         kernel.executeUserOp(op, bytes32(0));
 
         assertEq(callee.bar(), 1, "Execution should return successfully without hook");
@@ -126,6 +136,9 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     modifier givenAValidationHookIsSetInTransientStorage() {
+        _validationHookSet = true;
+        _transientHookSet = true;
+        _innerExecutionSucceeds = true;
         _;
     }
 
@@ -162,15 +175,10 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         assertEq(callee.bar(), 1, "Execution completes without hook");
     }
 
-    modifier givenPreHookSucceeds() {
-        _;
-    }
-
     function test_GivenPreHookSucceeds()
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenAValidationHookIsSetInTransientStorage
-        givenPreHookSucceeds
     {
         // it should execute the inner callData via delegatecall
         vm.stopPrank();
@@ -186,7 +194,6 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenAValidationHookIsSetInTransientStorage
-        givenPreHookSucceeds
     {
         // it should propagate the revert message
         vm.stopPrank();
@@ -199,6 +206,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     modifier givenTheInnerExecutionSucceeds() {
+        _innerExecutionSucceeds = true;
         _;
     }
 
@@ -206,7 +214,6 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenAValidationHookIsSetInTransientStorage
-        givenPreHookSucceeds
         givenTheInnerExecutionSucceeds
     {
         // it should call postHook on the hook contract with context
@@ -223,7 +230,6 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenAValidationHookIsSetInTransientStorage
-        givenPreHookSucceeds
         givenTheInnerExecutionSucceeds
     {
         // it should propagate the revert
@@ -240,7 +246,6 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         external
         whenTheCallerIsTheEntryPointOrSelf
         givenAValidationHookIsSetInTransientStorage
-        givenPreHookSucceeds
         givenTheInnerExecutionSucceeds
     {
         // it should complete successfully
@@ -365,5 +370,9 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             paymasterAndData: hex"",
             signature: hex""
         });
+    }
+
+    function _userOpForExecution() internal view returns (PackedUserOperation memory) {
+        return _innerExecutionSucceeds ? _createUserOpWithSingleExecution() : _createUserOpWithRevertingExecution();
     }
 }

@@ -8,6 +8,7 @@ import {InvalidRootValidation} from "src/types/Error.sol";
 
 abstract contract KernelFactory_deploy is FactoryBTTModifiers {
     modifier whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce() {
+        _addressAlreadyDeployed = true;
         _;
     }
 
@@ -47,6 +48,7 @@ abstract contract KernelFactory_deploy is FactoryBTTModifiers {
     }
 
     modifier whenTheAddressIsNotYetDeployed() {
+        _addressAlreadyDeployed = false;
         _;
     }
 

@@ -16,6 +16,11 @@ import {MockValidator} from "../mock/MockValidator.sol";
 /// @notice Tests for isValidSignature following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.isValidSignature.tree
 abstract contract Kernel_isValidSignature is BTTModifiers {
+    // State variables for isValidSignature branch tracking
+    // Note: _validationType and _isTypedDataSign are inherited from BTTModifiers
+    bytes32 internal _testHash;
+    bool internal _enableMode;
+
     function test_WhenHashEqualsERC7739_MAGIC_HASH() external {
         // it should return ERC7739 support indicator
         bytes4 result = kernel.isValidSignature(ERC7739_MAGIC_HASH, "");
@@ -23,10 +28,12 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier whenHashIsNotERC7739_MAGIC_HASH() {
+        _testHash = keccak256("test"); // Set non-magic hash
         _;
     }
 
     modifier givenTheSignatureModeByteIndicatesEnableMode() {
+        _enableMode = true;
         _;
     }
 
@@ -133,6 +140,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier givenTheEnableSignatureIsValid() {
+        require(_enableMode, "Enable mode should be set");
         _;
     }
 
@@ -296,10 +304,12 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsROOT() {
+        _validationType = 0;
         _;
     }
 
     modifier givenTheSignatureFormatIsTypedDataSign() {
+        _isTypedDataSign = true;
         _;
     }
 
@@ -334,6 +344,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier givenTheSignatureFormatIsPersonalSign() {
+        _isTypedDataSign = false;
         _;
     }
 
@@ -397,10 +408,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsVALIDATOR() {
-        _;
-    }
-
-    modifier givenTheValidatorIsInstalled() {
+        _validationType = 1;
         _;
     }
 
@@ -408,7 +416,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsVALIDATOR
-        givenTheValidatorIsInstalled
         givenTheSignatureFormatIsTypedDataSign
     {
         // it should return ERC1271_MAGICVALUE
@@ -431,7 +438,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsVALIDATOR
-        givenTheValidatorIsInstalled
         givenTheSignatureFormatIsTypedDataSign
     {
         // it should return ERC1271_INVALID
@@ -454,7 +460,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsVALIDATOR
-        givenTheValidatorIsInstalled
         givenTheSignatureFormatIsPersonalSign
     {
         // it should return ERC1271_MAGICVALUE
@@ -476,7 +481,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsVALIDATOR
-        givenTheValidatorIsInstalled
         givenTheSignatureFormatIsPersonalSign
     {
         // it should return ERC1271_INVALID
@@ -495,10 +499,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsPERMISSION() {
-        _;
-    }
-
-    modifier givenThePermissionIsInstalled() {
+        _validationType = 2;
         _;
     }
 
@@ -506,7 +507,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsPERMISSION
-        givenThePermissionIsInstalled
         givenTheSignatureFormatIsTypedDataSign
     {
         // it should return ERC1271_MAGICVALUE
@@ -529,7 +529,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsPERMISSION
-        givenThePermissionIsInstalled
         givenTheSignatureFormatIsTypedDataSign
     {
         // it should return ERC1271_INVALID
@@ -553,7 +552,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsPERMISSION
-        givenThePermissionIsInstalled
         givenTheSignatureFormatIsTypedDataSign
     {
         // it should return ERC1271_INVALID
@@ -577,7 +575,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsPERMISSION
-        givenThePermissionIsInstalled
         givenTheSignatureFormatIsPersonalSign
     {
         // it should return ERC1271_MAGICVALUE
@@ -598,7 +595,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         external
         whenHashIsNotERC7739_MAGIC_HASH
         givenTheValidationTypeIsPERMISSION
-        givenThePermissionIsInstalled
         givenTheSignatureFormatIsPersonalSign
     {
         // it should return ERC1271_INVALID

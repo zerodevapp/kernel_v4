@@ -17,6 +17,8 @@ import {Unauthorized, NotImplemented, InvalidPermissionUninstallOrder, InvalidPe
 /// @notice Tests for uninstallModule following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.uninstallModule.tree
 abstract contract Kernel_uninstallModule is BTTModifiers {
+    uint256 internal _uninstallModuleTypeId;
+
     /*//////////////////////////////////////////////////////////////
                         UNAUTHORIZED CALLER TESTS
     //////////////////////////////////////////////////////////////*/
@@ -33,6 +35,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
     }
 
     modifier givenModuleTypeIsValidatorUninstall() {
+        _uninstallModuleTypeId = 1;
         _;
     }
 
@@ -120,6 +123,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
     }
 
     modifier givenModuleTypeIsExecutorUninstall() {
+        _uninstallModuleTypeId = 2;
         _;
     }
 
@@ -159,10 +163,12 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
     }
 
     modifier givenModuleTypeIsFallbackUninstall() {
+        _uninstallModuleTypeId = 3;
         _;
     }
 
     modifier givenModuleTypeIsHookUninstall() {
+        _uninstallModuleTypeId = 4;
         _;
     }
 
@@ -181,6 +187,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
     }
 
     modifier givenModuleTypeIsPolicyUninstall() {
+        _uninstallModuleTypeId = 5;
         _;
     }
 
@@ -253,6 +260,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
     }
 
     modifier givenModuleTypeIsSignerUninstall() {
+        _uninstallModuleTypeId = 6;
         _;
     }
 

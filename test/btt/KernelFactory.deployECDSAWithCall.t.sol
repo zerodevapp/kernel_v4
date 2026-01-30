@@ -8,6 +8,12 @@ import {MockCallee} from "../mock/MockCallee.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 
 abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
+    // Expected error selector (to be added to KernelFactory.sol)
+    error CallFailed();
+
+    // State variables for deployECDSAWithCall branch tracking
+    bool internal _ecdsaAddressAlreadyDeployed;
+
     function test_WhenTheECDSAOwnerIsAddressZero() external {
         // it should revert with InvalidSigner error
         Install[] memory packages = new Install[](1);
@@ -20,6 +26,7 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
     }
 
     modifier whenTheAddressIsAlreadyDeployedForThisOwnerAndNonce() {
+        _ecdsaAddressAlreadyDeployed = true;
         _;
     }
 
@@ -68,11 +75,12 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
             abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
         );
 
-        vm.expectRevert("call failed");
+        vm.expectRevert(CallFailed.selector);
         factory.deployECDSAWithCall(owner, packages, 0, revertingCall);
     }
 
     modifier whenTheECDSAOwnerIsAValidAddressAndNotYetDeployed() {
+        _ecdsaAddressAlreadyDeployed = false;
         _;
     }
 
@@ -114,7 +122,7 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
             abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
         );
 
-        vm.expectRevert("call failed");
+        vm.expectRevert(CallFailed.selector);
         factory.deployECDSAWithCall(owner, packages, 0, revertingCall);
     }
 }

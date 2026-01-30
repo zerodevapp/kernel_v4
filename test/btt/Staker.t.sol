@@ -20,6 +20,8 @@ import {Ownable} from "solady/auth/Ownable.sol";
 /// @notice Tests for Staker following Branching Tree Technique
 /// @dev Tree specification: test/btt/Staker.tree
 contract Staker_Test is Test {
+    error InvalidSignature();
+
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
@@ -33,6 +35,7 @@ contract Staker_Test is Test {
 
     address owner;
     uint256 ownerKey;
+    bool internal _signatureIsValid;
 
     /*//////////////////////////////////////////////////////////////
                                 SETUP
@@ -75,6 +78,8 @@ contract Staker_Test is Test {
     }
 
     modifier givenFactoryIsNotApproved() {
+        vm.prank(owner);
+        staker.approveFactory(address(factory), false);
         _;
     }
 
@@ -86,10 +91,12 @@ contract Staker_Test is Test {
     }
 
     modifier givenSignatureIsValid() {
+        _signatureIsValid = true;
         _;
     }
 
     modifier givenSignatureIsInvalid() {
+        _signatureIsValid = false;
         _;
     }
 
@@ -157,7 +164,7 @@ contract Staker_Test is Test {
         bytes32 structHash =
             EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1));
         bytes32 digest = _hashTypedDataSansChainId(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signatureKey(), digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         staker.approveFactoryWithSignature(address(factory), true, signature);
@@ -167,15 +174,13 @@ contract Staker_Test is Test {
 
     /// @notice it should revert when signature is invalid (wrong signer)
     function test_RevertWhen_ApproveFactoryWithSignature_InvalidSignature() external givenSignatureIsInvalid {
-        (, uint256 wrongKey) = makeAddrAndKey("wrongOwner");
-
         bytes32 structHash =
             EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1));
         bytes32 digest = _hashTypedDataSansChainId(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signatureKey(), digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert("InvalidSignature");
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(address(factory), true, signature);
     }
 
@@ -289,6 +294,14 @@ contract Staker_Test is Test {
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _signatureKey() internal returns (uint256) {
+        if (_signatureIsValid) {
+            return ownerKey;
+        }
+        (, uint256 wrongKey) = makeAddrAndKey("wrongOwner");
+        return wrongKey;
+    }
 
     function _hashTypedDataSansChainId(bytes32 structHash) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(

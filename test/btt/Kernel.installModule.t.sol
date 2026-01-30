@@ -31,6 +31,14 @@ import {Install} from "src/types/Structs.sol";
 /// @notice Tests for installModule following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.installModule.tree
 abstract contract Kernel_installModule is BTTModifiers {
+    // State variables for installModule branch tracking
+    bool internal _validatorNotInstalled;
+    bool internal _internalDataContainsHook;
+    bool internal _hookIsContract;
+    bool internal _selectorNotRegistered;
+    bool internal _useInstallArrayOverload;
+    bool internal _internalDataNonEmpty;
+
     modifier whenTheCallerIsNotTheEntryPoint() {
         vm.stopPrank();
         vm.startPrank(makeAddr("randomCaller"));
@@ -67,6 +75,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier givenTheValidatorIsNotInstalled() {
+        _validatorNotInstalled = true;
         _;
     }
 
@@ -106,6 +115,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier givenInternalDataContainsAHookAddress() {
+        _internalDataContainsHook = true;
         _;
     }
 
@@ -130,6 +140,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier givenTheHookIsAContract() {
+        _hookIsContract = true;
         _;
     }
 
@@ -240,6 +251,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier givenTheSelectorIsNotRegistered() {
+        _selectorNotRegistered = true;
         _;
     }
 
@@ -532,6 +544,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier givenTheInstallArrayOverloadIsCalled() {
+        _useInstallArrayOverload = true;
         _;
     }
 
@@ -657,6 +670,7 @@ abstract contract Kernel_installModule is BTTModifiers {
     }
 
     modifier whenInternalDataIsNonEmpty() {
+        _internalDataNonEmpty = true;
         _;
     }
 

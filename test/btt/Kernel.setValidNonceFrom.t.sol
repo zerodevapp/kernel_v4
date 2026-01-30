@@ -34,7 +34,13 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
         kernel.setValidNonceFrom(higherSeq);
     }
 
+    // State variable for initial validNonceFrom - set by modifier
+    uint64 internal _initialValidNonceFrom;
+
     modifier whenValidatingNonces() {
+        // Set initial validNonceFrom to 10 for nonce validation tests
+        _initialValidNonceFrom = 10;
+        kernel.setValidNonceFrom(_initialValidNonceFrom);
         _;
     }
 
@@ -44,10 +50,7 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
         whenValidatingNonces
     {
         // it should be invalid
-        // First set validNonceFrom to a value
-        kernel.setValidNonceFrom(10);
-
-        // Try to set to a lower value (should revert because nonce below validNonceFrom)
+        // _initialValidNonceFrom is 10, try to set to a lower value
         vm.expectRevert(InvalidNonce.selector);
         kernel.setValidNonceFrom(5);
     }
@@ -58,10 +61,7 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
         whenValidatingNonces
     {
         // it should be valid
-        // First set validNonceFrom to 10
-        kernel.setValidNonceFrom(10);
-
-        // Setting to 20 (above 10) should succeed
+        // _initialValidNonceFrom is 10, setting to 20 (above 10) should succeed
         kernel.setValidNonceFrom(20);
 
         // Setting to 30 (above 20) should also succeed

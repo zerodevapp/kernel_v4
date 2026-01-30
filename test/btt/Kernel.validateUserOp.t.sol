@@ -31,7 +31,17 @@ import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 /// assert this behavior, or the code should be changed to avoid side effects on invalid
 /// enable signatures. Skipping this for now per user request.
 abstract contract Kernel_validateUserOp is BTTModifiers {
+    bool internal _enableModeSet;
+    bool internal _selectorAllowed;
+    bool internal _useExecuteUserOpWrapper;
+    bool internal _policiesPass;
+    bool internal _timeBoundedValidation;
+    bool internal _multipleTimeBoundedValidation;
+    address internal _selectorHook;
+
     modifier whenTheCallerIsNotTheEntryPoint() {
+        vm.stopPrank();
+        vm.startPrank(makeAddr("randomCaller"));
         _;
     }
 
@@ -47,10 +57,13 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier whenTheCallerIsTheEntryPointOrSelf() {
+        vm.stopPrank();
+        vm.startPrank(address(ep));
         _;
     }
 
     modifier givenTheValidationModeHasEnableFlagSet() {
+        _enableModeSet = true;
         _;
     }
 
@@ -141,6 +154,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsROOT() {
+        _validationType = 0;
+        _selectorAllowed = false;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = false;
         _;
     }
 
@@ -192,6 +209,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsVALIDATOR() {
+        _validationType = 1;
+        _selectorAllowed = false;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = false;
         _;
     }
 
@@ -217,10 +238,13 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheValidatorIsInstalled() {
+        _validatorInstalled = true;
         _;
     }
 
     modifier givenTheCallDataSelectorIsInTheAllowedListAndHookIsAddress1() {
+        _selectorAllowed = true;
+        _selectorHook = address(1);
         _;
     }
 
@@ -235,10 +259,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator with execute selector allowed
-        kernel.installModule(
-            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
-        );
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodeWithSelector(
@@ -263,10 +284,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator with execute selector allowed
-        kernel.installModule(
-            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
-        );
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodeWithSelector(
@@ -281,6 +299,8 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheCallDataSelectorIsInTheAllowedListAndHookIsNotAddress1() {
+        _selectorAllowed = true;
+        _selectorHook = address(hook);
         _;
     }
 
@@ -295,8 +315,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator without any allowed selectors
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", hex""));
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodeWithSelector(
@@ -324,10 +343,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         // Install hook first
         kernel.installModule(4, address(hook), abi.encode(hex"", hex""));
 
-        // Install validator with hook and execute selector allowed
-        kernel.installModule(
-            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(hook), Kernel.execute.selector))
-        );
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -347,6 +363,8 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheCallDataSelectorIsNotDirectlyAllowed() {
+        _selectorAllowed = false;
+        _selectorHook = address(0);
         _;
     }
 
@@ -361,8 +379,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator without any allowed selectors
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", hex""));
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         // Direct execute without executeUserOp wrapper - should fail
@@ -377,6 +394,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier whenTheCallDataUsesExecuteUserOpWrapper() {
+        _useExecuteUserOpWrapper = true;
         _;
     }
 
@@ -393,10 +411,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator with Kernel.execute selector in the allowed list
-        kernel.installModule(
-            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
-        );
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -427,8 +442,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install validator without execute selector allowed
-        kernel.installModule(1, address(newValidator), abi.encode(hex"", hex""));
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -459,10 +473,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         // Install hook first
         kernel.installModule(4, address(hook), abi.encode(hex"", hex""));
 
-        // Install validator with hook and execute selector allowed
-        kernel.installModule(
-            1, address(newValidator), abi.encode(hex"", abi.encodePacked(address(hook), Kernel.execute.selector))
-        );
+        _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
         op.callData = abi.encodePacked(
@@ -482,6 +493,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenTheValidationTypeIsPERMISSION() {
+        _validationType = 2;
+        _selectorAllowed = false;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = false;
         _;
     }
 
@@ -505,6 +520,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier givenThePermissionIsInstalled() {
+        _permissionInstalled = true;
         _;
     }
 
@@ -518,9 +534,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install permission without any allowed selectors
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        _installPermissionWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
         op.callData = abi.encodeWithSelector(
@@ -534,6 +548,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier whenAllPoliciesPassValidation() {
+        _policiesPass = true;
         _;
     }
 
@@ -548,13 +563,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
-        // Install permission with execute selector allowed
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
-        );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        _selectorAllowed = true;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = true;
+        _installPermissionWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
         op.callData = abi.encodePacked(
@@ -1041,6 +1053,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier whenValidationReturnsTimeBoundedData() {
+        _timeBoundedValidation = true;
         _;
     }
 
@@ -1055,7 +1068,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         // Set validator to return validAfter in the future
         uint48 futureTime = uint48(block.timestamp + 1 hours);
-        uint256 validationData = (uint256(futureTime) << 208); // validAfter in upper bits
+        uint256 validationData = _timeBoundedValidation ? (uint256(futureTime) << 208) : 0; // validAfter in upper bits
         MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
 
         PackedUserOperation memory op = _createUserOpWithRootValidation();
@@ -1087,7 +1100,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         // Set validator to return validUntil in the past (before current timestamp)
         uint48 pastTime = uint48(block.timestamp - 100);
-        uint256 validationData = (uint256(pastTime) << 160); // validUntil
+        uint256 validationData = _timeBoundedValidation ? (uint256(pastTime) << 160) : 0; // validUntil
         MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
 
         PackedUserOperation memory op = _createUserOpWithRootValidation();
@@ -1116,7 +1129,8 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         // Set validator to return both validAfter and validUntil
         uint48 validAfter = uint48(block.timestamp + 1 hours);
         uint48 validUntil = uint48(block.timestamp + 2 hours);
-        uint256 validationData = (uint256(validAfter) << 208) | (uint256(validUntil) << 160);
+        uint256 validationData =
+            _timeBoundedValidation ? (uint256(validAfter) << 208) | (uint256(validUntil) << 160) : 0;
         MockValidator(address(rootValidator)).sudoSetValidationData(validationData);
 
         PackedUserOperation memory op = _createUserOpWithRootValidation();
@@ -1136,6 +1150,8 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     modifier whenMultipleValidationsReturnTimeBoundedData() {
+        _timeBoundedValidation = true;
+        _multipleTimeBoundedValidation = true;
         _;
     }
 
@@ -1149,12 +1165,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with policy that returns time-bounded data
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
-        );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        _selectorAllowed = true;
+        _selectorHook = address(0);
+        _installPermissionWithSelectorPolicy();
 
         // Set signer to return time bounds - use specific values for clarity
         uint48 signerValidAfter = 1000;
@@ -1202,16 +1215,40 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    function _callDataForExecution() internal view returns (bytes memory) {
+        if (_useExecuteUserOpWrapper) {
+            return abi.encodeWithSelector(
+                Kernel.executeUserOp.selector,
+                abi.encodeWithSelector(
+                    Kernel.execute.selector,
+                    bytes32(0),
+                    abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+                )
+            );
+        }
+        return abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
+    }
+
+    function _installValidatorWithSelectorPolicy() internal {
+        bytes memory internalData = _selectorAllowed ? abi.encodePacked(_selectorHook, Kernel.execute.selector) : hex"";
+        kernel.installModule(1, address(newValidator), abi.encode(hex"", internalData));
+    }
+
+    function _installPermissionWithSelectorPolicy() internal {
+        bytes memory internalData =
+            _selectorAllowed ? abi.encodePacked(permissionId, _selectorHook, Kernel.execute.selector) : abi.encodePacked(permissionId);
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", internalData));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", internalData));
+    }
+
     function _createBasicUserOp() internal view returns (PackedUserOperation memory) {
         return PackedUserOperation({
             sender: address(kernel),
             nonce: encodeNonce(false, false, false, bytes1(0), bytes20(0)),
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1225,11 +1262,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             sender: address(kernel),
             nonce: encodeNonce(false, false, false, bytes1(0), bytes20(0)),
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1243,11 +1276,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             sender: address(kernel),
             nonce: encodeNonce(false, false, false, bytes1(0x01), bytes20(address(newValidator))),
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1261,11 +1290,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             sender: address(kernel),
             nonce: encodeNonce(false, false, false, bytes1(0x02), PermissionId.unwrap(permissionId)),
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1279,11 +1304,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             sender: address(kernel),
             nonce: encodeNonce(true, false, false, bytes1(0), bytes20(0)), // replayable = true
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 1000000,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1295,13 +1316,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     function _createUserOpWithEnableMode() internal view returns (PackedUserOperation memory) {
         return PackedUserOperation({
             sender: address(kernel),
-            nonce: encodeNonce(false, true, false, bytes1(0x01), bytes20(address(newValidator))), // enable = true
+            nonce: encodeNonce(false, _enableModeSet, false, bytes1(0x01), bytes20(address(newValidator))),
             initCode: hex"",
-            callData: abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            ),
+            callData: _callDataForExecution(),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 1000000,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),

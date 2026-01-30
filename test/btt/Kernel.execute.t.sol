@@ -15,12 +15,20 @@ import {Call} from "src/types/Structs.sol";
 abstract contract Kernel_execute is BTTModifiers {
     MockAction action;
 
+    // State variables for execution mode
+    bytes1 internal _callType;
+    bytes1 internal _execType;
+
     function _setupExecuteTests() internal {
         action = new MockAction();
     }
 
     function _encodeMode(bytes1 callType, bytes1 execType) internal pure returns (bytes32) {
         return bytes32(abi.encodePacked(callType, execType, bytes4(0), bytes4(0), bytes22(0)));
+    }
+
+    function _currentMode() internal view returns (bytes32) {
+        return _encodeMode(_callType, _execType);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -66,10 +74,12 @@ abstract contract Kernel_execute is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheExecutionModeCallTypeIsSINGLE() {
+        _callType = LibERC7579.CALLTYPE_SINGLE;
         _;
     }
 
     modifier givenTheExecutionModeExecTypeIsDEFAULT() {
+        _execType = LibERC7579.EXECTYPE_DEFAULT;
         _;
     }
 
@@ -81,10 +91,9 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should return the call result in returnData array
         // it should have exactly one element in returnData
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT);
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector);
 
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         assertEq(callee.bar(), 1, "Callee state should be updated");
     }
@@ -96,11 +105,10 @@ abstract contract Kernel_execute is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should propagate the revert
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT);
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector);
 
         vm.expectRevert(MockCallee.Haha.selector);
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -108,6 +116,7 @@ abstract contract Kernel_execute is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheExecutionModeExecTypeIsTRY() {
+        _execType = LibERC7579.EXECTYPE_TRY;
         _;
     }
 
@@ -119,10 +128,9 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should return the call result in returnData array
         // it should have exactly one element in returnData
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_TRY);
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector);
 
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         assertEq(callee.bar(), 1, "Callee state should be updated");
     }
@@ -135,11 +143,10 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should NOT propagate the revert
         // it should return empty bytes for the failed call
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_TRY);
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector);
 
         // Should NOT revert
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         // Callee state should remain unchanged
         assertEq(callee.bar(), 0, "Callee state should remain unchanged after failed TRY");
@@ -150,6 +157,7 @@ abstract contract Kernel_execute is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheExecutionModeCallTypeIsBATCH() {
+        _callType = LibERC7579.CALLTYPE_BATCH;
         _;
     }
 
@@ -161,14 +169,12 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should return all call results in returnData array
         // it should have N elements in returnData for N calls
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_DEFAULT);
-
         Call[] memory calls = new Call[](3);
         calls[0] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[1] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[2] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
 
-        kernel.execute(mode, abi.encode(calls));
+        kernel.execute(_currentMode(), abi.encode(calls));
 
         assertEq(callee.bar(), 3, "Callee state should reflect 3 calls");
     }
@@ -181,14 +187,12 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should propagate the revert
         // it should NOT execute remaining calls after the failure
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_DEFAULT);
-
         Call[] memory calls = new Call[](2);
         calls[0] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[1] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.forceRevert.selector)});
 
         vm.expectRevert(MockCallee.Haha.selector);
-        kernel.execute(mode, abi.encode(calls));
+        kernel.execute(_currentMode(), abi.encode(calls));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -203,14 +207,12 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should return all call results in returnData array
         // it should have N elements in returnData for N calls
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_TRY);
-
         Call[] memory calls = new Call[](3);
         calls[0] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[1] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[2] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
 
-        kernel.execute(mode, abi.encode(calls));
+        kernel.execute(_currentMode(), abi.encode(calls));
 
         assertEq(callee.bar(), 3, "Callee state should reflect 3 calls");
     }
@@ -224,15 +226,13 @@ abstract contract Kernel_execute is BTTModifiers {
         // it should NOT propagate the revert
         // it should return empty bytes for the failed call
         // it should continue executing remaining calls
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_TRY);
-
         Call[] memory calls = new Call[](3);
         calls[0] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
         calls[1] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.forceRevert.selector)});
         calls[2] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
 
         // Should NOT revert
-        kernel.execute(mode, abi.encode(calls));
+        kernel.execute(_currentMode(), abi.encode(calls));
 
         // First and third calls should have executed
         assertEq(callee.bar(), 2, "First and third calls should have executed");
@@ -243,6 +243,7 @@ abstract contract Kernel_execute is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     modifier givenTheExecutionModeCallTypeIsDELEGATECALL() {
+        _callType = LibERC7579.CALLTYPE_DELEGATECALL;
         _;
     }
 
@@ -255,10 +256,9 @@ abstract contract Kernel_execute is BTTModifiers {
         // it should return the delegatecall result
         // it should execute in the context of the Kernel
         _setupExecuteTests();
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_DEFAULT);
         bytes memory executionData = abi.encodePacked(address(action), abi.encodeWithSelector(action.doAction.selector));
 
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         // Action modifies kernel's storage - verify it executed
         assertEq(kernel.accountId(), "kernel.v0.4", "Delegatecall should execute in kernel context");
@@ -272,12 +272,11 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should propagate the revert
         _setupExecuteTests();
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_DEFAULT);
         bytes memory executionData =
             abi.encodePacked(address(action), abi.encodeWithSelector(action.doRevertingAction.selector));
 
-        vm.expectRevert("MockAction: revert");
-        kernel.execute(mode, executionData);
+        vm.expectRevert(MockAction.MockActionRevert.selector);
+        kernel.execute(_currentMode(), executionData);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -292,10 +291,9 @@ abstract contract Kernel_execute is BTTModifiers {
     {
         // it should return the delegatecall result
         _setupExecuteTests();
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_TRY);
         bytes memory executionData = abi.encodePacked(address(action), abi.encodeWithSelector(action.doAction.selector));
 
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         assertEq(kernel.accountId(), "kernel.v0.4", "Delegatecall should execute in kernel context");
     }
@@ -309,12 +307,11 @@ abstract contract Kernel_execute is BTTModifiers {
         // it should NOT propagate the revert
         // it should return empty bytes
         _setupExecuteTests();
-        bytes32 mode = _encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_TRY);
         bytes memory executionData =
             abi.encodePacked(address(action), abi.encodeWithSelector(action.doRevertingAction.selector));
 
         // Should NOT revert - kernel state should remain unchanged
-        kernel.execute(mode, executionData);
+        kernel.execute(_currentMode(), executionData);
 
         // Verify execution completed without reverting by checking kernel is still functional
         assertEq(kernel.accountId(), "kernel.v0.4", "Kernel should remain functional after TRY delegatecall revert");

@@ -7,7 +7,14 @@ import {Install} from "src/types/Structs.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 
 abstract contract KernelFactory_deployWithCall is BTTModifiers {
+    // Expected error selector (to be added to KernelFactory.sol)
+    error CallFailed();
+
+    // State variables for deployWithCall branch tracking
+    bool internal _addressAlreadyDeployed;
+
     modifier whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce() {
+        _addressAlreadyDeployed = true;
         _;
     }
 
@@ -54,11 +61,12 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
             abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
         );
 
-        vm.expectRevert("call failed");
+        vm.expectRevert(CallFailed.selector);
         factory.deployWithCall(packages, 0, revertingCall);
     }
 
     modifier whenTheAddressIsNotYetDeployed() {
+        _addressAlreadyDeployed = false;
         _;
     }
 
@@ -94,7 +102,7 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         );
 
         // Use unique nonce to ensure fresh deployment attempt
-        vm.expectRevert("call failed");
+        vm.expectRevert(CallFailed.selector);
         factory.deployWithCall(packages, 998, revertingCall);
     }
 

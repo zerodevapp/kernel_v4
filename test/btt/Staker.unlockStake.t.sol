@@ -6,6 +6,10 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_unlockStake is StakerBTTModifiers {
+    function setUp() public {
+        _initializeStaker();
+    }
+
     modifier whenTheCallerIsTheOwner() override {
         vm.startPrank(owner);
         _;
@@ -13,7 +17,6 @@ abstract contract Staker_unlockStake is StakerBTTModifiers {
     }
 
     function test_WhenTheCallerIsNotTheOwner() external {
-        _initializeStaker();
         // it should revert with Unauthorized error
 
         // First stake so there's something to unlock
@@ -28,7 +31,6 @@ abstract contract Staker_unlockStake is StakerBTTModifiers {
     }
 
     function test_WhenTheCallerIsTheOwner() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should call unlockStake on the EntryPoint
 
         // First stake so there's something to unlock

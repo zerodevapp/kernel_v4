@@ -6,12 +6,17 @@ import {APPROVE_FACTORY_STRUCT_HASH} from "src/types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
 abstract contract Staker_approveFactoryWithSignature is StakerBTTModifiers {
+    error InvalidSignature();
+
+    function setUp() public {
+        _initializeStaker();
+    }
+
     modifier givenTheSignatureIsValid() override {
         _;
     }
 
     function test_GivenTheSignatureIsInvalid() external {
-        _initializeStaker();
         // it should revert with "InvalidSignature"
         (, uint256 wrongKey) = makeAddrAndKey("wrongOwner");
 
@@ -21,12 +26,11 @@ abstract contract Staker_approveFactoryWithSignature is StakerBTTModifiers {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert("InvalidSignature");
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(factoryAddr, true, signature);
     }
 
     function test_GivenTheSignatureIsValid() external givenTheSignatureIsValid {
-        _initializeStaker();
         // it should set the factory approval
         // it should allow cross-chain signatures (sans chainId)
         bytes32 structHash =

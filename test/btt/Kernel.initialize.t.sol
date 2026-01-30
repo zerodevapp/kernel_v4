@@ -21,6 +21,11 @@ import {InvalidInitialization, InvalidRootValidation, InvalidPermissionId} from 
 /// @notice Tests for initialize following Branching Tree Technique
 /// @dev Tree specification: test/btt/Kernel.initialize.tree
 abstract contract Kernel_initialize is BTTModifiers {
+    // State variables for initialize branch tracking
+    bool internal _accountNotInitialized;
+    bool internal _packagesNotEmpty;
+    bool internal _firstPackageIsPermission;
+
     function test_GivenTheAccountHasAlreadyBeenInitialized() external {
         // The kernel is already initialized in setUp, trying to initialize again should fail
         Install[] memory packages = new Install[](1);
@@ -32,6 +37,7 @@ abstract contract Kernel_initialize is BTTModifiers {
     }
 
     modifier givenTheAccountHasNotBeenInitialized() {
+        _accountNotInitialized = true;
         _;
     }
 
@@ -45,6 +51,7 @@ abstract contract Kernel_initialize is BTTModifiers {
     }
 
     modifier whenPackagesArrayHasOneOrMoreElements() {
+        _packagesNotEmpty = true;
         _;
     }
 
@@ -92,6 +99,7 @@ abstract contract Kernel_initialize is BTTModifiers {
     }
 
     modifier givenTheFirstPackageIsAPermission() {
+        _firstPackageIsPermission = true;
         _;
     }
 

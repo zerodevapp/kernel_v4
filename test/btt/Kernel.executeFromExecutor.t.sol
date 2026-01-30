@@ -6,11 +6,20 @@ import {Unauthorized, InvalidExecType, InvalidCallType} from "src/types/Error.so
 import {MockExecutor} from "../mock/MockExecutor.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 import {MockHook} from "../mock/MockHook.sol";
+import {MockAction} from "../mock/MockAction.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {Call} from "src/types/Structs.sol";
 
 abstract contract Kernel_executeFromExecutor is BTTModifiers {
     MockExecutor testExecutor;
+
+    // State variables for execution mode - used by tests to build mode
+    bytes1 internal _executorCallType;
+    bytes1 internal _executorExecType;
+
+    // State variables for hook tests - set by modifiers, used by tests
+    MockHook internal _hookContract;
+    MockExecutor internal _executorWithHook;
 
     function _setupExecutorTests() internal {
         testExecutor = new MockExecutor();
@@ -43,7 +52,18 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         );
     }
 
+    // Hook setup helper - creates and installs executor with hook
+    function _setupExecutorWithHook() internal {
+        _hookContract = new MockHook();
+        _executorWithHook = new MockExecutor();
+        vm.startPrank(address(ep));
+        kernel.installModule(2, address(_executorWithHook), abi.encode(hex"", abi.encodePacked(address(_hookContract))));
+        vm.stopPrank();
+    }
+
     modifier givenTheExecutorHasAHookConfigured() {
+        // Set up executor with hook - tests use _hookContract and _executorWithHook
+        _setupExecutorWithHook();
         _;
     }
 
@@ -53,37 +73,27 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutorHasAHookConfigured
     {
         // it should call preHook on the executor hook before execution
-        MockHook mockHook = new MockHook();
-        MockExecutor executorWithHook = new MockExecutor();
-
-        vm.startPrank(address(ep));
-        kernel.installModule(2, address(executorWithHook), abi.encode(hex"", abi.encodePacked(address(mockHook))));
-        vm.stopPrank();
-
-        executorWithHook.executeViaKernel(
+        _executorWithHook.executeViaKernel(
             kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
         );
 
-        assertTrue(mockHook.preHookCalled(), "preHook should be called");
+        assertTrue(_hookContract.preHookCalled(), "preHook should be called");
     }
 
     function test_GivenPreHookReverts() external whenTheCallerIsAnInstalledExecutor givenTheExecutorHasAHookConfigured {
         // it should propagate the revert
-        MockHook revertingHook = new MockHook();
-        revertingHook.setRevertOnPreHook(true);
-        MockExecutor executorWithHook = new MockExecutor();
+        // Configure the hook to revert on preHook
+        _hookContract.setRevertOnPreHook(true);
 
-        vm.startPrank(address(ep));
-        kernel.installModule(2, address(executorWithHook), abi.encode(hex"", abi.encodePacked(address(revertingHook))));
-        vm.stopPrank();
-
-        vm.expectRevert("preHook reverted");
-        executorWithHook.executeViaKernel(
+        vm.expectRevert(MockHook.PreHookReverted.selector);
+        _executorWithHook.executeViaKernel(
             kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
         );
     }
 
     modifier givenPreHookSucceeds() {
+        // Ensure hook does not revert on preHook (default behavior, but explicit)
+        _hookContract.setRevertOnPreHook(false);
         _;
     }
 
@@ -95,18 +105,11 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     {
         // it should execute the requested operations
         // it should call postHook on the executor hook after execution
-        MockHook mockHook = new MockHook();
-        MockExecutor executorWithHook = new MockExecutor();
-
-        vm.startPrank(address(ep));
-        kernel.installModule(2, address(executorWithHook), abi.encode(hex"", abi.encodePacked(address(mockHook))));
-        vm.stopPrank();
-
-        executorWithHook.executeViaKernel(
+        _executorWithHook.executeViaKernel(
             kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
         );
 
-        assertTrue(mockHook.postHookCalled(), "postHook should be called");
+        assertTrue(_hookContract.postHookCalled(), "postHook should be called");
         assertEq(callee.bar(), 1, "Callee should be called");
     }
 
@@ -117,16 +120,11 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenPreHookSucceeds
     {
         // it should propagate the revert
-        MockHook revertingHook = new MockHook();
-        revertingHook.setRevertOnPostHook(true);
-        MockExecutor executorWithHook = new MockExecutor();
+        // Configure the hook to revert on postHook
+        _hookContract.setRevertOnPostHook(true);
 
-        vm.startPrank(address(ep));
-        kernel.installModule(2, address(executorWithHook), abi.encode(hex"", abi.encodePacked(address(revertingHook))));
-        vm.stopPrank();
-
-        vm.expectRevert("postHook reverted");
-        executorWithHook.executeViaKernel(
+        vm.expectRevert(MockHook.PostHookReverted.selector);
+        _executorWithHook.executeViaKernel(
             kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
         );
     }
@@ -138,14 +136,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenPreHookSucceeds
     {
         // it should return the execution results
-        MockHook mockHook = new MockHook();
-        MockExecutor executorWithHook = new MockExecutor();
-
-        vm.startPrank(address(ep));
-        kernel.installModule(2, address(executorWithHook), abi.encode(hex"", abi.encodePacked(address(mockHook))));
-        vm.stopPrank();
-
-        bytes[] memory results = executorWithHook.executeViaKernel(
+        bytes[] memory results = _executorWithHook.executeViaKernel(
             kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
         );
 
@@ -171,10 +162,12 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     }
 
     modifier givenTheExecutionModeCallTypeIsSINGLE() {
+        _executorCallType = LibERC7579.CALLTYPE_SINGLE;
         _;
     }
 
     modifier givenTheExecutionModeExecTypeIsDEFAULT() {
+        _executorExecType = LibERC7579.EXECTYPE_DEFAULT;
         _;
     }
 
@@ -185,8 +178,11 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should return the result in returnData array
+        assertEq(_executorCallType, LibERC7579.CALLTYPE_SINGLE, "Call type should be SINGLE");
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_DEFAULT, "Exec type should be DEFAULT");
+
         bytes[] memory results = testExecutor.executeViaKernel(
-            kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, address(callee), 0, MockCallee.foo.selector
+            kernel, _executorCallType, _executorExecType, address(callee), 0, MockCallee.foo.selector
         );
 
         assertEq(results.length, 1, "Should return one result");
@@ -200,11 +196,13 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should propagate the revert
+        assertEq(_executorCallType, LibERC7579.CALLTYPE_SINGLE, "Call type should be SINGLE");
+
         vm.expectRevert(MockCallee.Haha.selector);
         testExecutor.executeViaKernel(
             kernel,
-            LibERC7579.CALLTYPE_SINGLE,
-            LibERC7579.EXECTYPE_DEFAULT,
+            _executorCallType,
+            _executorExecType,
             address(callee),
             0,
             MockCallee.forceRevert.selector
@@ -212,6 +210,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     }
 
     modifier givenTheExecutionModeExecTypeIsTRY() {
+        _executorExecType = LibERC7579.EXECTYPE_TRY;
         _;
     }
 
@@ -222,8 +221,10 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsTRY
     {
         // it should return the result in returnData array
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
         bytes[] memory results = testExecutor.executeViaKernel(
-            kernel, LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_TRY, address(callee), 0, MockCallee.foo.selector
+            kernel, _executorCallType, _executorExecType, address(callee), 0, MockCallee.foo.selector
         );
 
         assertEq(results.length, 1, "Should return one result");
@@ -238,10 +239,12 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     {
         // it should NOT propagate the revert
         // it should return empty bytes for the failed call
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
         bytes[] memory results = testExecutor.executeViaKernel(
             kernel,
-            LibERC7579.CALLTYPE_SINGLE,
-            LibERC7579.EXECTYPE_TRY,
+            _executorCallType,
+            _executorExecType,
             address(callee),
             0,
             MockCallee.forceRevert.selector
@@ -252,6 +255,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     }
 
     modifier givenTheExecutionModeCallTypeIsBATCH() {
+        _executorCallType = LibERC7579.CALLTYPE_BATCH;
         _;
     }
 
@@ -262,7 +266,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should return all results in returnData array
-        bytes[] memory results = testExecutor.executeBatchViaKernel(kernel, LibERC7579.EXECTYPE_DEFAULT, 3);
+        assertEq(_executorCallType, LibERC7579.CALLTYPE_BATCH, "Call type should be BATCH");
+
+        bytes[] memory results = testExecutor.executeBatchViaKernel(kernel, _executorExecType, 3);
 
         assertEq(results.length, 3, "Should return three results");
         // Note: MockExecutor.executeBatchViaKernel calls kernel.accountId(), not callee
@@ -275,8 +281,10 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should propagate the revert
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_DEFAULT, "Exec type should be DEFAULT");
+
         vm.expectRevert(MockCallee.Haha.selector);
-        testExecutor.executeBatchWithRevertViaKernel(kernel, LibERC7579.EXECTYPE_DEFAULT);
+        testExecutor.executeBatchWithRevertViaKernel(kernel, _executorExecType);
     }
 
     function test_WhenAllCallsSucceed_GivenTheExecutionModeExecTypeIsTRY()
@@ -286,7 +294,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsTRY
     {
         // it should return all results in returnData array
-        bytes[] memory results = testExecutor.executeBatchViaKernel(kernel, LibERC7579.EXECTYPE_TRY, 3);
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
+        bytes[] memory results = testExecutor.executeBatchViaKernel(kernel, _executorExecType, 3);
 
         assertEq(results.length, 3, "Should return three results");
         // Note: MockExecutor.executeBatchViaKernel calls kernel.accountId(), not callee
@@ -301,7 +311,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         // it should NOT propagate the revert
         // it should return empty bytes for the failed call
         // it should continue executing remaining calls
-        bytes[] memory results = testExecutor.executeBatchWithRevertViaKernel(kernel, LibERC7579.EXECTYPE_TRY);
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
+        bytes[] memory results = testExecutor.executeBatchWithRevertViaKernel(kernel, _executorExecType);
 
         assertEq(results.length, 3, "Should return three results");
         // First and third calls succeed (kernel.accountId()), second reverts (forceRevert)
@@ -309,6 +321,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     }
 
     modifier givenTheExecutionModeCallTypeIsDELEGATECALL() {
+        _executorCallType = LibERC7579.CALLTYPE_DELEGATECALL;
         _;
     }
 
@@ -319,7 +332,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should return the result
-        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, LibERC7579.EXECTYPE_DEFAULT, false);
+        assertEq(_executorCallType, LibERC7579.CALLTYPE_DELEGATECALL, "Call type should be DELEGATECALL");
+
+        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, _executorExecType, false);
 
         assertEq(results.length, 1, "Should return one result");
     }
@@ -331,8 +346,10 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsDEFAULT
     {
         // it should propagate the revert
-        vm.expectRevert("MockAction: revert");
-        testExecutor.executeDelegatecallViaKernel(kernel, LibERC7579.EXECTYPE_DEFAULT, true);
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_DEFAULT, "Exec type should be DEFAULT");
+
+        vm.expectRevert(MockAction.MockActionRevert.selector);
+        testExecutor.executeDelegatecallViaKernel(kernel, _executorExecType, true);
     }
 
     function test_WhenTheDelegatecallSucceeds_GivenTheExecutionModeExecTypeIsTRY()
@@ -342,7 +359,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         givenTheExecutionModeExecTypeIsTRY
     {
         // it should return the result
-        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, LibERC7579.EXECTYPE_TRY, false);
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
+        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, _executorExecType, false);
 
         assertEq(results.length, 1, "Should return one result");
     }
@@ -355,7 +374,9 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
     {
         // it should NOT propagate the revert
         // it should return empty bytes
-        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, LibERC7579.EXECTYPE_TRY, true);
+        assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
+
+        bytes[] memory results = testExecutor.executeDelegatecallViaKernel(kernel, _executorExecType, true);
 
         assertEq(results.length, 1, "Should return one result");
     }

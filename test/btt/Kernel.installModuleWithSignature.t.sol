@@ -16,15 +16,23 @@ import {InvalidNonce, InstallSignatureVerificationFailed} from "src/types/Error.
 import {KernelHelper} from "../KernelHelper.sol";
 
 abstract contract Kernel_installModuleWithSignature is BTTModifiers {
+    // State variables for installModuleWithSignature branch tracking
+    bool internal _replayable;
+    bool internal _signatureValid;
+    bool internal _nonceValid;
+
     modifier whenReplayableIsFalse() {
+        _replayable = false;
         _;
     }
 
     modifier givenTheSignatureIsValidForThisChain() {
+        _signatureValid = true;
         _;
     }
 
     modifier givenTheNonceIsValid() {
+        _nonceValid = true;
         _;
     }
 
@@ -104,14 +112,17 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
     }
 
     modifier whenReplayableIsTrue() {
+        _replayable = true;
         _;
     }
 
     modifier givenTheSignatureIsValid() {
+        _signatureValid = true;
         _;
     }
 
     modifier givenTheNonceIsValidOnThisChain() {
+        _nonceValid = true;
         _;
     }
 

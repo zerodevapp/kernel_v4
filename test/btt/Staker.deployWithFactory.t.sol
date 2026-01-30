@@ -7,8 +7,11 @@ import {KernelFactory} from "src/KernelFactory.sol";
 import {Install} from "src/types/Structs.sol";
 
 abstract contract Staker_deployWithFactory is StakerBTTModifiers {
-    function test_GivenTheFactoryIsNotApproved() external {
+    function setUp() public {
         _initializeStaker();
+    }
+
+    function test_GivenTheFactoryIsNotApproved() external {
         // it should revert with NotApprovedFactory error
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
@@ -26,7 +29,6 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
     }
 
     function test_GivenTheFactoryIsApproved() external givenTheFactoryIsApproved {
-        _initializeStaker();
         // it should call the factory deploy function with the provided data
 
         Install[] memory packages = new Install[](1);
@@ -41,7 +43,6 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
     }
 
     function test_WhenTheFactoryDeploymentSucceeds() external givenTheFactoryIsApproved {
-        _initializeStaker();
         // it should return the deployed account address
 
         Install[] memory packages = new Install[](1);
@@ -57,7 +58,6 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
     }
 
     function test_WhenTheFactoryDeploymentReverts() external givenTheFactoryIsApproved {
-        _initializeStaker();
         // it should revert with DeployFailed error
 
         MockFailingFactory failingFactory = new MockFailingFactory();

@@ -17,6 +17,11 @@ abstract contract FactoryBTTModifiers is Test {
     KernelFactory factory;
     MockValidator rootValidator;
 
+    // State variables for BTT branch tracking
+    bool internal _addressAlreadyDeployed;
+    bool internal _packagesEmpty;
+    address internal _ecdsaOwner;
+
     function _initializeFactory() internal virtual {
         ep = EntryPointLib.deploy();
         KernelUUPS uups = new KernelUUPS(ep);

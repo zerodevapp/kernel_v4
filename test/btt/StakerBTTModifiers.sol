@@ -27,6 +27,10 @@ abstract contract StakerBTTModifiers is Test {
     bytes32 internal constant _DOMAIN_TYPEHASH_SANS_CHAIN_ID =
         0x91ab3d17e3a50a9d89e63fd30b92be7f5336b03b287bb946787a83a9d62a2766;
 
+    function setUp() public virtual {
+        _initializeStaker();
+    }
+
     function _initializeStaker() internal virtual {
         ep = EntryPointLib.deploy();
         (owner, ownerKey) = makeAddrAndKey("owner");

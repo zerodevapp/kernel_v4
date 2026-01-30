@@ -17,6 +17,7 @@ abstract contract KernelFactory_deployECDSA is FactoryBTTModifiers {
     }
 
     modifier whenTheAddressIsAlreadyDeployedForThisOwnerAndNonce() {
+        _addressAlreadyDeployed = true;
         _;
     }
 
@@ -39,6 +40,8 @@ abstract contract KernelFactory_deployECDSA is FactoryBTTModifiers {
     }
 
     modifier whenTheECDSAOwnerIsAValidAddressAndNotYetDeployed() {
+        _addressAlreadyDeployed = false;
+        _ecdsaOwner = makeAddr("ecdsaOwner");
         _;
     }
 

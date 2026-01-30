@@ -7,6 +7,11 @@ import {Lib4337Harness} from "../mock/Lib4337Harness.sol";
 abstract contract Lib4337_Test is Test {
     Lib4337Harness harness;
 
+    // State variables for BTT branch tracking - set by modifiers, used by tests
+    uint256 internal _preValidationData;
+    uint256 internal _validationRes;
+    uint256 internal _currentTimestamp;
+
     function setUp() public virtual {
         harness = new Lib4337Harness();
     }
@@ -17,6 +22,8 @@ abstract contract Lib4337_Test is Test {
     }
 
     modifier whenCallingParseValidationData() {
+        // Set up default packed data for parsing tests
+        _preValidationData = packValidationData(100, 0, address(0));
         _;
     }
 
@@ -43,12 +50,15 @@ abstract contract Lib4337_Test is Test {
     }
 
     modifier whenCallingCheckValidation() {
+        // Set up default timestamp for checkValidation tests
+        _currentTimestamp = 1000;
+        vm.warp(_currentTimestamp);
         _;
     }
 
     function test_GivenValidAfterIsGreaterThanCurrentTimestamp() external whenCallingCheckValidation {
-        vm.warp(1000);
         // validAfter = 2000 (future), validUntil = 0 (max), result = 0 (success)
+        // _currentTimestamp is 1000, so validAfter > current
         uint256 validationData = packValidationData(2000, 0, address(0));
 
         bool isValid = harness.checkValidation(validationData);
@@ -57,6 +67,7 @@ abstract contract Lib4337_Test is Test {
     }
 
     function test_GivenValidUntilIsLessThanCurrentTimestamp() external whenCallingCheckValidation {
+        // Warp to later timestamp for this specific test
         vm.warp(5000);
         // validAfter = 0, validUntil = 1000 (past), result = 0 (success)
         uint256 validationData = packValidationData(0, 1000, address(0));
@@ -67,7 +78,7 @@ abstract contract Lib4337_Test is Test {
     }
 
     function test_GivenResultAddressIsNotZero() external whenCallingCheckValidation {
-        vm.warp(1000);
+        // Uses _currentTimestamp (1000) set by modifier
         // validAfter = 0, validUntil = 0 (max), result = 1 (failure)
         uint256 validationData = packValidationData(0, 0, address(1));
 
@@ -77,7 +88,7 @@ abstract contract Lib4337_Test is Test {
     }
 
     function test_GivenTimeBoundsAreValidAndResultIsZero() external whenCallingCheckValidation {
-        vm.warp(1000);
+        // Uses _currentTimestamp (1000) set by modifier
         // validAfter = 500 (past), validUntil = 2000 (future), result = 0 (success)
         uint256 validationData = packValidationData(500, 2000, address(0));
 
@@ -87,28 +98,38 @@ abstract contract Lib4337_Test is Test {
     }
 
     modifier whenCallingIntersectValidationData() {
+        // Set up default validation data for intersect tests
+        _preValidationData = packValidationData(100, 200, address(0x1234));
+        _validationRes = packValidationData(100, 200, address(0x5678));
         _;
     }
 
     function test_GivenPreValidationDataIsZero() external whenCallingIntersectValidationData {
-        uint256 preValidationData = 0;
-        uint256 validationRes = packValidationData(100, 200, address(0x5678));
+        // Override to zero for this specific test
+        _preValidationData = 0;
 
-        uint256 result = harness.intersectValidationData(preValidationData, validationRes);
+        uint256 result = harness.intersectValidationData(_preValidationData, _validationRes);
 
-        assertEq(result, validationRes, "should return validationRes via short circuit when preValidationData is 0");
+        assertEq(result, _validationRes, "should return validationRes via short circuit when preValidationData is 0");
     }
 
     function test_GivenValidationResIsZero() external whenCallingIntersectValidationData {
-        uint256 preValidationData = packValidationData(100, 200, address(0x1234));
-        uint256 validationRes = 0;
+        // Override to zero for this specific test
+        _validationRes = 0;
 
-        uint256 result = harness.intersectValidationData(preValidationData, validationRes);
+        uint256 result = harness.intersectValidationData(_preValidationData, _validationRes);
 
-        assertEq(result, preValidationData, "should return preValidationData via short circuit when validationRes is 0");
+        assertEq(result, _preValidationData, "should return preValidationData via short circuit when validationRes is 0");
     }
 
     modifier givenBothValuesAreNon_zero() {
+        // Ensure both values are non-zero (override any zero values from parent modifier)
+        if (_preValidationData == 0) {
+            _preValidationData = packValidationData(100, 1000, address(0x1));
+        }
+        if (_validationRes == 0) {
+            _validationRes = packValidationData(100, 1000, address(0x2));
+        }
         _;
     }
 

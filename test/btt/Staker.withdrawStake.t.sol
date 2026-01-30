@@ -6,6 +6,10 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_withdrawStake is StakerBTTModifiers {
+    function setUp() public {
+        _initializeStaker();
+    }
+
     modifier whenTheCallerIsTheOwner() override {
         vm.startPrank(owner);
         _;
@@ -13,7 +17,6 @@ abstract contract Staker_withdrawStake is StakerBTTModifiers {
     }
 
     function test_WhenTheCallerIsNotTheOwner() external {
-        _initializeStaker();
         // it should revert with Unauthorized error
 
         // Setup: stake, unlock, and wait for delay
@@ -32,7 +35,6 @@ abstract contract Staker_withdrawStake is StakerBTTModifiers {
     }
 
     function test_WhenTheCallerIsTheOwner() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should call withdrawStake on the EntryPoint with the recipient
         address payable recipient = payable(makeAddr("recipient"));
         uint256 stakeAmount = 1 ether;

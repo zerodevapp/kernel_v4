@@ -148,6 +148,146 @@ def parse_tree_leaves(path: Path):
     return leaves
 
 
+def parse_tree_branches(path: Path) -> List[Tuple[int, str]]:
+    """Parse tree file and return all non-leaf nodes (branches) that should be modifiers."""
+    nodes = []
+    lines = path.read_text().splitlines()
+    for idx, line in enumerate(lines):
+        m = TREE_NODE_RE.match(line)
+        if not m:
+            continue
+        indent = len(m.group("indent"))
+        text = m.group("text").strip()
+        nodes.append((idx, indent, text))
+
+    branches = []
+    for i, (idx, indent, text) in enumerate(nodes):
+        # Skip "it should..." lines - those are leaves/assertions
+        if text.lower().startswith("it "):
+            continue
+
+        # Check if this node has children (is a branch)
+        is_branch = False
+        for j in range(i + 1, len(nodes)):
+            _, next_indent, _ = nodes[j]
+            if next_indent <= indent:
+                break
+            is_branch = True
+            break
+
+        if is_branch:
+            branches.append((idx + 1, text))
+
+    return branches
+
+
+def tree_text_to_modifier_name(text: str) -> str:
+    """Convert tree branch text to expected modifier name.
+
+    Example: "when the caller is the EntryPoint or self" -> "whenTheCallerIsTheEntryPointOrSelf"
+    """
+    # Remove leading "when ", "given ", etc. and convert to camelCase
+    words = text.split()
+    if not words:
+        return ""
+
+    # First word stays lowercase, rest are capitalized
+    result = words[0].lower()
+    for word in words[1:]:
+        result += word.capitalize()
+
+    # Remove non-alphanumeric characters
+    result = re.sub(r'[^a-zA-Z0-9]', '', result)
+
+    return result
+
+
+def get_sol_modifiers(sol_path: Path) -> List[Tuple[str, int]]:
+    """Extract modifier names from a .t.sol file."""
+    text = sol_path.read_text()
+    modifiers = []
+    for name, _, line in iter_modifiers(text):
+        modifiers.append((name, line))
+    return modifiers
+
+
+def is_modifier_in_tree(modifier_name: str, expected_modifiers: Set[str]) -> bool:
+    """Check if a modifier name matches any expected modifier from the tree."""
+    normalized = normalize_name(modifier_name)
+
+    # Direct match (normalized)
+    if any(normalize_name(exp) == normalized for exp in expected_modifiers):
+        return True
+
+    # Extract key words from actual modifier
+    actual_words = extract_key_words(modifier_name)
+    if not actual_words:
+        return False
+
+    for expected in expected_modifiers:
+        expected_words = extract_key_words(expected)
+
+        # Check if actual words are a substantial subset of expected words
+        common = actual_words & expected_words
+        if len(common) >= len(actual_words) * 0.6:
+            return True
+        if expected_words and len(common) >= len(expected_words) * 0.6:
+            return True
+
+        # Check normalized string containment
+        norm_actual = normalize_name(modifier_name)
+        norm_expected = normalize_name(expected)
+
+        if norm_actual in norm_expected or norm_expected in norm_actual:
+            return True
+
+    return False
+
+
+def check_orphan_modifiers() -> Dict[Path, List[Tuple[str, int]]]:
+    """Check for modifiers that don't have corresponding tree branches."""
+    orphans: Dict[Path, List[Tuple[str, int]]] = {}
+
+    # Only skip standard Foundry modifiers (not repo-specific)
+    skip_modifiers = {'setUp'}
+
+    for sol_path in sorted(BTT_DIR.glob("*.t.sol")):
+        # Find matching tree file
+        tree_path = find_matching_tree_file(sol_path)
+        if not tree_path:
+            contract_name = extract_abstract_contract_name(sol_path)
+            if contract_name:
+                tree_path = find_tree_by_contract_name(contract_name)
+
+        if not tree_path:
+            continue
+
+        # Get expected modifier names from tree branches
+        branches = parse_tree_branches(tree_path)
+        expected_modifiers = {tree_text_to_modifier_name(text) for _, text in branches}
+
+        if not expected_modifiers:
+            continue
+
+        # Get actual modifiers from .t.sol
+        actual_modifiers = get_sol_modifiers(sol_path)
+
+        # Find orphans
+        file_orphans = []
+        for modifier_name, line_num in actual_modifiers:
+            # Skip common base class modifiers
+            if modifier_name in skip_modifiers:
+                continue
+
+            if not is_modifier_in_tree(modifier_name, expected_modifiers):
+                file_orphans.append((modifier_name, line_num))
+
+        if file_orphans:
+            orphans[sol_path] = file_orphans
+
+    return orphans
+
+
 def check_bulloak():
     if not shutil_which("bulloak"):
         return False, "bulloak not found in PATH"
@@ -387,7 +527,31 @@ def main():
                 fail(f"modifier contains assertion: {path.relative_to(ROOT)}:{line} {name}", errors)
 
     # ==========================================================================
-    # RULE 6: Tests must assert something, no comment-only tests, no loops
+    # RULE 6: Modifiers must set up state (unless explicitly ignored)
+    # ==========================================================================
+    ignore_empty_re = re.compile(r"//\s*ignore-empty-modifier\s*:\s*(.+)", re.I)
+    for path in BTT_DIR.glob("*.t.sol"):
+        text = path.read_text()
+        for name, body, line in iter_modifiers(text):
+            body_no_comments = strip_comments(body)
+            # Remove whitespace and check for comment-only or no-op modifiers
+            body_stripped = body_no_comments.replace(" ", "").replace("\n", "").replace("\t", "")
+            is_comment_only = body_stripped == ""
+            is_noop = body_stripped in {"_;", "_"}
+            if is_comment_only or is_noop:
+                # Check for ignore comment
+                ignore_match = ignore_empty_re.search(body)
+                if ignore_match:
+                    reason = ignore_match.group(1).strip()
+                    warn(f"empty modifier (ignored: {reason}): {path.relative_to(ROOT)}:{line} {name}", warnings)
+                else:
+                    if is_comment_only:
+                        fail(f"comment-only modifier (does nothing): {path.relative_to(ROOT)}:{line} {name}", errors)
+                    else:
+                        fail(f"empty modifier (does nothing): {path.relative_to(ROOT)}:{line} {name}", errors)
+
+    # ==========================================================================
+    # RULE 7: Tests must assert something, no comment-only tests, no loops
     # ==========================================================================
     loop_re = re.compile(r"\b(for|while)\s*\(")
     for path in BTT_DIR.glob("*.t.sol"):
@@ -405,7 +569,7 @@ def main():
                 fail(f"loop inside test: {path.relative_to(ROOT)}:{line} {name}", errors)
 
     # ==========================================================================
-    # RULE 7: Every .tree file must have a corresponding .t.sol file
+    # RULE 8: Every .tree file must have a corresponding .t.sol file
     # ==========================================================================
     for tree_path in BTT_DIR.glob("*.tree"):
         sol_path = tree_path.with_suffix(".t.sol")
@@ -413,7 +577,7 @@ def main():
             fail(f"missing test file for {tree_path.relative_to(ROOT)}: expected {sol_path.name}", errors)
 
     # ==========================================================================
-    # RULE 8: No duplicate test function names within a file
+    # RULE 9: No duplicate test function names within a file
     # ==========================================================================
     for path in BTT_DIR.glob("*.t.sol"):
         text = path.read_text()
@@ -423,7 +587,7 @@ def main():
                 fail(f"duplicate test function: {path.relative_to(ROOT)} {name} at lines {lines}", errors)
 
     # ==========================================================================
-    # RULE 9: No TODO/FIXME in test function bodies (tests should be complete)
+    # RULE 10: No TODO/FIXME in test function bodies (tests should be complete)
     # ==========================================================================
     for path in BTT_DIR.glob("*.t.sol"):
         text = path.read_text()
@@ -434,13 +598,21 @@ def main():
                 warn(f"TODO/FIXME in test: {path.relative_to(ROOT)}:{line} {name}", warnings)
 
     # ==========================================================================
-    # RULE 10: No orphan tests (tests must have corresponding tree branches)
+    # RULE 11: No orphan tests (tests must have corresponding tree branches)
     # ==========================================================================
     if not args.skip_bulloak:  # Only check if bulloak is available
         orphans = check_orphan_tests()
         for sol_path, funcs in orphans.items():
             for func_name, line_num in funcs:
                 fail(f"orphan test (no tree branch): {sol_path.relative_to(ROOT)}:{line_num} {func_name}", errors)
+
+    # ==========================================================================
+    # RULE 12: No orphan modifiers (modifiers must have corresponding tree branches)
+    # ==========================================================================
+    orphan_modifiers = check_orphan_modifiers()
+    for sol_path, mods in orphan_modifiers.items():
+        for modifier_name, line_num in mods:
+            warn(f"orphan modifier (no tree branch): {sol_path.relative_to(ROOT)}:{line_num} {modifier_name}", warnings)
 
     # ==========================================================================
     # OUTPUT RESULTS

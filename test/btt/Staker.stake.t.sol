@@ -6,8 +6,11 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_stake is StakerBTTModifiers {
-    function test_WhenTheCallerIsNotTheOwner() external {
+    function setUp() public {
         _initializeStaker();
+    }
+
+    function test_WhenTheCallerIsNotTheOwner() external {
         // it should revert with Unauthorized error
         address notOwner = makeAddr("notOwner");
         vm.deal(notOwner, 10 ether);
@@ -24,7 +27,6 @@ abstract contract Staker_stake is StakerBTTModifiers {
     }
 
     function test_GivenMsgValueIsZero() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should call addStake with zero value
         IEntryPoint.DepositInfo memory infoBefore = ep.getDepositInfo(address(staker));
 
@@ -36,7 +38,6 @@ abstract contract Staker_stake is StakerBTTModifiers {
     }
 
     function test_GivenMsgValueIsGreaterThanZero() external whenTheCallerIsTheOwner {
-        _initializeStaker();
         // it should call addStake on the EntryPoint
         // it should increase the stake by msg value
         uint256 stakeAmount = 1 ether;
