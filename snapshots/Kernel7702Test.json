@@ -1,5 +1,6 @@
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
   "Install - 3": "225970",
   "Root - foo()": "100475",
   "Simple - foo()": "100568"
@@ -8,4 +9,9 @@
   "Root - foo()": "100372",
   "Simple - foo()": "100523"
 >>>>>>> 2c87de4 (btt)
+=======
+  "Install - 3": "254181",
+  "Root - foo()": "103773",
+  "Simple - foo()": "102499"
+>>>>>>> 461fcf9 (coverage, needs fix)
 }

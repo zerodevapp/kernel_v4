@@ -7,7 +7,6 @@ import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
 
 abstract contract KernelFactory_deployECDSA is FactoryBTTModifiers {
-
     function test_WhenTheECDSAOwnerIsAddressZero() external {
         _initializeFactory();
         // it should revert with InvalidSigner error

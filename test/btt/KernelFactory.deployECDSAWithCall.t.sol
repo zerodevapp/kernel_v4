@@ -33,8 +33,9 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        bytes memory callData =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
 
         // Deploy first time
         Kernel first = factory.deployECDSAWithCall(owner, packages, 0, callData);
@@ -48,23 +49,24 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
         assertEq(barAfterSecond, barAfterFirst + 1, "Should execute extraCall on existing account");
     }
 
-    function test_WhenExtraCallReverts()
-        external
-        whenTheAddressIsAlreadyDeployedForThisOwnerAndNonce
-    {
+    function test_WhenExtraCallReverts() external whenTheAddressIsAlreadyDeployedForThisOwnerAndNonce {
         // it should revert with "call failed"
         address owner = makeAddr("ecdsaOwner");
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
         // Deploy first with valid call
-        bytes memory validCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory validCall = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
         factory.deployECDSAWithCall(owner, packages, 0, validCall);
 
         // Try again with reverting call
-        bytes memory revertingCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector));
+        bytes memory revertingCall = abi.encodeWithSelector(
+            Kernel.execute.selector,
+            bytes32(0),
+            abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
+        );
 
         vm.expectRevert("call failed");
         factory.deployECDSAWithCall(owner, packages, 0, revertingCall);
@@ -86,8 +88,9 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
         uint256 barBefore = callee.bar();
-        bytes memory callData =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
 
         Kernel account = factory.deployECDSAWithCall(owner, packages, 0, callData);
 
@@ -105,8 +108,11 @@ abstract contract KernelFactory_deployECDSAWithCall is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        bytes memory revertingCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector));
+        bytes memory revertingCall = abi.encodeWithSelector(
+            Kernel.execute.selector,
+            bytes32(0),
+            abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
+        );
 
         vm.expectRevert("call failed");
         factory.deployECDSAWithCall(owner, packages, 0, revertingCall);

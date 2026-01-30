@@ -20,8 +20,9 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        bytes memory callData =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
 
         // Deploy first time
         Kernel first = factory.deployWithCall(packages, 0, callData);
@@ -35,22 +36,23 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         assertEq(barAfterSecond, barAfterFirst + 1, "Should execute extraCall on existing account");
     }
 
-    function test_WhenExtraCallReverts()
-        external
-        whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce
-    {
+    function test_WhenExtraCallReverts() external whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce {
         // it should revert with "call failed"
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
         // Deploy first with valid call
-        bytes memory validCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory validCall = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
         factory.deployWithCall(packages, 0, validCall);
 
         // Try again with reverting call
-        bytes memory revertingCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector));
+        bytes memory revertingCall = abi.encodeWithSelector(
+            Kernel.execute.selector,
+            bytes32(0),
+            abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
+        );
 
         vm.expectRevert("call failed");
         factory.deployWithCall(packages, 0, revertingCall);
@@ -68,8 +70,9 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
         uint256 barBefore = callee.bar();
-        bytes memory callData =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
 
         // Use a unique nonce to ensure fresh deployment
         Kernel account = factory.deployWithCall(packages, 999, callData);
@@ -84,8 +87,11 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        bytes memory revertingCall =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector));
+        bytes memory revertingCall = abi.encodeWithSelector(
+            Kernel.execute.selector,
+            bytes32(0),
+            abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
+        );
 
         // Use unique nonce to ensure fresh deployment attempt
         vm.expectRevert("call failed");
@@ -97,8 +103,9 @@ abstract contract KernelFactory_deployWithCall is BTTModifiers {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        bytes memory callData =
-            abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector));
+        bytes memory callData = abi.encodeWithSelector(
+            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+        );
 
         uint256 fundAmount = 1 ether;
         address predictedAddress = factory.getAddress(packages, 997);

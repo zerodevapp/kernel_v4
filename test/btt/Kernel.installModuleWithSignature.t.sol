@@ -41,12 +41,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockValidator testValidator = new MockValidator();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // Create valid signature for nonce 0
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
@@ -60,12 +55,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         // Verify nonce was incremented by trying to use same nonce again - should fail
         MockValidator testValidator2 = new MockValidator();
         Install[] memory packages2 = new Install[](1);
-        packages2[0] = Install({
-            moduleType: 1,
-            module: address(testValidator2),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages2[0] = Install({moduleType: 1, module: address(testValidator2), moduleData: hex"", internalData: hex""});
 
         bytes32 digest2 = KernelHelper.installDigest(address(kernel), false, 0, packages2);
         bytes memory signature2 = _rootSignHash(digest2, true);
@@ -79,12 +69,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockValidator testValidator = new MockValidator();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // First use nonce 0 to consume it
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
@@ -94,12 +79,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         // Try to use nonce 0 again - should fail
         MockValidator testValidator2 = new MockValidator();
         Install[] memory packages2 = new Install[](1);
-        packages2[0] = Install({
-            moduleType: 1,
-            module: address(testValidator2),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages2[0] = Install({moduleType: 1, module: address(testValidator2), moduleData: hex"", internalData: hex""});
 
         bytes32 digest2 = KernelHelper.installDigest(address(kernel), false, 0, packages2);
         bytes memory signature2 = _rootSignHash(digest2, true);
@@ -113,12 +93,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockValidator testValidator = new MockValidator();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // Create invalid signature
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
@@ -154,12 +129,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         testValidator.sudoSetSuccess(true);
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // Create replayable signature (without chainId)
         bytes32 digest = KernelHelper.installDigest(address(kernel), true, 0, packages);
@@ -176,12 +146,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockValidator testValidator = new MockValidator();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // First use nonce 0
         bytes32 digest = KernelHelper.installDigest(address(kernel), true, 0, packages);
@@ -191,12 +156,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         // Try to use nonce 0 again with replayable = true
         MockValidator testValidator2 = new MockValidator();
         Install[] memory packages2 = new Install[](1);
-        packages2[0] = Install({
-            moduleType: 1,
-            module: address(testValidator2),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages2[0] = Install({moduleType: 1, module: address(testValidator2), moduleData: hex"", internalData: hex""});
 
         bytes32 digest2 = KernelHelper.installDigest(address(kernel), true, 0, packages2);
         bytes memory signature2 = _rootSignHash(digest2, true);
@@ -210,12 +170,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockValidator testValidator = new MockValidator();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 1,
-            module: address(testValidator),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 1, module: address(testValidator), moduleData: hex"", internalData: hex""});
 
         // Create invalid signature (replayable)
         bytes32 digest = KernelHelper.installDigest(address(kernel), true, 0, packages);
@@ -265,12 +220,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockExecutor testExecutor = new MockExecutor();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 2,
-            module: address(testExecutor),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 2, module: address(testExecutor), moduleData: hex"", internalData: hex""});
 
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
         bytes memory signature = _rootSignHash(digest, true);
@@ -345,12 +295,7 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
         MockHook testHook = new MockHook();
 
         Install[] memory packages = new Install[](1);
-        packages[0] = Install({
-            moduleType: 4,
-            module: address(testHook),
-            moduleData: hex"",
-            internalData: hex""
-        });
+        packages[0] = Install({moduleType: 4, module: address(testHook), moduleData: hex"", internalData: hex""});
 
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
         bytes memory signature = _rootSignHash(digest, true);

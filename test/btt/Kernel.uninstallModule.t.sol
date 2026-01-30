@@ -252,8 +252,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
         kernel.installModule(5, address(mockPolicy), abi.encode(hex"", internalData));
 
         assertTrue(
-            kernel.isModuleInstalled(5, address(mockPolicy), abi.encodePacked(testPermId)),
-            "Policy should be installed"
+            kernel.isModuleInstalled(5, address(mockPolicy), abi.encodePacked(testPermId)), "Policy should be installed"
         );
 
         // Uninstall the last (and only) policy
@@ -373,8 +372,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
 
         // Verify signer is installed
         assertTrue(
-            kernel.isModuleInstalled(6, address(mockSigner), abi.encodePacked(testPermId)),
-            "Signer should be installed"
+            kernel.isModuleInstalled(6, address(mockSigner), abi.encodePacked(testPermId)), "Signer should be installed"
         );
 
         // Uninstall policy first

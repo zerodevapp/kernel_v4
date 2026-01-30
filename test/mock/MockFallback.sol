@@ -13,6 +13,7 @@ contract Callee {
 }
 
 contract MockFallback is IFallback {
+
     event Foobar();
 
     error Limit();
@@ -80,5 +81,10 @@ contract MockFallback is IFallback {
 
     function forceRevert() external pure {
         revert FallbackRevert();
+    }
+
+    // Simple function that works in both CALL and DELEGATECALL contexts
+    function testFunction() external pure returns (uint256) {
+        return 42;
     }
 }

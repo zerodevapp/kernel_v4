@@ -5,7 +5,6 @@ import {FactoryBTTModifiers} from "./FactoryBTTModifiers.sol";
 import {Install} from "src/types/Structs.sol";
 
 abstract contract KernelFactory_getAddress is FactoryBTTModifiers {
-
     function test_GivenAnyPackagesAndNonce() external {
         _initializeFactory();
         // it should return the deterministic address without deploying

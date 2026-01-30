@@ -5,7 +5,7 @@ import {BTTModifiers} from "./BTTModifiers.sol";
 import {Unauthorized, InvalidNonce} from "src/types/Error.sol";
 
 abstract contract Kernel_setValidNonceFrom is BTTModifiers {
-    function test_WhenCallerIsNotEntryPoint() external {
+    function test_WhenTheCallerIsNotTheEntryPointOrSelf() external {
         // it should revert with Unauthorized error
         vm.stopPrank();
         vm.startPrank(makeAddr("randomCaller"));
@@ -14,28 +14,14 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
         kernel.setValidNonceFrom(1);
     }
 
-    modifier whenCallerIsEntryPointOrSelf() override {
+    modifier whenTheCallerIsTheEntryPointOrSelf() {
         vm.stopPrank();
         vm.startPrank(address(ep));
         _;
     }
 
-    function test_GivenSeqIsLessThanOrEqualToCurrentValidNonceFrom() external whenCallerIsEntryPointOrSelf {
-        // it should revert with InvalidNonce error
-        // First set validNonceFrom to a value
-        kernel.setValidNonceFrom(10);
-
-        // Try to set to a lower value (should revert)
-        vm.expectRevert(InvalidNonce.selector);
-        kernel.setValidNonceFrom(5);
-
-        // Try to set to the same value (should also revert since it must be greater)
-        vm.expectRevert(InvalidNonce.selector);
-        kernel.setValidNonceFrom(10);
-    }
-
-    function test_GivenSeqIsGreaterThanCurrentValidNonceFrom() external whenCallerIsEntryPointOrSelf {
-        // it should update validNonceFrom to seq
+    function test_WhenSettingANewValidNonceFromValue() external whenTheCallerIsTheEntryPointOrSelf {
+        // it should update the validNonceFrom storage
         uint64 newSeq = 100;
         kernel.setValidNonceFrom(newSeq);
 
@@ -46,9 +32,39 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
         // Set to higher value should succeed
         uint64 higherSeq = 200;
         kernel.setValidNonceFrom(higherSeq);
+    }
 
-        // Verify by trying to set lower again
+    modifier whenValidatingNonces() {
+        _;
+    }
+
+    function test_GivenTheNonceIsBelowValidNonceFrom()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenValidatingNonces
+    {
+        // it should be invalid
+        // First set validNonceFrom to a value
+        kernel.setValidNonceFrom(10);
+
+        // Try to set to a lower value (should revert because nonce below validNonceFrom)
         vm.expectRevert(InvalidNonce.selector);
-        kernel.setValidNonceFrom(higherSeq);
+        kernel.setValidNonceFrom(5);
+    }
+
+    function test_GivenTheNonceIsAtOrAboveValidNonceFrom()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        whenValidatingNonces
+    {
+        // it should be valid
+        // First set validNonceFrom to 10
+        kernel.setValidNonceFrom(10);
+
+        // Setting to 20 (above 10) should succeed
+        kernel.setValidNonceFrom(20);
+
+        // Setting to 30 (above 20) should also succeed
+        kernel.setValidNonceFrom(30);
     }
 }

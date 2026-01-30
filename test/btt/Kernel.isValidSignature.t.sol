@@ -50,7 +50,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         bytes memory sigWithEnable = abi.encodePacked(
             uMode,
             bytes1(0x00), // ROOT validation type
-            bytes20(0),   // No validator address for root
+            bytes20(0), // No validator address for root
             abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
         );
 

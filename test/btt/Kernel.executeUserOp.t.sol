@@ -10,6 +10,10 @@ import {Call} from "src/types/Structs.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 
 abstract contract Kernel_executeUserOp is BTTModifiers {
+    function test_WhenTheCallerIsNotTheEntryPointOrSelf() external {
+        // it should revert with Unauthorized error
+    }
+
     modifier whenTheCallerIsNotTheEntryPoint() {
         _;
     }
@@ -28,6 +32,54 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
 
     modifier whenTheCallerIsTheEntryPointOrSelf() {
         _;
+    }
+
+    modifier givenTheValidationHookIsSet() {
+        _;
+    }
+
+    function test_GivenTheValidationHookIsSet()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationHookIsSet
+    {
+        // it should call preHook with the callData
+    }
+
+    function test_WhenTheInnerDelegatecallSucceeds()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationHookIsSet
+    {
+        // it should call postHook with the context
+    }
+
+    function test_WhenTheInnerDelegatecallReverts()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationHookIsSet
+    {
+        // it should propagate the revert
+    }
+
+    modifier givenNoValidationHookIsSet() {
+        _;
+    }
+
+    function test_WhenTheInnerDelegatecallSucceeds_GivenNoValidationHookIsSet()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenNoValidationHookIsSet
+    {
+        // it should return successfully
+    }
+
+    function test_WhenTheInnerDelegatecallReverts_GivenNoValidationHookIsSet()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenNoValidationHookIsSet
+    {
+        // it should propagate the revert
     }
 
     function test_GivenNoValidationHookIsSetInTransientStorage() external whenTheCallerIsTheEntryPointOrSelf {
@@ -228,7 +280,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     function _createUserOpWithSingleExecution() internal view returns (PackedUserOperation memory) {
-        bytes32 mode = LibERC7579.encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
+        bytes32 mode =
+            LibERC7579.encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector);
 
         return PackedUserOperation({
@@ -236,9 +289,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             nonce: 0,
             initCode: hex"",
             callData: abi.encodePacked(
-                Kernel.executeUserOp.selector,
-                abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-            ),
+                Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
+                ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -248,7 +300,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     function _createUserOpWithRevertingExecution() internal view returns (PackedUserOperation memory) {
-        bytes32 mode = LibERC7579.encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
+        bytes32 mode =
+            LibERC7579.encodeMode(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
         bytes memory executionData = abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector);
 
         return PackedUserOperation({
@@ -256,9 +309,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             nonce: 0,
             initCode: hex"",
             callData: abi.encodePacked(
-                Kernel.executeUserOp.selector,
-                abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-            ),
+                Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
+                ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -268,7 +320,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     function _createUserOpWithBatchExecution() internal view returns (PackedUserOperation memory) {
-        bytes32 mode = LibERC7579.encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
+        bytes32 mode =
+            LibERC7579.encodeMode(LibERC7579.CALLTYPE_BATCH, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
 
         Call[] memory calls = new Call[](2);
         calls[0] = Call({to: address(callee), value: 0, data: abi.encodeWithSelector(MockCallee.foo.selector)});
@@ -279,9 +332,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             nonce: 0,
             initCode: hex"",
             callData: abi.encodePacked(
-                Kernel.executeUserOp.selector,
-                abi.encodeWithSelector(Kernel.execute.selector, mode, abi.encode(calls))
-            ),
+                Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, abi.encode(calls))
+                ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -291,7 +343,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
     }
 
     function _createUserOpWithDelegatecall() internal view returns (PackedUserOperation memory) {
-        bytes32 mode = LibERC7579.encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
+        bytes32 mode =
+            LibERC7579.encodeMode(LibERC7579.CALLTYPE_DELEGATECALL, LibERC7579.EXECTYPE_DEFAULT, bytes4(0), bytes22(0));
         bytes memory executionData = abi.encodePacked(address(callee), MockCallee.foo.selector);
 
         return PackedUserOperation({
@@ -299,9 +352,8 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             nonce: 0,
             initCode: hex"",
             callData: abi.encodePacked(
-                Kernel.executeUserOp.selector,
-                abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-            ),
+                Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
+                ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),

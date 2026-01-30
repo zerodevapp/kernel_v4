@@ -71,5 +71,11 @@ Kernel_installModule
     │       ├── it should set the signer for the permissionId
     │       ├── it should clear the installingPermission flag
     │       └── it should emit ModuleInstalled event
-    └── given moduleType is unsupported
-        └── it should revert with NotImplemented error
+    ├── given moduleType is unsupported
+    │   └── it should revert with NotImplemented error
+    └── given the Install array overload is called
+        ├── when caller is not EntryPoint or self
+        │   └── it should revert with Unauthorized error
+        ├── when caller is EntryPoint or self
+        │   ├── it should install all modules in the packages array
+        │   └── it should support installing multiple module types in one call

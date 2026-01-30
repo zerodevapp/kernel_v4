@@ -36,7 +36,8 @@ abstract contract KernelFactory_getECDSAAddress is BTTModifiers {
 
         // Different packages should return different address
         Install[] memory differentPackages = new Install[](1);
-        differentPackages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        differentPackages[0] =
+            Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
         address predictedDiffPkg = factory.getECDSAAddress(signer, differentPackages, 0);
         assertTrue(predicted != predictedDiffPkg, "Different packages should return different address");
 

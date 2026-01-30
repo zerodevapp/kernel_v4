@@ -10,7 +10,13 @@ import {MockSigner} from "../mock/MockSigner.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {ValidationId, PermissionId} from "src/types/Types.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {Unauthorized, InvalidDataLength, InvalidInitialization, InvalidRootValidation, InvalidPermissionUninstallOrder} from "src/types/Error.sol";
+import {
+    Unauthorized,
+    InvalidDataLength,
+    InvalidInitialization,
+    InvalidRootValidation,
+    InvalidPermissionUninstallOrder
+} from "src/types/Error.sol";
 
 /// @title Kernel.setRoot BTT Tests
 /// @notice Tests for setRoot following Branching Tree Technique
@@ -353,19 +359,37 @@ abstract contract Kernel_setRoot is BTTModifiers {
         givenTheOverloadSetRootWithInstallArrayIsCalled
         givenRemoveCurrentIsTrue
     {
-        // This test is for when the root is the ROOT type (address(0))
+        // This test is for when the root has type 0x00 (ROOT type)
         // In practice, a properly initialized kernel always has a validator or permission as root
         // This case would only occur if the root was manually set to an invalid state
-        // The test verifies the error handling for this edge case
-        // Since we can't easily set root to ROOT type in a normal kernel,
-        // we just verify the normal case works
+        // We use vm.store to simulate this edge case for coverage
+
+        // VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e
+        bytes32 validationStorageSlot = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e;
+
+        // Create a malformed root ValidationId with type 0x00 (ROOT type) but non-zero ID
+        // ValidationId is bytes21: first byte = type, next 20 bytes = ID
+        // type 0x00 = ROOT, 0x01 = VALIDATOR, 0x02 = PERMISSION
+        address fakeAddress = makeAddr("malformedRoot");
+        bytes21 malformedRoot = bytes21(abi.encodePacked(bytes1(0x00), bytes20(fakeAddress)));
+
+        // Set the root storage directly (first slot in ValidationStorage struct is the root)
+        vm.store(address(kernel), validationStorageSlot, bytes32(malformedRoot));
+
+        // Also need to set the vInfo[malformedRoot].hook to address(1) so it's considered "installed"
+        // vInfo mapping slot = keccak256(abi.encode(malformedRoot, slot + 1))
+        // ValidationInfo first field is hook (address)
+        bytes32 vInfoSlot = keccak256(abi.encode(bytes32(malformedRoot), bytes32(uint256(validationStorageSlot) + 1)));
+        vm.store(address(kernel), vInfoSlot, bytes32(uint256(uint160(address(1)))));
+
+        // Now try to replace root with removeCurrent=true
         MockValidator newRoot = new MockValidator();
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
 
-        // This should succeed since current root is a validator
+        // Should revert with InvalidRootValidation because current root has type 0x00
+        vm.expectRevert(InvalidRootValidation.selector);
         kernel.setRoot(packages, true, hex"");
-        assertTrue(kernel.isModuleInstalled(1, address(newRoot), ""), "New root should be installed");
     }
 
     function test_GivenTheFirstPackageIsNotAValidatorOrPermissionSetRoot()

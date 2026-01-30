@@ -7,7 +7,6 @@ import {Install} from "src/types/Structs.sol";
 import {InvalidRootValidation} from "src/types/Error.sol";
 
 abstract contract KernelFactory_deploy is FactoryBTTModifiers {
-
     modifier whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce() {
         _;
     }
@@ -30,10 +29,7 @@ abstract contract KernelFactory_deploy is FactoryBTTModifiers {
         assertEq(address(account1), address(account2), "Should return existing account address");
     }
 
-    function test_GivenMsgValueIsSent()
-        external
-        whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce
-    {
+    function test_GivenMsgValueIsSent() external whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce {
         _initializeFactory();
         // it should forward the ETH to the existing account
         Install[] memory packages = new Install[](1);
