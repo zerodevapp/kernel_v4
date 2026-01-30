@@ -23,9 +23,7 @@ import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {Kernel_fallback} from "./Kernel.fallback.t.sol";
 
 /// @title Kernel BTT Fallback Concrete Tests
-contract KernelBTT_Fallback_Test is
-    Kernel_fallback
-{
+contract KernelBTT_Fallback_Test is Kernel_fallback {
     function setUp() public {
         _initialize();
     }

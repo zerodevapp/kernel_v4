@@ -23,9 +23,7 @@ import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {Kernel_setValidNonceFrom} from "./Kernel.setValidNonceFrom.t.sol";
 
 /// @title Kernel BTT SetValidNonceFrom Concrete Tests
-contract KernelBTT_SetValidNonceFrom_Test is
-    Kernel_setValidNonceFrom
-{
+contract KernelBTT_SetValidNonceFrom_Test is Kernel_setValidNonceFrom {
     function setUp() public {
         _initialize();
     }

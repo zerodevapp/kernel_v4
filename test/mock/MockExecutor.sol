@@ -59,7 +59,10 @@ contract MockExecutor is IExecutor {
     }
 
     /// @notice Execute a single call via kernel with custom callType
-    function executeViaKernelWithCallType(Kernel kernel, bytes1 callType, bytes1 execType) external returns (bytes[] memory) {
+    function executeViaKernelWithCallType(Kernel kernel, bytes1 callType, bytes1 execType)
+        external
+        returns (bytes[] memory)
+    {
         bytes32 mode = bytes32(abi.encodePacked(callType, execType, bytes4(0), bytes4(0), bytes22(0)));
         bytes memory executionData = abi.encodePacked(address(0x1234), uint256(0), bytes4(0));
         return kernel.executeFromExecutor(mode, executionData);
@@ -99,8 +102,9 @@ contract MockExecutor is IExecutor {
         external
         returns (bytes[] memory)
     {
-        bytes32 mode =
-            bytes32(abi.encodePacked(LibERC7579.CALLTYPE_DELEGATECALL, execType, bytes4(0), bytes4(0), bytes22(0)));
+        bytes32 mode = bytes32(
+            abi.encodePacked(LibERC7579.CALLTYPE_DELEGATECALL, execType, bytes4(0), bytes4(0), bytes22(0))
+        );
 
         bytes memory executionData;
         if (shouldRevert) {

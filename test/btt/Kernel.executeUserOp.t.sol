@@ -295,7 +295,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             initCode: hex"",
             callData: abi.encodePacked(
                 Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-                ),
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -315,7 +315,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             initCode: hex"",
             callData: abi.encodePacked(
                 Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-                ),
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -338,7 +338,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             initCode: hex"",
             callData: abi.encodePacked(
                 Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, abi.encode(calls))
-                ),
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -358,7 +358,7 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
             initCode: hex"",
             callData: abi.encodePacked(
                 Kernel.executeUserOp.selector, abi.encodeWithSelector(Kernel.execute.selector, mode, executionData)
-                ),
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),

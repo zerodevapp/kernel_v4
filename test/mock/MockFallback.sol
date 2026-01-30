@@ -13,7 +13,6 @@ contract Callee {
 }
 
 contract MockFallback is IFallback {
-
     event Foobar();
 
     error Limit();

@@ -67,11 +67,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         assertTrue(mockHook.preHookCalled(), "preHook should be called");
     }
 
-    function test_GivenPreHookReverts()
-        external
-        whenTheCallerIsAnInstalledExecutor
-        givenTheExecutorHasAHookConfigured
-    {
+    function test_GivenPreHookReverts() external whenTheCallerIsAnInstalledExecutor givenTheExecutorHasAHookConfigured {
         // it should propagate the revert
         MockHook revertingHook = new MockHook();
         revertingHook.setRevertOnPreHook(true);

@@ -107,16 +107,10 @@ abstract contract Kernel_initialize is BTTModifiers {
 
         Install[] memory packages = new Install[](2);
         packages[0] = Install({
-            moduleType: 5,
-            module: address(mockPolicy),
-            moduleData: hex"",
-            internalData: abi.encodePacked(testPermId)
+            moduleType: 5, module: address(mockPolicy), moduleData: hex"", internalData: abi.encodePacked(testPermId)
         });
         packages[1] = Install({
-            moduleType: 6,
-            module: address(mockSigner),
-            moduleData: hex"",
-            internalData: abi.encodePacked(testPermId)
+            moduleType: 6, module: address(mockSigner), moduleData: hex"", internalData: abi.encodePacked(testPermId)
         });
 
         Kernel newKernel = Kernel(payable(factory.deploy(packages, 1002)));
@@ -152,10 +146,7 @@ abstract contract Kernel_initialize is BTTModifiers {
 
         Install[] memory packages = new Install[](1);
         packages[0] = Install({
-            moduleType: 5,
-            module: address(mockPolicy),
-            moduleData: hex"",
-            internalData: abi.encodePacked(testPermId)
+            moduleType: 5, module: address(mockPolicy), moduleData: hex"", internalData: abi.encodePacked(testPermId)
         });
 
         // Deploying with only policy (no signer) should revert

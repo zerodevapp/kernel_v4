@@ -19,7 +19,11 @@ import {IValidator, IExecutor, IHook} from "src/interfaces/IERC7579Modules.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {PermissionId} from "src/types/Types.sol";
 import {
-    Unauthorized, NotImplemented, OccupiedValidationId, ModuleInstallFailed, NotInstalled
+    Unauthorized,
+    NotImplemented,
+    OccupiedValidationId,
+    ModuleInstallFailed,
+    NotInstalled
 } from "src/types/Error.sol";
 import {Install} from "src/types/Structs.sol";
 
@@ -531,10 +535,7 @@ abstract contract Kernel_installModule is BTTModifiers {
         _;
     }
 
-    function test_WhenCallerIsNotEntryPointOrSelf()
-        external
-        givenTheInstallArrayOverloadIsCalled
-    {
+    function test_WhenCallerIsNotEntryPointOrSelf() external givenTheInstallArrayOverloadIsCalled {
         // it should revert with Unauthorized error
         vm.stopPrank();
         vm.startPrank(makeAddr("randomCaller"));

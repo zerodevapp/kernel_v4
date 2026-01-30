@@ -12,11 +12,7 @@ abstract contract Lib4337_Test is Test {
     }
 
     // Helper to pack validation data: validAfter (48 bits) | validUntil (48 bits) | result (160 bits)
-    function packValidationData(uint48 validAfter, uint48 validUntil, address result)
-        internal
-        pure
-        returns (uint256)
-    {
+    function packValidationData(uint48 validAfter, uint48 validUntil, address result) internal pure returns (uint256) {
         return (uint256(validAfter) << 208) | (uint256(validUntil) << 160) | uint160(result);
     }
 
@@ -233,7 +229,9 @@ abstract contract Lib4337_Test is Test {
 
         // Extract result address
         address resultAddr = address(uint160(result));
-        assertEq(resultAddr, address(0x5678), "should return validationRes result when preValidationData result is not 1");
+        assertEq(
+            resultAddr, address(0x5678), "should return validationRes result when preValidationData result is not 1"
+        );
     }
 }
 

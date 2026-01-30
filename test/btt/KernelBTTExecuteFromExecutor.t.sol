@@ -23,9 +23,7 @@ import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {Kernel_executeFromExecutor} from "./Kernel.executeFromExecutor.t.sol";
 
 /// @title Kernel BTT ExecuteFromExecutor Concrete Tests
-contract KernelBTT_ExecuteFromExecutor_Test is
-    Kernel_executeFromExecutor
-{
+contract KernelBTT_ExecuteFromExecutor_Test is Kernel_executeFromExecutor {
     function setUp() public {
         _initialize();
     }

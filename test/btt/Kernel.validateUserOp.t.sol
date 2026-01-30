@@ -177,11 +177,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         assertEq(validationData, 0, "Valid root signature should return 0");
     }
 
-    function test_WhenTheSignatureIsInvalid()
-        external
-        whenTheCallerIsTheEntryPointOrSelf
-        givenTheValidationTypeIsROOT
-    {
+    function test_WhenTheSignatureIsInvalid() external whenTheCallerIsTheEntryPointOrSelf givenTheValidationTypeIsROOT {
         // it should return SIG_VALIDATION_FAILED
         vm.stopPrank();
         vm.startPrank(address(ep));
@@ -1212,8 +1208,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(false, false, false, bytes1(0), bytes20(0)),
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1228,8 +1226,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(false, false, false, bytes1(0), bytes20(0)),
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1244,8 +1244,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(false, false, false, bytes1(0x01), bytes20(address(newValidator))),
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1260,8 +1262,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(false, false, false, bytes1(0x02), PermissionId.unwrap(permissionId)),
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 0,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1276,8 +1280,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(true, false, false, bytes1(0), bytes20(0)), // replayable = true
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 1000000,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
@@ -1292,8 +1298,10 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             nonce: encodeNonce(false, true, false, bytes1(0x01), bytes20(address(newValidator))), // enable = true
             initCode: hex"",
             callData: abi.encodeWithSelector(
-                Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                ),
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            ),
             accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
             preVerificationGas: 1000000,
             gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),

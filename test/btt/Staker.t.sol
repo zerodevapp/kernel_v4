@@ -154,9 +154,8 @@ contract Staker_Test is Test {
 
     /// @notice it should approve factory when signature is valid
     function test_WhenApproveFactoryWithSignature_ValidSignature() external givenSignatureIsValid {
-        bytes32 structHash = EfficientHashLib.hash(
-            uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1)
-        );
+        bytes32 structHash =
+            EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1));
         bytes32 digest = _hashTypedDataSansChainId(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -170,9 +169,8 @@ contract Staker_Test is Test {
     function test_RevertWhen_ApproveFactoryWithSignature_InvalidSignature() external givenSignatureIsInvalid {
         (, uint256 wrongKey) = makeAddrAndKey("wrongOwner");
 
-        bytes32 structHash = EfficientHashLib.hash(
-            uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1)
-        );
+        bytes32 structHash =
+            EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1));
         bytes32 digest = _hashTypedDataSansChainId(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -269,9 +267,7 @@ contract Staker_Test is Test {
         // Try to withdraw immediately (still locked)
         // The withdrawTime will be block.timestamp + 1 days, and we're at block.timestamp = 1
         uint256 withdrawTime = block.timestamp + 1 days;
-        vm.expectRevert(
-            abi.encodeWithSelector(IStakeManager.WithdrawalNotDue.selector, withdrawTime, block.timestamp)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IStakeManager.WithdrawalNotDue.selector, withdrawTime, block.timestamp));
         staker.withdrawStake(ep, payable(owner));
     }
 

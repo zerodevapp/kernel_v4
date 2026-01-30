@@ -214,10 +214,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
 
         Install[] memory packages = new Install[](2);
         packages[0] = Install({
-            moduleType: 5,
-            module: address(mockPolicy),
-            moduleData: hex"",
-            internalData: abi.encodePacked(permId1)
+            moduleType: 5, module: address(mockPolicy), moduleData: hex"", internalData: abi.encodePacked(permId1)
         });
         packages[1] = Install({
             moduleType: 6,

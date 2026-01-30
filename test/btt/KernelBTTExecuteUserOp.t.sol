@@ -23,9 +23,7 @@ import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {Kernel_executeUserOp} from "./Kernel.executeUserOp.t.sol";
 
 /// @title Kernel BTT ExecuteUserOp Concrete Tests
-contract KernelBTT_ExecuteUserOp_Test is
-    Kernel_executeUserOp
-{
+contract KernelBTT_ExecuteUserOp_Test is Kernel_executeUserOp {
     function setUp() public {
         _initialize();
     }

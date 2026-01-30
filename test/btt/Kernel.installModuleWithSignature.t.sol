@@ -263,16 +263,10 @@ abstract contract Kernel_installModuleWithSignature is BTTModifiers {
 
         Install[] memory packages = new Install[](2);
         packages[0] = Install({
-            moduleType: 5,
-            module: address(testPolicy),
-            moduleData: hex"",
-            internalData: abi.encodePacked(testPermId)
+            moduleType: 5, module: address(testPolicy), moduleData: hex"", internalData: abi.encodePacked(testPermId)
         });
         packages[1] = Install({
-            moduleType: 6,
-            module: address(testSigner),
-            moduleData: hex"",
-            internalData: abi.encodePacked(testPermId)
+            moduleType: 6, module: address(testSigner), moduleData: hex"", internalData: abi.encodePacked(testPermId)
         });
 
         bytes32 digest = KernelHelper.installDigest(address(kernel), false, 0, packages);
