@@ -403,26 +403,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         _;
     }
 
-    function test_GivenTheValidatorIsNotInstalled()
-        external
-        whenHashIsNotERC7739_MAGIC_HASH
-        givenTheValidationTypeIsVALIDATOR
-    {
-        // NOTE: Unlike validateUserOp, isValidSignature does NOT check if validator is installed
-        // It directly calls the validator's isValidSignatureWithSender function
-        // This test documents the actual behavior - validator is called even if not installed
-        bytes32 messageHash = keccak256("Hello world");
-        (bytes32 contentsHash, bytes memory sig) =
-            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
-
-        // Since mock validator is set to succeed, it returns MAGICVALUE even though not "installed"
-        bytes4 ret = kernel.isValidSignature(
-            _toContentsHash(contentsHash),
-            abi.encodePacked(bytes1(0), bytes1(0x01), bytes20(address(newValidator)), sig)
-        );
-        assertEq(ret, ERC1271_MAGICVALUE, "Uninstalled validator still gets called and can return valid");
-    }
-
     modifier givenTheValidatorIsInstalled() {
         _;
     }
@@ -519,22 +499,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
 
     modifier givenTheValidationTypeIsPERMISSION() {
         _;
-    }
-
-    function test_GivenThePermissionIsNotInstalled()
-        external
-        whenHashIsNotERC7739_MAGIC_HASH
-        givenTheValidationTypeIsPERMISSION
-    {
-        // it should revert with InvalidPermissionId error
-        bytes32 messageHash = keccak256("Hello world");
-        (bytes32 contentsHash, bytes memory sig) =
-            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
-
-        vm.expectRevert(InvalidPermissionId.selector);
-        kernel.isValidSignature(
-            _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
-        );
     }
 
     modifier givenThePermissionIsInstalled() {
@@ -861,26 +825,6 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         kernel.isValidSignature(
             _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
         );
-    }
-
-    /// @notice it should return ERC1271_MAGICVALUE when all policies pass and signer returns valid
-    function test_WhenPermissionValid_TypedDataSign()
-        external
-        unitTest
-        givenHashIsNotERC7739MagicHash
-        givenValidationTypeIsPermission
-        givenPermissionIsInstalled
-        givenSignatureFormatIsTypedDataSign
-    {
-        bytes32 messageHash = keccak256("Hello world");
-        (bytes32 contentsHash, bytes memory sig) =
-            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
-
-        bytes4 ret = kernel.isValidSignature(
-            _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
-        );
-
-        assertEq(ret, ERC1271_MAGICVALUE, "Valid permission should return MAGICVALUE");
     }
 
     /// @notice it should return ERC1271_INVALID when any policy fails

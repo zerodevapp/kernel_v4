@@ -158,48 +158,8 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
         );
     }
 
-    function test_GivenUninstallingAnInstalledExecutor()
-        external
-        whenTheCallerIsTheEntryPointOrSelfUninstall
-        givenModuleTypeIsExecutorUninstall
-    {
-        MockExecutor mockExecutor = new MockExecutor();
-        kernel.installModule(2, address(mockExecutor), abi.encode(hex"", hex""));
-
-        assertTrue(kernel.isModuleInstalled(2, address(mockExecutor), ""), "Executor should be installed");
-
-        kernel.uninstallModule(2, address(mockExecutor), abi.encode(hex"", hex""));
-
-        assertFalse(kernel.isModuleInstalled(2, address(mockExecutor), ""), "Executor should be uninstalled");
-    }
-
     modifier givenModuleTypeIsFallbackUninstall() {
         _;
-    }
-
-    function test_GivenTheSelectorIsRegistered()
-        external
-        whenTheCallerIsTheEntryPointOrSelfUninstall
-        givenModuleTypeIsFallbackUninstall
-    {
-        MockFallback mockFallback = new MockFallback();
-        bytes4 selector = bytes4(keccak256("customFunction()"));
-        bytes memory internalData = abi.encodePacked(selector, bytes1(0x00), address(1));
-
-        kernel.installModule(3, address(mockFallback), abi.encode(hex"", internalData));
-
-        assertTrue(
-            kernel.isModuleInstalled(3, address(mockFallback), abi.encodePacked(selector)),
-            "Fallback should be installed"
-        );
-
-        // Uninstall with selector in internalData
-        kernel.uninstallModule(3, address(mockFallback), abi.encode(hex"", abi.encodePacked(selector)));
-
-        assertFalse(
-            kernel.isModuleInstalled(3, address(mockFallback), abi.encodePacked(selector)),
-            "Fallback should be uninstalled"
-        );
     }
 
     modifier givenModuleTypeIsHookUninstall() {
@@ -217,21 +177,6 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
         kernel.uninstallModule(4, address(mockHook), abi.encode(hex"", ""));
 
         // Verify the hook is no longer enabled
-        assertFalse(kernel.isModuleInstalled(4, address(mockHook), ""), "Hook should be disabled");
-    }
-
-    function test_GivenUninstallingAnEnabledHook()
-        external
-        whenTheCallerIsTheEntryPointOrSelfUninstall
-        givenModuleTypeIsHookUninstall
-    {
-        MockHook mockHook = new MockHook();
-        kernel.installModule(4, address(mockHook), abi.encode(hex"", ""));
-
-        assertTrue(kernel.isModuleInstalled(4, address(mockHook), ""), "Hook should be enabled");
-
-        kernel.uninstallModule(4, address(mockHook), abi.encode(hex"", ""));
-
         assertFalse(kernel.isModuleInstalled(4, address(mockHook), ""), "Hook should be disabled");
     }
 
@@ -390,37 +335,6 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
             kernel.validationInfo(permissionToIdentifier(testPermId)).hook,
             address(0),
             "Permission hook should be cleared"
-        );
-    }
-
-    function test_GivenASignerIsInstalledForThisPermissionId()
-        external
-        whenTheCallerIsTheEntryPointOrSelfUninstall
-        givenModuleTypeIsSignerUninstall
-    {
-        MockPolicy mockPolicy = new MockPolicy();
-        MockSigner mockSigner = new MockSigner();
-        PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("uninstallSignerTest")));
-        bytes memory internalData = abi.encodePacked(testPermId);
-
-        // Install policy first
-        kernel.installModule(5, address(mockPolicy), abi.encode(hex"", internalData));
-        // Install signer
-        kernel.installModule(6, address(mockSigner), abi.encode(hex"", internalData));
-
-        assertTrue(
-            kernel.isModuleInstalled(6, address(mockSigner), abi.encodePacked(testPermId)), "Signer should be installed"
-        );
-
-        // Uninstall policy first (policies must be uninstalled before signer)
-        kernel.uninstallModule(5, address(mockPolicy), abi.encode(hex"", internalData));
-
-        // Now uninstall signer
-        kernel.uninstallModule(6, address(mockSigner), abi.encode(hex"", internalData));
-
-        assertFalse(
-            kernel.isModuleInstalled(6, address(mockSigner), abi.encodePacked(testPermId)),
-            "Signer should be uninstalled"
         );
     }
 

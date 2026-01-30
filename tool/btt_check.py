@@ -4,6 +4,7 @@ Strict BTT (Branching Tree Technique) rule checker for Solidity test suites.
 
 This script enforces BTT best practices including:
 - Tree-to-test synchronization via bulloak
+- Orphan test detection (tests without tree branches)
 - Specific error selectors in revert expectations
 - No assertions in modifiers
 - No loops in tests (one leaf = one test)
@@ -19,7 +20,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Set
+from typing import Dict, List, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 BTT_DIR = ROOT / "test" / "btt"
@@ -191,6 +192,160 @@ def count_test_functions(text: str) -> dict:
     return counts
 
 
+# =============================================================================
+# ORPHAN TEST DETECTION HELPERS
+# =============================================================================
+
+def normalize_name(name: str) -> str:
+    """Normalize a name for comparison (lowercase, remove underscores)."""
+    return name.lower().replace("_", "")
+
+
+def extract_key_words(name: str) -> Set[str]:
+    """Extract significant words from a function name."""
+    name = re.sub(r'^test_?', '', name, flags=re.I)
+    words = re.findall(r'[A-Z][a-z]*|[a-z]+|\d+', name)
+    stopwords = {'the', 'is', 'a', 'an', 'and', 'or', 'for', 'to', 'in', 'of', 'when', 'given', 'then'}
+    return {w.lower() for w in words if len(w) > 2 and w.lower() not in stopwords}
+
+
+def get_expected_functions_from_bulloak(tree_path: Path) -> Set[str]:
+    """Run bulloak scaffold and extract expected function names."""
+    try:
+        result = subprocess.run(
+            ["bulloak", "scaffold", str(tree_path), "--solidity-version", "^0.8.0"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT
+        )
+        function_names = set()
+        for m in re.finditer(r"\bfunction\s+(test_[A-Za-z0-9_]+)\s*\(", result.stdout):
+            function_names.add(m.group(1))
+        return function_names
+    except Exception:
+        return set()
+
+
+def get_sol_test_functions(sol_path: Path) -> List[Tuple[str, int]]:
+    """Extract test function names from a .t.sol file."""
+    text = sol_path.read_text()
+    functions = []
+    pattern = r"\bfunction\s+(test_[A-Za-z0-9_]+)\s*\("
+    for m in re.finditer(pattern, text):
+        name = m.group(1)
+        line = text[:m.start()].count("\n") + 1
+        functions.append((name, line))
+    return functions
+
+
+def find_matching_tree_file(sol_path: Path) -> Path | None:
+    """Find the .tree file that corresponds to a .t.sol file."""
+    stem = sol_path.stem
+    if stem.endswith(".t"):
+        tree_stem = stem[:-2]
+        tree_path = sol_path.parent / f"{tree_stem}.tree"
+        if tree_path.exists():
+            return tree_path
+    return None
+
+
+def extract_abstract_contract_name(sol_path: Path) -> str | None:
+    """Extract the abstract contract name from a .t.sol file."""
+    text = sol_path.read_text()
+    m = re.search(r"abstract\s+contract\s+([A-Za-z0-9_]+)\s+is", text)
+    if m:
+        return m.group(1)
+    return None
+
+
+def find_tree_by_contract_name(contract_name: str) -> Path | None:
+    """Find a .tree file by its contract name (first line)."""
+    for tree_path in BTT_DIR.glob("*.tree"):
+        first_line = tree_path.read_text().splitlines()[0].strip()
+        if first_line == contract_name:
+            return tree_path
+    return None
+
+
+def is_function_in_tree(func_name: str, expected_functions: Set[str]) -> bool:
+    """Check if a function name matches any expected function from the tree."""
+    normalized = normalize_name(func_name)
+
+    # Direct match (normalized)
+    if any(normalize_name(exp) == normalized for exp in expected_functions):
+        return True
+
+    # Extract key words from actual function
+    actual_words = extract_key_words(func_name)
+    if not actual_words:
+        return False
+
+    for expected in expected_functions:
+        expected_words = extract_key_words(expected)
+
+        # Check if actual words are a substantial subset of expected words
+        common = actual_words & expected_words
+        if len(common) >= len(actual_words) * 0.6:
+            return True
+        if len(common) >= len(expected_words) * 0.6:
+            return True
+
+        # Check normalized string containment
+        norm_actual = normalize_name(func_name)
+        norm_expected = normalize_name(expected)
+
+        if norm_actual in norm_expected or norm_expected in norm_actual:
+            return True
+
+        # Check prefix match with some tolerance
+        min_len = min(len(norm_actual), len(norm_expected))
+        if min_len > 20:
+            if norm_actual[:min_len-10] == norm_expected[:min_len-10]:
+                return True
+
+    return False
+
+
+def check_orphan_tests() -> Dict[Path, List[Tuple[str, int]]]:
+    """Check for test functions that don't have corresponding tree leaves."""
+    orphans: Dict[Path, List[Tuple[str, int]]] = {}
+
+    for sol_path in sorted(BTT_DIR.glob("*.t.sol")):
+        # Find matching tree file
+        tree_path = find_matching_tree_file(sol_path)
+        if not tree_path:
+            contract_name = extract_abstract_contract_name(sol_path)
+            if contract_name:
+                tree_path = find_tree_by_contract_name(contract_name)
+
+        if not tree_path:
+            continue
+
+        # Get expected function names from bulloak scaffold
+        expected_functions = get_expected_functions_from_bulloak(tree_path)
+        if not expected_functions:
+            continue
+
+        # Get actual test functions from .t.sol
+        actual_functions = get_sol_test_functions(sol_path)
+
+        # Find orphans
+        file_orphans = []
+        for func_name, line_num in actual_functions:
+            if func_name.startswith("test_receive_"):
+                continue
+            if func_name in ("test_setUp",):
+                continue
+
+            if not is_function_in_tree(func_name, expected_functions):
+                file_orphans.append((func_name, line_num))
+
+        if file_orphans:
+            orphans[sol_path] = file_orphans
+
+    return orphans
+
+
 def main():
     parser = argparse.ArgumentParser(description="Strict BTT rule checker")
     parser.add_argument("--skip-bulloak", action="store_true", help="skip bulloak check")
@@ -300,6 +455,15 @@ def main():
                 continue
             if TODO_FIXME_RE.search(body):
                 warn(f"TODO/FIXME in test: {path.relative_to(ROOT)}:{line} {name}", warnings)
+
+    # ==========================================================================
+    # RULE 11: No orphan tests (tests must have corresponding tree branches)
+    # ==========================================================================
+    if not args.skip_bulloak:  # Only check if bulloak is available
+        orphans = check_orphan_tests()
+        for sol_path, funcs in orphans.items():
+            for func_name, line_num in funcs:
+                fail(f"orphan test (no tree branch): {sol_path.relative_to(ROOT)}:{line_num} {func_name}", errors)
 
     # ==========================================================================
     # OUTPUT RESULTS

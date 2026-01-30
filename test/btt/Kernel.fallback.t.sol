@@ -270,6 +270,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsCALL
     {
         // it should call the target with msgdata plus msgsender
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.getCaller.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should call target with CALL type");
     }
 
     function test_WhenTheTargetCallSucceeds_GivenCallTypeIsCALL()
@@ -279,6 +289,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsCALL
     {
         // it should return the call result
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.getCaller.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should return call result on success");
     }
 
     function test_WhenTheTargetCallReverts_GivenCallTypeIsCALL()
@@ -288,6 +308,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsCALL
     {
         // it should propagate the revert
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.forceRevert.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(1)))
+        );
+
+        vm.expectRevert(MockFallback.FallbackRevert.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenCallTypeIsDELEGATECALL_GivenCallTypeIsDELEGATECALL()
@@ -297,6 +327,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsDELEGATECALL
     {
         // it should delegatecall the target with msgdata
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should delegatecall target");
     }
 
     function test_WhenTheDelegatecallSucceeds_GivenCallTypeIsDELEGATECALL()
@@ -306,6 +346,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsDELEGATECALL
     {
         // it should return the delegatecall result
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should return delegatecall result");
     }
 
     function test_WhenTheDelegatecallReverts_GivenCallTypeIsDELEGATECALL()
@@ -315,6 +365,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsDELEGATECALL
     {
         // it should propagate the revert
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.forceRevert.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(1)))
+        );
+
+        vm.expectRevert(MockFallback.FallbackRevert.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenCallTypeIsUnsupported_GivenTheSelectorIsRegisteredWithHookSetToAddress1()
@@ -323,6 +383,17 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenTheSelectorIsRegisteredWithHookSetToAddress1
     {
         // it should revert with InvalidCallType error
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        // Using 0x02 as unsupported call type
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x02), address(1)))
+        );
+
+        vm.expectRevert(InvalidCallType.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenCallTypeIsCALL_Hook1()
@@ -516,6 +587,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsCALL
     {
         // it should call the target with msgdata plus msgsender
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.getCaller.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should call target with msgdata plus msgsender");
     }
 
     function test_GivenCallTypeIsCALL_HookContract()
@@ -551,6 +632,18 @@ abstract contract Kernel_fallback is BTTModifiers {
         whenTheTargetCallSucceeds
     {
         // it should call postHook with the context from preHook
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.getCaller.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+        );
+
+        hook.resetState();
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Call should succeed");
+        assertTrue(hook.postHookCalled(), "postHook should be called with context");
     }
 
     function test_WhenTheTargetCallSucceeds_HookContract()
@@ -627,6 +720,17 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsCALL
     {
         // it should propagate the revert and skip postHook
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.forceRevert.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x00), address(hook)))
+        );
+
+        hook.resetState();
+        vm.expectRevert(MockFallback.FallbackRevert.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenCallTypeIsDELEGATECALL_GivenCallTypeIsDELEGATECALL_GivenPreHookSucceeds()
@@ -637,6 +741,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsDELEGATECALL
     {
         // it should delegatecall the target with msgdata
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should delegatecall target with msgdata");
     }
 
     function test_WhenTheTargetCallReverts_HookContract()
@@ -693,6 +807,18 @@ abstract contract Kernel_fallback is BTTModifiers {
         whenTheDelegatecallSucceeds
     {
         // it should call postHook with the context from preHook
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+        );
+
+        hook.resetState();
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Delegatecall should succeed");
+        assertTrue(hook.postHookCalled(), "postHook should be called with context");
     }
 
     function test_GivenPostHookReverts_WhenTheDelegatecallSucceeds()
@@ -704,6 +830,17 @@ abstract contract Kernel_fallback is BTTModifiers {
         whenTheDelegatecallSucceeds
     {
         // it should propagate the revert
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+        );
+
+        hook.setRevertOnPostHook(true);
+        vm.expectRevert("postHook reverted");
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenPostHookSucceeds_WhenTheDelegatecallSucceeds()
@@ -715,6 +852,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         whenTheDelegatecallSucceeds
     {
         // it should return the delegatecall result
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.testFunction.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+        );
+
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
+        assertTrue(success, "Should return delegatecall result");
     }
 
     function test_WhenTheDelegatecallReverts_GivenCallTypeIsDELEGATECALL_GivenPreHookSucceeds()
@@ -725,6 +872,17 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenCallTypeIsDELEGATECALL
     {
         // it should propagate the revert and skip postHook
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.forceRevert.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0xff), address(hook)))
+        );
+
+        hook.resetState();
+        vm.expectRevert(MockFallback.FallbackRevert.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_GivenCallTypeIsUnsupported_GivenPreHookSucceeds()
@@ -734,6 +892,16 @@ abstract contract Kernel_fallback is BTTModifiers {
         givenPreHookSucceeds
     {
         // it should revert with InvalidCallType error
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        bytes4 testSelector = MockFallback.getCaller.selector;
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"", abi.encodePacked(testSelector, bytes1(0x02), address(hook)))
+        );
+
+        vm.expectRevert(InvalidCallType.selector);
+        (bool success,) = address(kernel).call(abi.encodeWithSelector(testSelector));
     }
 
     function test_WhenTheDelegatecallSucceeds_HookContract()

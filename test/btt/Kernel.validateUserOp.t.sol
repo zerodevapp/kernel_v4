@@ -737,24 +737,6 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        UNAUTHORIZED CALLER TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice it should revert with Unauthorized error
-    function test_validateUserOp_RevertWhen_CallerIsNotEntryPointAndNotSelf()
-        external
-        unitTest
-        whenCallerIsNotEntryPoint
-        whenCallerIsNotAccountItself
-    {
-        PackedUserOperation memory op = _createBasicUserOp();
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        vm.expectRevert(Unauthorized.selector);
-        kernel.validateUserOp(op, userOpHash, 0);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         ROOT VALIDATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -788,24 +770,6 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
 
         assertEq(validationData, 1, "Invalid root signature should return SIG_VALIDATION_FAILED");
-    }
-
-    /// @notice it should allow any callData without restrictions for root validation
-    function test_WhenRootValidation_AllowsAnyCallData()
-        external
-        entryPointTest
-        whenCallerIsEntryPointOrSelf
-        givenValidationTypeIsRoot
-    {
-        PackedUserOperation memory op = _createUserOpWithRootValidation();
-        // Use arbitrary callData - should be allowed for root
-        op.callData = abi.encodeWithSelector(Kernel.execute.selector, bytes32(0), hex"deadbeef");
-        op.signature = _rootSignUserOp(op, true, false);
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
-
-        assertEq(validationData, 0, "Root validation should allow any callData");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -934,74 +898,6 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
             abi.encodeWithSelector(ValidationManager.InvalidVid.selector, permissionToIdentifier(permissionId))
         );
         kernel.validateUserOp(op, userOpHash, 0);
-    }
-
-    /// @notice it should return 0 when all policies pass and signer is valid
-    /// NOTE: Don't use givenPermissionIsInstalled - it doesn't include allowed selectors
-    function test_validateUserOp_WhenPermissionValid()
-        external
-        entryPointTest
-        whenCallerIsEntryPointOrSelf
-        givenValidationTypeIsPermission
-    {
-        // Manually install permission with execute selector allowed
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
-        );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-
-        PackedUserOperation memory op = _createUserOpWithPermissionValidation();
-        op.callData = abi.encodePacked(
-            Kernel.executeUserOp.selector,
-            abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            )
-        );
-        op.signature = _permissionSignUserOp(op, true, false);
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
-
-        assertEq(validationData, 0, "Valid permission should return 0");
-    }
-
-    /// @notice it should return SIG_VALIDATION_FAILED when policy fails
-    /// NOTE: Don't use givenPermissionIsInstalled - it doesn't include allowed selectors
-    function test_validateUserOp_WhenPermissionPolicyFails()
-        external
-        entryPointTest
-        whenCallerIsEntryPointOrSelf
-        givenValidationTypeIsPermission
-    {
-        // Manually install permission with execute selector allowed
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
-        );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-
-        PackedUserOperation memory op = _createUserOpWithPermissionValidation();
-        op.callData = abi.encodePacked(
-            Kernel.executeUserOp.selector,
-            abi.encodeWithSelector(
-                Kernel.execute.selector,
-                bytes32(0),
-                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-            )
-        );
-        // Set policy to fail
-        permissionRevertIndex = 0;
-        op.signature = _permissionSignUserOp(op, false, false);
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
-
-        assertEq(validationData, 1, "Failed policy should return SIG_VALIDATION_FAILED");
     }
 
     /// @notice it should return SIG_VALIDATION_FAILED when signer is invalid

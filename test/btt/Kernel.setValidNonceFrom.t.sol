@@ -66,5 +66,9 @@ abstract contract Kernel_setValidNonceFrom is BTTModifiers {
 
         // Setting to 30 (above 20) should also succeed
         kernel.setValidNonceFrom(30);
+
+        // Verify by checking that setting to a lower value reverts
+        vm.expectRevert(InvalidNonce.selector);
+        kernel.setValidNonceFrom(29);
     }
 }
