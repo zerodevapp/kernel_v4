@@ -82,7 +82,7 @@ abstract contract ValidationManager {
 
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
-
+        require($.vInfo[vId].hook == address(0), OccupiedValidationId());
         // if _internalData is empty, skip the initialization
         if (_internalData.length == 0) {
             $.vInfo[vId].hook = address(1);
@@ -101,18 +101,20 @@ abstract contract ValidationManager {
         require(_installSuccess, ModuleInstallFailed());
         ValidationStorage storage $ = _validationStorage();
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
-        require($.vInfo[vId].hook == address(0), OccupiedValidationId());
         _initializeValidation(vId, _internalData);
     }
 
     function _installPolicy(address _policy, bytes calldata _internalData, bool _installSuccess) internal {
         ValidationInfo storage $ = _checkPermissionInstall(_internalData, _installSuccess);
+        require(_internalData.length == 4, InvalidDataLength());
         $.policies.push(_policy);
     }
 
     function _installSigner(address _signer, bytes calldata _internalData, bool _installSuccess) internal {
         ValidationInfo storage $ = _checkPermissionInstall(_internalData, _installSuccess);
+        ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
         $.signer = _signer;
+        _initializeValidation(vId, _internalData[4:]);
         installingPermission = ValidationId.wrap(bytes21(0));
     }
 
@@ -126,7 +128,7 @@ abstract contract ValidationManager {
         if (installingPermission == ValidationId.wrap(bytes21(0))) {
             require(vId != ValidationId.wrap(bytes21(0)), "invalid validationId");
             installingPermission = vId;
-            _initializeValidation(vId, _internalData[4:]);
+            // _initializeValidation(vId, _internalData[4:]);
         } else {
             require(installingPermission == vId, "permissionId should be consistent");
         }
