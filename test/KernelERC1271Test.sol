@@ -209,6 +209,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     ) external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: replayable,
                 enableSuccess: enable,
                 signatureSuccess: signature,
@@ -229,6 +230,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     ) external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: replayable,
                 enableSuccess: enable,
                 signatureSuccess: signature,
