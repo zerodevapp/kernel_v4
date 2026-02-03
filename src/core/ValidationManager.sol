@@ -18,6 +18,7 @@ import {
     VALIDATION_TYPE_ROOT,
     VALIDATION_TYPE_VALIDATOR,
     VALIDATION_TYPE_PERMISSION,
+    VALIDATION_TYPE_FALLBACK,
     ERC1271_MAGICVALUE
 } from "../types/Constants.sol";
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
