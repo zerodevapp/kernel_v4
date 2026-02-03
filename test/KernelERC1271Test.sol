@@ -658,7 +658,10 @@ abstract contract KernelERC1271Test is KernelTestBase {
         }
         if (args.vIdExist && !args.wrongNonce && !(!args.signatureSuccess && args.extra != bytes32(0))) {
             bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
-            assertEq(res, args.signatureSuccess && args.enableSuccess && !args.wrongNonce ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+            assertEq(
+                res,
+                args.signatureSuccess && args.enableSuccess && !args.wrongNonce ? ERC1271_MAGICVALUE : ERC1271_INVALID
+            );
 
             if (!isMock) {
                 vm.chainId(1000);
