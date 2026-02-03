@@ -119,13 +119,13 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         // check if the call data is allowed by the validationId
         if (
             vType == VALIDATION_TYPE_ROOT
-                || ($.allowed[vId][bytes4(userOp.callData)] && $.vInfo[vId].hook == address(1))
+                || (_allowedSelector(vId, bytes4(userOp.callData[0:4])) && $.vInfo[vId].hook == address(1))
         ) {
             // No-op, this is cheaper in gas
         } else {
             require(
                 bytes4(userOp.callData[0:4]) == this.executeUserOp.selector
-                    && $.allowed[vId][bytes4(userOp.callData[4:])],
+                    && _allowedSelector(vId, bytes4(userOp.callData[4:])),
                 UnauthorizedCallData()
             );
             _setValidationHook(userOpHash, IHook($.vInfo[vId].hook));
@@ -268,10 +268,13 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 require(uninstallDataArr.length == vInfo.policies.length + 1, InvalidDataLength());
                 // uninstall policies first
                 // NOTE : success is not checked on purpose as we are focusing on removing not actually calling onUninstall
-                for (uint256 i = 0; i < vInfo.policies.length; i++) {
-                    // forge-lint: disable-next-line(unchecked-call)
-                    vInfo.policies[i].call(abi.encodeWithSelector(IModule.onUninstall.selector, uninstallDataArr[i]));
-                    _uninstallPolicyWithVid(vInfo.policies[i], vId);
+                unchecked {
+                    for (uint256 i = vInfo.policies.length; i > 0; i--) {
+                        // forge-lint: disable-next-line(unchecked-call)
+                        vInfo.policies[i
+                                - 1].call(abi.encodeWithSelector(IModule.onUninstall.selector, uninstallDataArr[i - 1]));
+                        _uninstallPolicyWithVid(vInfo.policies[i - 1], vId);
+                    }
                 }
 
                 // forge-lint: disable-next-line(unchecked-call)
@@ -292,6 +295,12 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     function setRoot(ValidationId vId) external payable {
         _onlyEntryPointOrSelf();
         _setRoot(vId);
+    }
+
+    /// @param selectors parse 4 bytes to get selectors
+    function grantAccess(ValidationId vId, bytes calldata selectors) external payable {
+        _onlyEntryPointOrSelf();
+        _grantAccess(vId, selectors);
     }
 
     // NOTE : this ONLY allows root signature, for now
