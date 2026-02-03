@@ -160,7 +160,7 @@ abstract contract KernelValidatorTest is KernelTestBase {
         kernel.installModule(false, 0, packages, enableSig(0, true, false, packages, _rootSignHash));
 
         kernel.setRoot(validatorToIdentifier(newValidator));
-        assertFalse(kernel.root() == validatorToIdentifier(newValidator));
+        assertTrue(kernel.root() == validatorToIdentifier(newValidator));
     }
 
     function test_change_root_pkgs() external unitTest {
