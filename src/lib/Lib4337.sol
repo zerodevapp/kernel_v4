@@ -4,8 +4,11 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {Eip7702Support} from "account-abstraction/core/Eip7702Support.sol";
 import {IERC5267} from "../interfaces/IERC5267.sol";
+import {ValidityFormatMismatch} from "../types/Error.sol";
 
 library Lib4337 {
+    /// @dev Highest bit of uint48, indicates block number mode when set on both validAfter and validUntil
+    uint48 internal constant MODE_BIT = 0x800000000000;
     bytes32 internal constant _DOMAIN_TYPEHASH_SANS_CHAIN_ID =
         0x91ab3d17e3a50a9d89e63fd30b92be7f5336b03b287bb946787a83a9d62a2766;
 
@@ -61,27 +64,37 @@ library Lib4337 {
         return _intersectValidationData(a, b);
     }
 
+    /// @dev Returns true if validation data uses block number format (both validAfter and validUntil have MODE_BIT set)
+    function _usesBlockNumberFormat(uint48 validAfter, uint48 validUntil) internal pure returns (bool) {
+        return (validAfter & MODE_BIT != 0) && (validUntil & MODE_BIT != 0);
+    }
+
     function _intersectValidationData(uint256 preValidationData, uint256 validationRes)
         internal
         pure
         returns (uint256 resValidationData)
     {
-        if (preValidationData * validationRes == 0) {
+        if (preValidationData == 0 || validationRes == 0) {
             return preValidationData | validationRes;
         }
 
-        // Time bounds (unchanged)
+        // Extract raw time bounds
         uint48 validUntil1 = uint48(preValidationData >> 160);
-        if (validUntil1 == 0) validUntil1 = type(uint48).max;
-
         uint48 validUntil2 = uint48(validationRes >> 160);
-        if (validUntil2 == 0) validUntil2 = type(uint48).max;
-
-        resValidationData = uint256(validUntil1 > validUntil2 ? validUntil2 : validUntil1) << 160;
-
         uint48 validAfter1 = uint48(preValidationData >> 208);
         uint48 validAfter2 = uint48(validationRes >> 208);
 
+        // Check for validity format mismatch (EP v0.9: block number vs timestamp)
+        // Block number format: both validAfter and validUntil have highest bit set
+        bool preUsesBlock = _usesBlockNumberFormat(validAfter1, validUntil1);
+        bool resUsesBlock = _usesBlockNumberFormat(validAfter2, validUntil2);
+        if (preUsesBlock != resUsesBlock) revert ValidityFormatMismatch();
+
+        // Convert validUntil=0 to max (no expiry)
+        if (validUntil1 == 0) validUntil1 = type(uint48).max;
+        if (validUntil2 == 0) validUntil2 = type(uint48).max;
+
+        resValidationData = uint256(validUntil1 > validUntil2 ? validUntil2 : validUntil1) << 160;
         resValidationData |= uint256(validAfter1 < validAfter2 ? validAfter2 : validAfter1) << 208;
 
         // Aggregator values: 0 = success, 1 = failure, >1 = aggregator address

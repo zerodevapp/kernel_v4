@@ -30,3 +30,5 @@ error InvalidInitialization();
 error InvalidDataLength();
 
 error UnauthorizedCallData();
+
+error ValidityFormatMismatch();
