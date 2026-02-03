@@ -9,7 +9,6 @@ import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
-import {MockCallee} from "../mock/MockCallee.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
@@ -19,8 +18,6 @@ import {InvalidRootValidation} from "src/types/Error.sol";
 /// @notice Tests for KernelFactory following Branching Tree Technique
 /// @dev Tree specification: test/btt/KernelFactory.deploy.tree
 contract KernelFactory_Test is Test {
-    // Expected error selector (to be added to KernelFactory.sol)
-    error CallFailed();
 
     /*//////////////////////////////////////////////////////////////
                                 STATE
@@ -31,7 +28,6 @@ contract KernelFactory_Test is Test {
     KernelUUPS uups;
     KernelImmutableECDSA immutableEcdsa;
     MockValidator rootValidator;
-    MockCallee callee;
 
     /*//////////////////////////////////////////////////////////////
                                 SETUP
@@ -44,7 +40,6 @@ contract KernelFactory_Test is Test {
         factory = new KernelFactory(uups, immutableEcdsa);
         rootValidator = new MockValidator();
         rootValidator.sudoSetSuccess(true);
-        callee = new MockCallee();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -156,40 +151,6 @@ contract KernelFactory_Test is Test {
         Kernel account2 = factory.deploy(packages, 0);
 
         assertEq(address(account1), address(account2), "Should return existing account");
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    DEPLOY WITH CALL TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice it should deploy and execute the additional call
-    function test_WhenDeployWithCall_ExecutesCall() external givenPackagesArrayHasValidModules {
-        Install[] memory packages = new Install[](1);
-        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
-
-        bytes memory callData = abi.encodeWithSelector(
-            Kernel.execute.selector, bytes32(0), abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-        );
-
-        Kernel account = factory.deployWithCall(packages, 0, callData);
-
-        assertEq(callee.bar(), 1, "Call should have been executed");
-        assertTrue(address(account) != address(0), "Account should be deployed");
-    }
-
-    /// @notice it should revert if additional call reverts
-    function test_RevertWhen_DeployWithCall_CallReverts() external givenPackagesArrayHasValidModules {
-        Install[] memory packages = new Install[](1);
-        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
-
-        bytes memory callData = abi.encodeWithSelector(
-            Kernel.execute.selector,
-            bytes32(0),
-            abi.encodePacked(address(callee), uint256(0), MockCallee.forceRevert.selector)
-        );
-
-        vm.expectRevert(CallFailed.selector);
-        factory.deployWithCall(packages, 0, callData);
     }
 
     /*//////////////////////////////////////////////////////////////

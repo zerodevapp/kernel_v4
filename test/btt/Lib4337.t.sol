@@ -119,7 +119,9 @@ abstract contract Lib4337_Test is Test {
 
         uint256 result = harness.intersectValidationData(_preValidationData, _validationRes);
 
-        assertEq(result, _preValidationData, "should return preValidationData via short circuit when validationRes is 0");
+        assertEq(
+            result, _preValidationData, "should return preValidationData via short circuit when validationRes is 0"
+        );
     }
 
     modifier givenBothValuesAreNon_zero() {

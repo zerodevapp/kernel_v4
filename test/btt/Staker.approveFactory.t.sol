@@ -5,7 +5,7 @@ import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_approveFactory is StakerBTTModifiers {
-    function setUp() public {
+    function setUp() public override {
         _initializeStaker();
     }
 

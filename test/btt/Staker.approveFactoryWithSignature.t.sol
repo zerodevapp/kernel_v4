@@ -8,7 +8,7 @@ import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 abstract contract Staker_approveFactoryWithSignature is StakerBTTModifiers {
     error InvalidSignature();
 
-    function setUp() public {
+    function setUp() public override {
         _initializeStaker();
     }
 

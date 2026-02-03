@@ -200,12 +200,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
 
         vm.expectRevert(MockCallee.Haha.selector);
         testExecutor.executeViaKernel(
-            kernel,
-            _executorCallType,
-            _executorExecType,
-            address(callee),
-            0,
-            MockCallee.forceRevert.selector
+            kernel, _executorCallType, _executorExecType, address(callee), 0, MockCallee.forceRevert.selector
         );
     }
 
@@ -242,12 +237,7 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         assertEq(_executorExecType, LibERC7579.EXECTYPE_TRY, "Exec type should be TRY");
 
         bytes[] memory results = testExecutor.executeViaKernel(
-            kernel,
-            _executorCallType,
-            _executorExecType,
-            address(callee),
-            0,
-            MockCallee.forceRevert.selector
+            kernel, _executorCallType, _executorExecType, address(callee), 0, MockCallee.forceRevert.selector
         );
 
         assertEq(results.length, 1, "Should return one result");

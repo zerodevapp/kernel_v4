@@ -15,7 +15,8 @@ import {
     UnauthorizedCallData,
     InvalidValidator,
     InvalidPermissionId,
-    InvalidNonce
+    InvalidNonce,
+    InvalidVid
 } from "src/types/Error.sol";
 import {ValidationManager} from "src/core/ValidationManager.sol";
 import {Install} from "src/types/Structs.sol";
@@ -231,7 +232,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ValidationManager.InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
+                InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
             )
         );
         kernel.validateUserOp(op, userOpHash, 0);
@@ -514,7 +515,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ValidationManager.InvalidVid.selector, permissionToIdentifier(permissionId))
+            abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId))
         );
         kernel.validateUserOp(op, userOpHash, 0);
     }
@@ -798,7 +799,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ValidationManager.InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
+                InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
             )
         );
         kernel.validateUserOp(op, userOpHash, 0);
@@ -903,7 +904,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ValidationManager.InvalidVid.selector, permissionToIdentifier(permissionId))
+            abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId))
         );
         kernel.validateUserOp(op, userOpHash, 0);
     }
@@ -1232,13 +1233,14 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     function _installValidatorWithSelectorPolicy() internal {
-        bytes memory internalData = _selectorAllowed ? abi.encodePacked(_selectorHook, Kernel.execute.selector) : hex"";
+        bytes memory internalData = _selectorAllowed ? abi.encodePacked(_selectorHook, Kernel.execute.selector) : bytes("");
         kernel.installModule(1, address(newValidator), abi.encode(hex"", internalData));
     }
 
     function _installPermissionWithSelectorPolicy() internal {
-        bytes memory internalData =
-            _selectorAllowed ? abi.encodePacked(permissionId, _selectorHook, Kernel.execute.selector) : abi.encodePacked(permissionId);
+        bytes memory internalData = _selectorAllowed
+            ? abi.encodePacked(permissionId, _selectorHook, Kernel.execute.selector)
+            : abi.encodePacked(permissionId);
         kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", internalData));
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", internalData));
     }

@@ -43,7 +43,7 @@ abstract contract KernelValidatorTest is KernelTestBase {
             signature: hex""
         });
         ops[0].signature = _validatorSignUserOp(ops[0], true, false);
-        address caller = this.caller();
+        address prevCaller = this.caller();
         vm.startPrank(beneficiary, beneficiary);
         if (useHook) {
             assertEq(hook.preHookData(address(kernel)), hex"");
@@ -52,7 +52,7 @@ abstract contract KernelValidatorTest is KernelTestBase {
             vm.expectRevert();
         }
         ep.handleOps(ops, beneficiary);
-        vm.startPrank(caller);
+        vm.startPrank(prevCaller);
         if (useHook && success) {
             assertTrue(hook.preHookData(address(kernel)).length != 0);
         }

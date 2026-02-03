@@ -6,7 +6,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_stake is StakerBTTModifiers {
-    function setUp() public {
+    function setUp() public override {
         _initializeStaker();
     }
 

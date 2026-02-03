@@ -7,7 +7,7 @@ import {KernelFactory} from "src/KernelFactory.sol";
 import {Install} from "src/types/Structs.sol";
 
 abstract contract Staker_deployWithFactory is StakerBTTModifiers {
-    function setUp() public {
+    function setUp() public override {
         _initializeStaker();
     }
 
