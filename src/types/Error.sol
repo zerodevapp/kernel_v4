@@ -1,5 +1,7 @@
 pragma solidity ^0.8.0;
 
+import {ValidationId} from "./Types.sol";
+
 error ModuleInstallFailed();
 error ModuleUninstallFailed();
 
@@ -28,5 +30,8 @@ error InvalidPermissionId();
 error InvalidNonce();
 error InvalidInitialization();
 error InvalidDataLength();
+error CannotUninstallRoot();
+error InvalidSignature();
+error InvalidVid(ValidationId vId);
 
 error UnauthorizedCallData();
