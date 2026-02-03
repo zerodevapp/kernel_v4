@@ -9,6 +9,8 @@ import {
     ModuleInstallFailed,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
+    CannotUninstallRoot,
+    InvalidVid,
     InvalidDataLength,
     NotInstalled
 } from "../types/Error.sol";
@@ -25,8 +27,6 @@ import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 
 abstract contract ValidationManager {
-    error InvalidVid(ValidationId vId);
-
     ValidationId transient installingPermission;
 
     function _hookEnabled(IHook _hook) internal view virtual returns (bool);
@@ -59,6 +59,27 @@ abstract contract ValidationManager {
         }
     }
 
+    /// @dev grant access to selectors
+    /// @param vId validationId
+    /// @param selectors = abi.encodePacked(bytes4 selectors)
+    function _grantAccess(ValidationId vId, bytes calldata selectors) internal {
+        require(selectors.length % 4 == 0, InvalidDataLength());
+        ValidationStorage storage $ = _validationStorage();
+        uint32 nonce = ++$.vInfo[vId].nonce;
+
+        while (selectors.length >= 4) {
+            bytes4 selector = bytes4(selectors[0:4]);
+            $.allowed[vId][selector] = nonce;
+            selectors = selectors[4:];
+        }
+    }
+
+    /// @dev returns bool if nonce matches the selector allowance, you should also check hook to make sure validation is installed
+    function _allowedSelector(ValidationId vId, bytes4 selector) internal view returns (bool) {
+        ValidationStorage storage $ = _validationStorage();
+        return $.allowed[vId][selector] == $.vInfo[vId].nonce;
+    }
+
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
         require($.vInfo[vId].hook == address(0), OccupiedValidationId());
@@ -72,13 +93,8 @@ abstract contract ValidationManager {
         require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
         $.vInfo[vId].hook = hook == address(0) ? address(1) : hook;
         _internalData = _internalData[20:];
-
         // then the rest is the allowed selectors
-        while (_internalData.length >= 4) {
-            bytes4 selector = bytes4(_internalData[0:4]);
-            $.allowed[vId][selector] = true;
-            _internalData = _internalData[4:];
-        }
+        _grantAccess(vId, _internalData);
     }
 
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
@@ -118,10 +134,16 @@ abstract contract ValidationManager {
         }
     }
 
+    function _uninstallValidation(ValidationId _vId) internal {
+        ValidationStorage storage $ = _validationStorage();
+        require($.root != _vId, CannotUninstallRoot());
+        $.vInfo[_vId].hook = address(0);
+    }
+
     function _uninstallValidator(address _validator, bytes calldata, bool) internal {
         ValidationStorage storage $ = _validationStorage();
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
-        $.vInfo[vId].hook = address(0);
+        _uninstallValidation(vId);
     }
 
     function _uninstallPolicy(address _policy, bytes calldata _internalData, bool) internal {
@@ -131,18 +153,16 @@ abstract contract ValidationManager {
 
     function _uninstallPolicyWithVid(address _policy, ValidationId vId) internal {
         ValidationInfo storage $ = _validationStorage().vInfo[vId];
-        $ = _validationStorage().vInfo[vId];
         unchecked {
             require($.policies[$.policies.length - 1] == _policy, InvalidPermissionUninstallOrder());
             $.policies.pop();
-        }
-        if ($.signer == address(0)) {
-            $.hook = address(0);
         }
     }
 
     function _uninstallSigner(address _signer, bytes calldata _internalData, bool) internal {
         ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
+        ValidationInfo storage $ = _validationStorage().vInfo[vId];
+        require($.policies.length == 0, InvalidPermissionUninstallOrder());
         _uninstallSignerWithVid(_signer, vId);
     }
 
@@ -151,7 +171,7 @@ abstract contract ValidationManager {
         require($.policies.length == 0, InvalidPermissionUninstallOrder());
         require($.signer == _signer, InvalidPermissionId());
         $.signer = address(0);
-        $.hook = address(0);
+        _uninstallValidation(vId);
     }
 
     function _checkValidation(ValidationType vType, ValidationId vId)
@@ -193,6 +213,7 @@ abstract contract ValidationManager {
             return _verifyFallbackSignature(_hash, _signature) ? 0 : 1;
         }
         ValidationInfo storage vInfo = _validationStorage().vInfo[vId];
+        require(vInfo.hook > address(0), InvalidVid(vId));
         ValidationType vType = getType(vId);
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = getValidator(vId);
