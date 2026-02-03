@@ -10,7 +10,8 @@ import {
     InvalidValidationType,
     InvalidValidator,
     InvalidPermissionId,
-    InvalidVid
+    InvalidVid,
+    InvalidNonce
 } from "src/types/Error.sol";
 import {MockValidator} from "./mock/MockValidator.sol";
 import {PermissionId} from "src/types/Types.sol";
@@ -241,6 +242,21 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_validator() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
+                replayable: false,
+                enableSuccess: true,
+                signatureSuccess: true,
+                personalSign: false,
+                vIdExist: true,
+                extra: bytes32(0)
+            })
+        );
+    }
+
+    function test_erc1271_enable_validator_wrongNonce() external unitTest erc1271Test {
+        _testSigEnableValidator(
+            EnableTestParam({
+                wrongNonce: true,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -254,6 +270,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_validator_fail_validator_not_exist() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -267,6 +284,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_validator_fail() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -280,6 +298,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_validator_personal_sign() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -293,6 +312,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_validator_personal_sign_fail() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -306,6 +326,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_validator() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -319,6 +340,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_validator_fail() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -332,6 +354,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_validator_personal_sign() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -345,6 +368,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_validator_personal_sign_fail() external unitTest erc1271Test {
         _testSigEnableValidator(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -358,6 +382,21 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_permission() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
+                replayable: false,
+                enableSuccess: true,
+                signatureSuccess: true,
+                personalSign: false,
+                vIdExist: true,
+                extra: bytes32(0)
+            })
+        );
+    }
+
+    function test_erc1271_enable_permission_wrongNonce() external unitTest erc1271Test {
+        _testSigEnablePermission(
+            EnableTestParam({
+                wrongNonce: true,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -371,6 +410,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_permission_fail_validator_not_exist() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -384,6 +424,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_permission_fail() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -397,6 +438,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_permission_personal_sign() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -410,6 +452,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_permission_personal_sign_fail() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: false,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -423,6 +466,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_permission() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -436,6 +480,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_permission_fail() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -449,6 +494,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_permission_personal_sign() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: true,
@@ -462,6 +508,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     function test_erc1271_enable_replayable_permission_personal_sign_fail() external unitTest erc1271Test {
         _testSigEnablePermission(
             EnableTestParam({
+                wrongNonce: false,
                 replayable: true,
                 enableSuccess: true,
                 signatureSuccess: false,
@@ -473,6 +520,7 @@ abstract contract KernelERC1271Test is KernelTestBase {
     }
 
     struct EnableTestParam {
+        bool wrongNonce;
         bool replayable;
         bool enableSuccess;
         bool signatureSuccess;
@@ -519,20 +567,31 @@ abstract contract KernelERC1271Test is KernelTestBase {
             )
         );
 
-        if (args.vIdExist && args.enableSuccess) {
+        if (args.wrongNonce) {
+            vm.startPrank(address(kernel));
+            kernel.setNonce(0, 10);
+        }
+        if (args.vIdExist && args.enableSuccess && !args.wrongNonce) {
             bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
-            assertEq(res, args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+            assertEq(res, !args.wrongNonce && args.signatureSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
 
             if (!isMock) {
                 vm.chainId(1000);
                 res = kernel.isValidSignature(messageHash, sigWithEnable);
-                assertEq(res, args.signatureSuccess && args.replayable ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+                assertEq(
+                    res,
+                    !args.wrongNonce && args.signatureSuccess && args.replayable ? ERC1271_MAGICVALUE : ERC1271_INVALID
+                );
             }
         } else if (!args.enableSuccess) {
             bytes32 res = kernel.isValidSignature(messageHash, sigWithEnable);
             assertEq(res, ERC1271_INVALID);
         } else {
-            vm.expectRevert(InvalidValidator.selector);
+            if (args.wrongNonce) {
+                vm.expectRevert(InvalidNonce.selector);
+            } else {
+                vm.expectRevert(InvalidValidator.selector);
+            }
             kernel.isValidSignature(messageHash, sigWithEnable);
         }
     }
@@ -586,20 +645,27 @@ abstract contract KernelERC1271Test is KernelTestBase {
             bytes1(0x02),
             permissionId,
             abi.encode(
-                uint256(0), packages, enableSig(0, args.enableSuccess, args.replayable, packages, _rootSignHash), sig
+                uint256(0),
+                packages,
+                enableSig(args.wrongNonce ? 1 : 0, args.enableSuccess, args.replayable, packages, _rootSignHash),
+                sig
             )
         );
 
-        if (args.vIdExist && !(!args.signatureSuccess && args.extra != bytes32(0))) {
+        if (args.wrongNonce) {
+            vm.startPrank(address(kernel));
+            kernel.setNonce(0, 10);
+        }
+        if (args.vIdExist && !args.wrongNonce && !(!args.signatureSuccess && args.extra != bytes32(0))) {
             bytes4 res = kernel.isValidSignature(messageHash, sigWithEnable);
-            assertEq(res, args.signatureSuccess && args.enableSuccess ? ERC1271_MAGICVALUE : ERC1271_INVALID);
+            assertEq(res, args.signatureSuccess && args.enableSuccess && !args.wrongNonce ? ERC1271_MAGICVALUE : ERC1271_INVALID);
 
             if (!isMock) {
                 vm.chainId(1000);
                 res = kernel.isValidSignature(messageHash, sigWithEnable);
                 assertEq(
                     res,
-                    args.signatureSuccess && args.replayable && args.enableSuccess
+                    args.signatureSuccess && args.replayable && args.enableSuccess && !args.wrongNonce
                         ? ERC1271_MAGICVALUE
                         : ERC1271_INVALID
                 );
@@ -611,7 +677,11 @@ abstract contract KernelERC1271Test is KernelTestBase {
             vm.expectRevert(InvalidSignature.selector);
             kernel.isValidSignature(messageHash, sigWithEnable);
         } else {
-            vm.expectRevert(InvalidPermissionId.selector);
+            if (args.wrongNonce) {
+                vm.expectRevert(InvalidNonce.selector);
+            } else {
+                vm.expectRevert(InvalidPermissionId.selector);
+            }
             kernel.isValidSignature(messageHash, sigWithEnable);
         }
     }
