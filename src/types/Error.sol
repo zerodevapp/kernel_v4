@@ -36,3 +36,5 @@ error InvalidVid(ValidationId vId);
 
 error UnauthorizedCallData();
 error PermissionInstallNotFinished();
+error InvalidPermissionInstall();
+error LastSignatureShouldBeSigner();
