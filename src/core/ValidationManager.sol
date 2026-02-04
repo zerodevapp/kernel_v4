@@ -85,9 +85,11 @@ abstract contract ValidationManager {
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
         require($.vInfo[vId].hook == address(0), OccupiedValidationId());
-        // if _internalData is empty, skip the initialization
+        // if _internalData is empty, skip the initialization but increment nonce
+        // to ensure _allowedSelector returns false for any selector (no selectors allowed)
         if (_internalData.length == 0) {
             $.vInfo[vId].hook = address(1);
+            ++$.vInfo[vId].nonce;
             return;
         }
         // if not, first 20 bytes is the hook address
@@ -108,7 +110,14 @@ abstract contract ValidationManager {
 
     function _installPolicy(address _policy, bytes calldata _internalData, bool _installSuccess) internal {
         ValidationInfo storage $ = _checkPermissionInstall(_internalData, _installSuccess);
-        require(_internalData.length == 4, InvalidDataLength());
+        // Require at least 4 bytes for permissionId
+        require(_internalData.length >= 4, InvalidDataLength());
+        // If there's additional data, validate the hook address
+        if (_internalData.length > 4) {
+            require(_internalData.length >= 24, InvalidDataLength());
+            address hook = address(bytes20(_internalData[4:24]));
+            require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
+        }
         $.policies.push(_policy);
     }
 
@@ -334,13 +343,14 @@ abstract contract ValidationManager {
     }
 
     function _setRoot(ValidationId vId) internal {
+        // Check for zero ValidationId first (before type check to get correct error)
+        require(ValidationId.unwrap(vId) != bytes21(0) || _fallbackValidatorAvailable(), InvalidRootValidation());
         ValidationType vType = getType(vId);
         require(
             vType == VALIDATION_TYPE_VALIDATOR || vType == VALIDATION_TYPE_PERMISSION
                 || (_fallbackValidatorAvailable() && vType == VALIDATION_TYPE_FALLBACK),
             InvalidValidationType()
         );
-        require(ValidationId.unwrap(vId) != bytes21(0) || _fallbackValidatorAvailable(), InvalidRootValidation());
         ValidationStorage storage $ = _validationStorage();
         $.root = vId;
     }
