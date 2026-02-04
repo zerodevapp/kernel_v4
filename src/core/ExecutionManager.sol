@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";

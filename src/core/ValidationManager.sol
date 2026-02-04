@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
@@ -106,7 +107,6 @@ abstract contract ValidationManager {
 
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
         require(_installSuccess, ModuleInstallFailed());
-        ValidationStorage storage $ = _validationStorage();
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
         _initializeValidation(vId, _internalData);
     }
@@ -155,7 +155,6 @@ abstract contract ValidationManager {
     }
 
     function _uninstallValidator(address _validator, bytes calldata, bool) internal {
-        ValidationStorage storage $ = _validationStorage();
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
         _uninstallValidation(vId);
     }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {IHook, IExecutor, IModule, IValidator, IStatelessValidatorWithSender} from "../interfaces/IERC7579Modules.sol";
