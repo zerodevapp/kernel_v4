@@ -20,7 +20,6 @@ import {Ownable} from "solady/auth/Ownable.sol";
 /// @notice Tests for Staker following Branching Tree Technique
 /// @dev Tree specification: test/btt/Staker.tree
 contract Staker_Test is Test {
-
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
@@ -161,8 +160,9 @@ contract Staker_Test is Test {
     /// @notice it should approve factory when signature is valid
     function test_WhenApproveFactoryWithSignature_ValidSignature() external givenSignatureIsValid {
         uint256 nonce = staker.nonces(address(factory));
-        bytes32 structHash =
-            EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1), nonce);
+        bytes32 structHash = EfficientHashLib.hash(
+            uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1), nonce
+        );
         bytes32 digest = _hashTypedDataSansChainId(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signatureKey(), digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -175,8 +175,9 @@ contract Staker_Test is Test {
     /// @notice it should revert when signature is invalid (wrong signer)
     function test_RevertWhen_ApproveFactoryWithSignature_InvalidSignature() external givenSignatureIsInvalid {
         uint256 nonce = staker.nonces(address(factory));
-        bytes32 structHash =
-            EfficientHashLib.hash(uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1), nonce);
+        bytes32 structHash = EfficientHashLib.hash(
+            uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(address(factory))), uint256(1), nonce
+        );
         bytes32 digest = _hashTypedDataSansChainId(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signatureKey(), digest);
         bytes memory signature = abi.encodePacked(r, s, v);

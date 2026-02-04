@@ -6,7 +6,13 @@ import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {BTTModifiers} from "./BTTModifiers.sol";
 import {Install} from "src/types/Structs.sol";
 import {Kernel} from "src/Kernel.sol";
-import {InvalidValidationType, InvalidValidator, InvalidPermissionId, InvalidNonce, InvalidVid} from "src/types/Error.sol";
+import {
+    InvalidValidationType,
+    InvalidValidator,
+    InvalidPermissionId,
+    InvalidNonce,
+    InvalidVid
+} from "src/types/Error.sol";
 import {ValidationId, validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {MockPolicy} from "../mock/MockPolicy.sol";
