@@ -8,6 +8,8 @@ optimizer_runs = 200
 
 evm_version = 'prague'
 solc_version = '0.8.33'
+cbor_metadata = false
+bytecode_hash = "none"
 
 isolate = true
 extra_output = ["storageLayout"]

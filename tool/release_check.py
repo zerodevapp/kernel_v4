@@ -4,7 +4,7 @@ Release configuration checker for Kernel v4.
 
 Validates that each release includes a complete and valid release descriptor containing:
 1. Foundry config (solc version, optimizer settings)
-2. Module addresses and bytecode hashes
+2. Contract bytecodes
 3. Deployment verification data
 
 The release descriptor should be a JSON file (e.g., releases/v0.4.0.json) containing
@@ -13,10 +13,9 @@ all information needed to verify a deployment matches the expected state.
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 FOUNDRY_TOML = ROOT / "foundry.toml"
@@ -38,7 +37,7 @@ REQUIRED_FIELDS = {
 # Required fields per contract
 REQUIRED_CONTRACT_FIELDS = {
     "name": str,
-    "bytecode_hash": str,
+    "bytecode": str,
 }
 
 OPTIONAL_CONTRACT_FIELDS = {
@@ -78,14 +77,12 @@ def parse_foundry_toml(path: Path) -> Dict[str, Any]:
     return config
 
 
-def compute_bytecode_hash(contract_name: str) -> Optional[Tuple[str, bool]]:
-    """Compute bytecode hash from compiled artifacts.
+def get_bytecode(contract_name: str) -> Optional[str]:
+    """Get compiled bytecode from artifacts.
 
     Returns:
-        Tuple of (hash, has_link_references) or None if not found.
-        has_link_references is True if bytecode contains library placeholders.
+        The bytecode hex string (with 0x prefix) or None if not found.
     """
-    # Look for the contract in out/
     for json_file in OUT_DIR.rglob(f"{contract_name}.json"):
         try:
             with open(json_file) as f:
@@ -93,31 +90,10 @@ def compute_bytecode_hash(contract_name: str) -> Optional[Tuple[str, bool]]:
 
             bytecode = artifact.get("bytecode", {}).get("object", "")
             if bytecode and bytecode != "0x":
-                # Check for library link references (format: __$<hash>$__)
-                has_link_refs = "__$" in bytecode
-
-                # Replace library placeholders with zeros for consistent hashing
-                clean_bytecode = re.sub(r"__\$[a-fA-F0-9]+\$__", "0" * 40, bytecode)
-
-                # Use keccak256 via cast
-                result = subprocess.run(
-                    ["cast", "keccak", clean_bytecode],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0:
-                    return (result.stdout.strip(), has_link_refs)
+                return bytecode
         except (json.JSONDecodeError, KeyError):
             continue
 
-    return None
-
-
-def compute_init_code_hash(contract_name: str) -> Optional[str]:
-    """Compute init code hash (bytecode + constructor args placeholder)."""
-    result = compute_bytecode_hash(contract_name)
-    if result:
-        return result[0]  # Return just the hash
     return None
 
 
@@ -158,10 +134,10 @@ def validate_release_descriptor(path: Path, errors: List[str], warnings: List[st
             elif not isinstance(contract[field], expected_type):
                 errors.append(f"{path.name}: contract[{i}].{field} has wrong type")
 
-        # Validate bytecode hash format (should be 0x + 64 hex chars)
-        bytecode_hash = contract.get("bytecode_hash", "")
-        if bytecode_hash and not re.match(r"^0x[a-fA-F0-9]{64}$", bytecode_hash):
-            errors.append(f"{path.name}: contract[{i}].bytecode_hash invalid format")
+        # Validate bytecode format (should start with 0x and be valid hex)
+        bytecode = contract.get("bytecode", "")
+        if bytecode and not re.match(r"^0x[a-fA-F0-9]+$", bytecode):
+            errors.append(f"{path.name}: contract[{i}].bytecode invalid format")
 
         # Validate address format if present
         address = contract.get("address", "")
@@ -198,33 +174,27 @@ def verify_foundry_config(release: Dict, errors: List[str], warnings: List[str])
             )
 
 
-def verify_bytecode_hashes(release: Dict, errors: List[str], warnings: List[str], verbose: bool) -> None:
-    """Verify bytecode hashes match compiled artifacts."""
+def verify_bytecodes(release: Dict, errors: List[str], warnings: List[str], verbose: bool) -> None:
+    """Verify bytecodes match compiled artifacts."""
     contracts = release.get("contracts", [])
 
     for contract in contracts:
         name = contract.get("name", "unknown")
-        expected_hash = contract.get("bytecode_hash", "")
+        expected = contract.get("bytecode", "")
 
-        if not expected_hash:
-            warnings.append(f"{name}: no bytecode_hash specified")
+        if not expected:
+            warnings.append(f"{name}: no bytecode specified")
             continue
 
-        result = compute_bytecode_hash(name)
+        actual = get_bytecode(name)
 
-        if result is None:
+        if actual is None:
             warnings.append(f"{name}: compiled artifact not found (run forge build)")
         else:
-            actual_hash, has_link_refs = result
-            if actual_hash.lower() != expected_hash.lower():
-                errors.append(
-                    f"{name}: bytecode hash mismatch\n"
-                    f"    expected: {expected_hash}\n"
-                    f"    actual:   {actual_hash}"
-                )
+            if actual.lower() != expected.lower():
+                errors.append(f"{name}: bytecode mismatch")
             elif verbose:
-                suffix = " (has library references)" if has_link_refs else ""
-                print(f"  {name}: bytecode hash verified{suffix}")
+                print(f"  {name}: bytecode verified")
 
 
 def generate_release_template(version: str, output_path: Path) -> None:
@@ -234,34 +204,24 @@ def generate_release_template(version: str, output_path: Path) -> None:
     # Find main contracts in src/
     contracts = []
     skipped = []
-    linked = []
     src_dir = ROOT / "src"
     for sol_file in src_dir.glob("*.sol"):
         if sol_file.name.startswith("I"):  # Skip interfaces
             continue
         contract_name = sol_file.stem
-        result = compute_bytecode_hash(contract_name)
+        bytecode = get_bytecode(contract_name)
 
-        if result is None:
+        if bytecode is None:
             skipped.append(contract_name)
             continue
 
-        bytecode_hash, has_link_refs = result
-        if has_link_refs:
-            linked.append(contract_name)
-
-        contract_entry = {
+        contracts.append({
             "name": contract_name,
-            "bytecode_hash": bytecode_hash,
-        }
-        if has_link_refs:
-            contract_entry["has_link_references"] = True
-        contracts.append(contract_entry)
+            "bytecode": bytecode,
+        })
 
     if skipped:
         print(f"Skipped (abstract or no bytecode): {', '.join(skipped)}")
-    if linked:
-        print(f"Has library references (hash uses zero placeholders): {', '.join(linked)}")
 
     release = {
         "version": version,
@@ -302,7 +262,7 @@ def main() -> int:
     parser.add_argument(
         "--verify-bytecode",
         action="store_true",
-        help="verify bytecode hashes match compiled artifacts",
+        help="verify bytecodes match compiled artifacts",
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -357,9 +317,9 @@ def main() -> int:
         # Verify foundry config matches
         verify_foundry_config(release, errors, warnings)
 
-        # Optionally verify bytecode hashes
+        # Optionally verify bytecodes
         if args.verify_bytecode:
-            verify_bytecode_hashes(release, errors, warnings, args.verbose)
+            verify_bytecodes(release, errors, warnings, args.verbose)
 
     # Report results
     if args.verbose:
