@@ -7,7 +7,6 @@ import {ExecutorStorage, ExecutorConfig} from "../types/Structs.sol";
 import {NotExecutor} from "../types/Error.sol";
 
 contract ExecutorManager {
-
     function _executorStorage() internal pure returns (ExecutorStorage storage $) {
         assembly {
             $.slot := EXECUTOR_MANAGER_STORAGE_SLOT

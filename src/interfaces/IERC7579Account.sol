@@ -10,7 +10,6 @@ struct Execution {
 }
 
 interface IERC7579Account {
-
     /**
      * @dev Executes a transaction on behalf of the account.
      *         This function is intended to be called by ERC-4337 EntryPoint.sol
