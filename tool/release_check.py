@@ -233,6 +233,7 @@ def generate_release_template(version: str, output_path: Path) -> None:
 
     # Find main contracts in src/
     contracts = []
+    skipped = []
     src_dir = ROOT / "src"
     for sol_file in src_dir.glob("*.sol"):
         if sol_file.name.startswith("I"):  # Skip interfaces
@@ -240,11 +241,18 @@ def generate_release_template(version: str, output_path: Path) -> None:
         contract_name = sol_file.stem
         bytecode_hash = compute_bytecode_hash(contract_name)
 
+        if bytecode_hash is None:
+            skipped.append(contract_name)
+            continue
+
         contract_entry = {
             "name": contract_name,
-            "bytecode_hash": bytecode_hash or "0x" + "0" * 64,
+            "bytecode_hash": bytecode_hash,
         }
         contracts.append(contract_entry)
+
+    if skipped:
+        print(f"Skipped (abstract or no bytecode): {', '.join(skipped)}")
 
     release = {
         "version": version,

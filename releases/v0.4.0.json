@@ -10,27 +10,11 @@
   "contracts": [
     {
       "name": "Staker",
-      "bytecode_hash": "0x6d61dd1492a8c0ab6e606cc2a76352dec62127d188dbefe437ab2c95ed2f58d3"
-    },
-    {
-      "name": "KernelImmutableECDSA",
-      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "name": "KernelUUPS",
-      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "bytecode_hash": "0x00708cdae86b51054cd67e4e94e1dcd8edfefac0947fbfb7c71c6d92a3a7a76d"
     },
     {
       "name": "KernelFactory",
-      "bytecode_hash": "0x5685ce794c7c35dc91ddf37e5b1b3a8c270af483f6c1515396f87df407bd687c"
-    },
-    {
-      "name": "Kernel",
-      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "name": "Kernel7702",
-      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "bytecode_hash": "0xbafd431bb5a15763199fc976acb9c0dfea9927e7eebeeb05cd48cdaef39685f2"
     }
   ],
   "deployments": {
