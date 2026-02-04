@@ -7,15 +7,17 @@ import {Kernel} from "src/Kernel.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
-import {Install, SelectorConfig} from "src/types/Structs.sol";
-import {ValidationId, CallType} from "src/types/Types.sol";
-import {validatorToIdentifier} from "src/lib/Utils.sol";
+import {Install, SelectorConfig, ValidationInfo} from "src/types/Structs.sol";
+import {ValidationId, CallType, PermissionId} from "src/types/Types.sol";
+import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {CALLTYPE_DELEGATECALL, CALLTYPE_SINGLE} from "src/types/Constants.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
 import {MockExecutor} from "../mock/MockExecutor.sol";
 import {MockHook} from "../mock/MockHook.sol";
 import {MockFallback} from "../mock/MockFallback.sol";
+import {MockPolicy} from "../mock/MockPolicy.sol";
+import {MockSigner} from "../mock/MockSigner.sol";
 
 contract KernelInvariantHandler is Test {
     Kernel public immutable kernel;
@@ -26,13 +28,19 @@ contract KernelInvariantHandler is Test {
     MockExecutor[] public executors;
     MockHook[] public hooks;
     MockFallback[] public fallbacks;
+    MockPolicy[] public policies;
+    MockSigner[] public signers;
     bytes4[] public selectors;
+    address[] public policyStack;
 
     mapping(address => bool) public validatorInstalled;
     mapping(address => bool) public executorInstalled;
     mapping(address => bool) public hookInstalled;
     mapping(bytes4 => address) public selectorTarget;
     mapping(bytes4 => bytes1) public selectorCallType;
+    mapping(address => bool) public policyInstalled;
+    address public signerInstalled;
+    bytes4 public permissionId;
 
     constructor(Kernel kernel_, IEntryPoint ep_, MockValidator rootValidator_) {
         kernel = kernel_;
@@ -48,11 +56,15 @@ contract KernelInvariantHandler is Test {
             executors.push(new MockExecutor());
             hooks.push(new MockHook());
             fallbacks.push(new MockFallback());
+            policies.push(new MockPolicy());
+            signers.push(new MockSigner());
         }
 
         selectors.push(MockFallback.fallbackFunction.selector);
         selectors.push(MockFallback.forceRevert.selector);
         selectors.push(MockFallback.testFunction.selector);
+
+        permissionId = bytes4(keccak256("permission"));
     }
 
     function installValidator(uint256 index) external {
@@ -126,6 +138,18 @@ contract KernelInvariantHandler is Test {
         return selectors.length;
     }
 
+    function policyCount() external view returns (uint256) {
+        return policies.length;
+    }
+
+    function signerCount() external view returns (uint256) {
+        return signers.length;
+    }
+
+    function policyStackCount() external view returns (uint256) {
+        return policyStack.length;
+    }
+
     function installSelector(uint256 selectorIndex, uint256 targetIndex, bool delegatecall) external {
         bytes4 selector = selectors[selectorIndex % selectors.length];
         MockFallback target = fallbacks[targetIndex % fallbacks.length];
@@ -149,6 +173,50 @@ contract KernelInvariantHandler is Test {
         vm.stopPrank();
         selectorTarget[selector] = address(0);
         selectorCallType[selector] = bytes1(0);
+    }
+
+    function installPolicy(uint256 index) external {
+        MockPolicy policy = policies[index % policies.length];
+        if (policyInstalled[address(policy)]) {
+            return;
+        }
+        vm.startPrank(address(ep));
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        vm.stopPrank();
+        policyInstalled[address(policy)] = true;
+        policyStack.push(address(policy));
+    }
+
+    function uninstallPolicy() external {
+        uint256 len = policyStack.length;
+        if (len == 0) {
+            return;
+        }
+        address policy = policyStack[len - 1];
+        vm.startPrank(address(ep));
+        kernel.uninstallModule(5, policy, abi.encode(hex"", abi.encodePacked(permissionId)));
+        vm.stopPrank();
+        policyInstalled[policy] = false;
+        policyStack.pop();
+    }
+
+    function installSigner(uint256 index) external {
+        MockSigner signer = signers[index % signers.length];
+        vm.startPrank(address(ep));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        vm.stopPrank();
+        signerInstalled = address(signer);
+    }
+
+    function uninstallSigner() external {
+        if (signerInstalled == address(0) || policyStack.length != 0) {
+            return;
+        }
+        address signer = signerInstalled;
+        vm.startPrank(address(ep));
+        kernel.uninstallModule(6, signer, abi.encode(hex"", abi.encodePacked(permissionId)));
+        vm.stopPrank();
+        signerInstalled = address(0);
     }
 }
 
@@ -240,6 +308,23 @@ contract KernelInvariant is StdInvariant, Test {
             SelectorConfig memory cfg = kernel.selectorConfig(selector);
             assertEq(cfg.target, target, "selector target mismatch");
             assertEq(CallType.unwrap(cfg.callType), callType, "selector callType mismatch");
+        }
+    }
+
+    function invariant_permission_state_matches_handler() external {
+        PermissionId permId = PermissionId.wrap(handler.permissionId());
+        ValidationId vId = permissionToIdentifier(permId);
+        ValidationInfo memory vInfo = kernel.validationInfo(vId);
+        assertEq(vInfo.policies.length, handler.policyStackCount(), "policy length mismatch");
+        for (uint256 i = 0; i < handler.policyStackCount(); i++) {
+            address policy = handler.policyStack(i);
+            assertTrue(kernel.isModuleInstalled(5, policy, abi.encodePacked(handler.permissionId())));
+            assertTrue(handler.policyInstalled(policy));
+        }
+        address signer = handler.signerInstalled();
+        assertEq(vInfo.signer, signer, "signer mismatch");
+        if (signer != address(0)) {
+            assertTrue(kernel.isModuleInstalled(6, signer, abi.encodePacked(handler.permissionId())));
         }
     }
 }

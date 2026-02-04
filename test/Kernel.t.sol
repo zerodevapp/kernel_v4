@@ -14,6 +14,7 @@ import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {NotImplemented} from "src/types/Error.sol";
 import {InvalidInitialization} from "src/types/Error.sol";
+import {InvalidSelector} from "src/types/Error.sol";
 import {Install} from "src/types/Structs.sol";
 import {ERC1967_IMPLEMENTATION_SLOT} from "src/types/Constants.sol";
 import {KernelUserOpTest} from "./KernelUserOpTest.sol";
@@ -103,8 +104,12 @@ contract KernelTest is
     }
 
     function test_upgradeTo() external unitTest {
-        vm.skip(is7702);
         KernelUUPS newTemplate = new KernelUUPS(ep);
+        if (is7702) {
+            vm.expectRevert(InvalidSelector.selector);
+            KernelUUPS(payable(address(kernel))).upgradeToAndCall(address(newTemplate), hex"");
+            return;
+        }
         KernelUUPS(payable(address(kernel))).upgradeToAndCall(address(newTemplate), hex"");
         bytes32 impl = vm.load(address(kernel), ERC1967_IMPLEMENTATION_SLOT);
         assertEq(address(uint160(uint256(impl))), address(newTemplate));
