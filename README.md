@@ -9,6 +9,22 @@ and
 open coverage/index.html
 ```
 
+## Testing
+Unit tests:
+```sh
+forge test
+```
+
+Invariant tests:
+```sh
+forge test --match-path test/invariant/*.t.sol
+```
+
+Halmos tests (symbolic):
+```sh
+halmos
+```
+
 ## TODO
 - Testing
     - [ ] certora testing
