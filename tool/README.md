@@ -362,7 +362,7 @@ reproducible and verifiable.
 
 1. Release descriptor has all required fields
 2. Foundry config matches current `foundry.toml` (solc version, optimizer, etc.)
-3. Contract bytecode hashes match compiled artifacts
+3. Contract bytecodes match compiled artifacts
 4. Address formats are valid
 
 ## Release Descriptor Format
@@ -382,7 +382,7 @@ Release descriptors are JSON files in `releases/` with this structure:
   "contracts": [
     {
       "name": "Kernel",
-      "bytecode_hash": "0x...",
+      "bytecode": "0x6080...",
       "address": "0x..."  // optional: deployment address
     }
   ],
@@ -407,7 +407,7 @@ Check a specific release:
 python3 tool/release_check.py releases/v0.4.0.json
 ```
 
-Verify bytecode hashes match compiled artifacts:
+Verify bytecodes match compiled artifacts:
 
 ```bash
 python3 tool/release_check.py --verify-bytecode
@@ -426,6 +426,12 @@ python3 tool/release_check.py --generate v0.4.0
 To run all checks at once:
 
 ```bash
+python3 tool/run.py
+```
+
+Or individually:
+
+```bash
 python3 tool/btt_check.py && \
 python3 tool/erc7201_check.py && \
 python3 tool/struct_hash_check.py && \
@@ -434,6 +440,7 @@ python3 tool/string_error_check.py && \
 python3 tool/console_log_check.py && \
 python3 tool/todo_check.py --warn-only && \
 python3 tool/dependency_check.py && \
+python3 tool/link_reference_check.py && \
 python3 tool/release_check.py --verify-bytecode
 ```
 
