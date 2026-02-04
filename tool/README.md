@@ -72,3 +72,43 @@ python3 tool/btt_check.py --verbose
 
 - The checker uses lightweight parsing and regexes; if you see a false positive,
   ping the maintainers and we can refine the rule.
+
+# ERC-7201 Storage Slot Checker
+
+`erc7201_check.py` validates `@custom:storage-location` NatSpec tags that follow
+the ERC-7201 formula (or a supported raw formula) and ensures the next `bytes32`
+constant matches the computed slot.
+
+## Usage
+
+```bash
+python3 tool/erc7201_check.py
+```
+
+Scan additional paths:
+
+```bash
+python3 tool/erc7201_check.py src test
+```
+
+Show warnings:
+
+```bash
+python3 tool/erc7201_check.py --verbose
+```
+
+## Requirements
+
+- Foundry installed (`cast` is used for `keccak256`)
+
+## Supported Tags
+
+Examples:
+
+```solidity
+/// @custom:storage-location erc7201:kernel.v4.hook
+```
+
+```solidity
+/// @custom:storage-location bytes32(uint256(keccak256('kernel.v4.hook')) - 1)
+```
