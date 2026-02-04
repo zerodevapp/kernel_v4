@@ -8,6 +8,7 @@ import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
 import {ValidationId} from "src/types/Types.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
+import {ERC1271_INVALID} from "src/types/Constants.sol";
 
 contract Kernel7702Test is KernelTest {
     address owner;
@@ -56,6 +57,19 @@ contract Kernel7702Test is KernelTest {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
         (bytes4 ret) = kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
         assertEq(ret, ERC1271_MAGICVALUE);
+    }
+
+    function test_7702_raw_signature_valid(bytes32 hash) external {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+        (bytes4 ret) = kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
+        assertEq(ret, ERC1271_MAGICVALUE);
+    }
+
+    function test_7702_raw_signature_invalid(bytes32 hash) external {
+        (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
+        (bytes4 ret) = kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
+        assertEq(ret, ERC1271_INVALID);
     }
 
     function test_change_root_check_vId_0() external unitTest {
