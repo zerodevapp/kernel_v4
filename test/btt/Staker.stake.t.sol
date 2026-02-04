@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {IStakeManager} from "account-abstraction/interfaces/IStakeManager.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 abstract contract Staker_stake is StakerBTTModifiers {
@@ -28,13 +29,10 @@ abstract contract Staker_stake is StakerBTTModifiers {
 
     function test_GivenMsgValueIsZero() external whenTheCallerIsTheOwner {
         // it should call addStake with zero value
-        IEntryPoint.DepositInfo memory infoBefore = ep.getDepositInfo(address(staker));
-
-        vm.prank(owner);
+        // Note: EntryPoint rejects zero value stake with InvalidStake error
+        // This is expected external dependency behavior
+        vm.expectRevert(abi.encodeWithSelector(IStakeManager.InvalidStake.selector, 0, 0));
         staker.stake{value: 0}(ep, 1 days);
-
-        IEntryPoint.DepositInfo memory infoAfter = ep.getDepositInfo(address(staker));
-        assertEq(infoAfter.stake, infoBefore.stake, "Stake should not change with zero value");
     }
 
     function test_GivenMsgValueIsGreaterThanZero() external whenTheCallerIsTheOwner {
@@ -43,7 +41,6 @@ abstract contract Staker_stake is StakerBTTModifiers {
         uint256 stakeAmount = 1 ether;
         IEntryPoint.DepositInfo memory infoBefore = ep.getDepositInfo(address(staker));
 
-        vm.prank(owner);
         staker.stake{value: stakeAmount}(ep, 1 days);
 
         IEntryPoint.DepositInfo memory infoAfter = ep.getDepositInfo(address(staker));

@@ -40,9 +40,7 @@ abstract contract Staker_withdrawStake is StakerBTTModifiers {
         uint256 stakeAmount = 1 ether;
 
         // Setup: stake, unlock, and wait for delay
-        vm.prank(owner);
         staker.stake{value: stakeAmount}(ep, 1 days);
-        vm.prank(owner);
         staker.unlockStake(ep);
         vm.warp(block.timestamp + 2 days);
 
@@ -53,7 +51,6 @@ abstract contract Staker_withdrawStake is StakerBTTModifiers {
         uint256 recipientBalanceBefore = recipient.balance;
 
         // Withdraw stake
-        vm.prank(owner);
         staker.withdrawStake(ep, recipient);
 
         // Verify stake is withdrawn

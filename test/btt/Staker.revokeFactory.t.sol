@@ -34,12 +34,10 @@ abstract contract Staker_revokeFactory is StakerBTTModifiers {
         // it should set the factory as not approved
 
         // First approve the factory
-        vm.prank(owner);
         staker.approveFactory(factoryAddr, true);
         assertTrue(staker.approved(factoryAddr), "Factory should be approved");
 
         // Revoke approval
-        vm.prank(owner);
         staker.approveFactory(factoryAddr, false);
 
         assertFalse(staker.approved(factoryAddr), "Factory should be revoked");
@@ -50,7 +48,6 @@ abstract contract Staker_revokeFactory is StakerBTTModifiers {
         assertFalse(staker.approved(factoryAddr), "Factory should not be approved initially");
 
         // Revoke (already not approved) - should be idempotent
-        vm.prank(owner);
         staker.approveFactory(factoryAddr, false);
 
         assertFalse(staker.approved(factoryAddr), "Factory should still not be approved");

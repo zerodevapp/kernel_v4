@@ -34,7 +34,6 @@ abstract contract Staker_unlockStake is StakerBTTModifiers {
         // it should call unlockStake on the EntryPoint
 
         // First stake so there's something to unlock
-        vm.prank(owner);
         staker.stake{value: 1 ether}(ep, 1 days);
 
         // Verify stake is locked
@@ -43,7 +42,6 @@ abstract contract Staker_unlockStake is StakerBTTModifiers {
         assertEq(infoBefore.withdrawTime, 0, "Withdraw time should be 0 before unlock");
 
         // Unlock the stake
-        vm.prank(owner);
         staker.unlockStake(ep);
 
         // Verify unlock was initiated
