@@ -32,7 +32,13 @@ import {
     InvalidVid
 } from "./types/Error.sol";
 import {Received} from "./types/Events.sol";
-import {VALIDATION_TYPE_ROOT, VALIDATION_TYPE_PERMISSION, VALIDATION_TYPE_VALIDATOR} from "./types/Constants.sol";
+import {
+    VALIDATION_TYPE_ROOT,
+    VALIDATION_TYPE_PERMISSION,
+    VALIDATION_TYPE_VALIDATOR,
+    CALLTYPE_SINGLE,
+    CALLTYPE_DELEGATECALL
+} from "./types/Constants.sol";
 import {
     ValidationStorage,
     ValidationInfo,
@@ -206,9 +212,9 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         }
 
         bool success;
-        if ($.callType == CallType.wrap(bytes1(0x00))) {
+        if ($.callType == CALLTYPE_SINGLE) {
             success = _call($.target, 0, abi.encodePacked(msg.data, msg.sender));
-        } else if ($.callType == CallType.wrap(bytes1(0xff))) {
+        } else if ($.callType == CALLTYPE_DELEGATECALL) {
             success = _delegateCall($.target, msg.data);
         }
         if (!success) {
