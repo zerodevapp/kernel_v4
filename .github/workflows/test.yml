@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -42,8 +43,8 @@ jobs:
           forge test -vvv
         id: test
 
-  btt-check:
-    name: BTT Check
+  tools:
+    name: Code Quality Tools
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,17 +58,13 @@ jobs:
         run: |
           cargo install bulloak
 
-      - name: Run BTT check
+      - name: Run Forge build
         run: |
-          python3 tool/btt_check.py
+          forge build --skip MockKernel
 
-      - name: Run ERC7201 check
+      - name: Run all checks
         run: |
-          python3 tool/erc7201_check.py
-
-      - name: Run string error check
-        run: |
-          python3 tool/string_error_check.py
+          python3 tool/run.py --strict
 
   coverage:
     name: Coverage Report
