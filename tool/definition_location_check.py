@@ -5,8 +5,9 @@ Definition location checker for Solidity files.
 Ensures code organization by validating that:
 1. All custom errors are defined in src/types/Error.sol
 2. All events are defined in src/types/Events.sol
+3. All constants are defined in src/types/Constants.sol
 
-This helps maintain a clean codebase where errors and events are
+This helps maintain a clean codebase where errors, events, and constants are
 centralized for easy discovery and documentation.
 """
 import argparse
@@ -20,6 +21,7 @@ SRC_DIR = ROOT / "src"
 # Canonical locations for definitions
 ERROR_FILE = SRC_DIR / "types" / "Error.sol"
 EVENTS_FILE = SRC_DIR / "types" / "Events.sol"
+CONSTANTS_FILE = SRC_DIR / "types" / "Constants.sol"
 
 # Pattern to match error definitions with optional preceding comment
 # Captures: optional comment, full definition
@@ -46,15 +48,72 @@ EVENT_DEF_RE = re.compile(
     re.MULTILINE
 )
 
+# Pattern to match file-level constant definitions (not inside contract/library)
+# Matches: type constant NAME = value;
+CONSTANT_DEF_RE = re.compile(
+    r"^([a-zA-Z_][a-zA-Z0-9_]*)\s+constant\s+([A-Z_][A-Za-z0-9_]*)\s*=",
+    re.MULTILINE
+)
 
-def find_definitions(path: Path, pattern: re.Pattern) -> List[Tuple[str, int]]:
+# Full pattern for extracting constants with comments
+CONSTANT_FULL_RE = re.compile(
+    r"((?:[ \t]*///[^\n]*\n)*)"  # Optional NatSpec comments
+    r"([ \t]*([a-zA-Z_][a-zA-Z0-9_]*)\s+constant\s+([A-Z_][A-Za-z0-9_]*)\s*=[^;]+;[ \t]*\n?)",
+    re.MULTILINE
+)
+
+
+def find_definitions(path: Path, pattern: re.Pattern, name_group: int = 1) -> List[Tuple[str, int]]:
     """Find all definitions matching pattern in a file."""
     text = path.read_text()
     results = []
     for m in pattern.finditer(text):
-        name = m.group(1)
+        name = m.group(name_group)
         line_no = text[:m.start()].count("\n") + 1
         results.append((name, line_no))
+    return results
+
+
+def find_constants_outside_contracts(path: Path) -> List[Tuple[str, int]]:
+    """Find file-level constants (outside contract/library bodies)."""
+    text = path.read_text()
+    results = []
+
+    # Find all contract/library/interface boundaries
+    # We look for constants that are NOT inside these blocks
+    block_pattern = re.compile(
+        r'\b(contract|library|interface|abstract\s+contract)\s+[A-Za-z_][A-Za-z0-9_]*[^{]*\{',
+        re.MULTILINE
+    )
+
+    # Find block boundaries
+    in_block_ranges = []
+    for m in block_pattern.finditer(text):
+        start = m.end()
+        # Find matching closing brace (simple nesting count)
+        depth = 1
+        pos = start
+        while pos < len(text) and depth > 0:
+            if text[pos] == '{':
+                depth += 1
+            elif text[pos] == '}':
+                depth -= 1
+            pos += 1
+        in_block_ranges.append((start, pos))
+
+    def is_in_block(pos: int) -> bool:
+        for start, end in in_block_ranges:
+            if start <= pos < end:
+                return True
+        return False
+
+    # Find constants not in blocks
+    for m in CONSTANT_DEF_RE.finditer(text):
+        if not is_in_block(m.start()):
+            name = m.group(2)  # Constant name is in group 2
+            line_no = text[:m.start()].count("\n") + 1
+            results.append((name, line_no))
+
     return results
 
 
@@ -219,17 +278,19 @@ def collect_misplaced_files(
     skip_interfaces: bool,
     check_errors: bool,
     check_events: bool,
-) -> Tuple[Dict[Path, List[Tuple[str, int]]], Dict[Path, List[Tuple[str, int]]]]:
+    check_constants: bool,
+) -> Tuple[Dict[Path, List[Tuple[str, int]]], Dict[Path, List[Tuple[str, int]]], Dict[Path, List[Tuple[str, int]]]]:
     """
     Collect all files with misplaced definitions.
-    Returns (error_files, event_files) dicts mapping file -> list of (name, line).
+    Returns (error_files, event_files, constant_files) dicts mapping file -> list of (name, line).
     """
     error_files: Dict[Path, List[Tuple[str, int]]] = {}
     event_files: Dict[Path, List[Tuple[str, int]]] = {}
+    constant_files: Dict[Path, List[Tuple[str, int]]] = {}
 
     for sol_file in SRC_DIR.rglob("*.sol"):
         # Skip canonical files
-        if sol_file == ERROR_FILE or sol_file == EVENTS_FILE:
+        if sol_file == ERROR_FILE or sol_file == EVENTS_FILE or sol_file == CONSTANTS_FILE:
             continue
 
         # Skip interface files if requested
@@ -246,18 +307,92 @@ def collect_misplaced_files(
             if event_defs:
                 event_files[sol_file] = event_defs
 
-    return error_files, event_files
+        if check_constants:
+            constant_defs = find_constants_outside_contracts(sol_file)
+            if constant_defs:
+                constant_files[sol_file] = constant_defs
+
+    return error_files, event_files, constant_files
+
+
+def extract_and_remove_constants(
+    path: Path,
+    existing_names: Set[str],
+    verbose: bool,
+) -> Tuple[List[str], List[str]]:
+    """
+    Extract file-level constants from a file and return them for moving.
+    Returns (definitions_to_add, names_moved).
+    """
+    text = path.read_text()
+    definitions_to_add = []
+    names_moved = []
+
+    # Find block boundaries to skip constants inside contracts
+    block_pattern = re.compile(
+        r'\b(contract|library|interface|abstract\s+contract)\s+[A-Za-z_][A-Za-z0-9_]*[^{]*\{',
+        re.MULTILINE
+    )
+    in_block_ranges = []
+    for m in block_pattern.finditer(text):
+        start = m.end()
+        depth = 1
+        pos = start
+        while pos < len(text) and depth > 0:
+            if text[pos] == '{':
+                depth += 1
+            elif text[pos] == '}':
+                depth -= 1
+            pos += 1
+        in_block_ranges.append((start, pos))
+
+    def is_in_block(pos: int) -> bool:
+        for start, end in in_block_ranges:
+            if start <= pos < end:
+                return True
+        return False
+
+    def replacer(m):
+        if is_in_block(m.start()):
+            return m.group(0)  # Keep constants inside contracts
+
+        comment = m.group(1)
+        full_def = m.group(2)
+        name = m.group(4)  # Constant name is in group 4
+
+        if name not in existing_names:
+            def_text = (comment + full_def).strip()
+            definitions_to_add.append(def_text)
+            names_moved.append(name)
+            existing_names.add(name)
+            if verbose:
+                print(f"  Extracting '{name}' from {path.relative_to(ROOT)}")
+        else:
+            if verbose:
+                print(f"  Skipping '{name}' (already exists in target)")
+            names_moved.append(name)  # Still need to add import
+
+        return ""
+
+    new_text = CONSTANT_FULL_RE.sub(replacer, text)
+    new_text = re.sub(r"\n{3,}", "\n\n", new_text)
+
+    if new_text != text:
+        path.write_text(new_text)
+
+    return definitions_to_add, names_moved
 
 
 def fix_definitions(
     skip_interfaces: bool,
     check_errors: bool,
     check_events: bool,
+    check_constants: bool,
     verbose: bool,
 ) -> int:
     """Move misplaced definitions to their canonical locations."""
-    error_files, event_files = collect_misplaced_files(
-        skip_interfaces, check_errors, check_events
+    error_files, event_files, constant_files = collect_misplaced_files(
+        skip_interfaces, check_errors, check_events, check_constants
     )
 
     total_moved = 0
@@ -306,6 +441,28 @@ def fix_definitions(
         if all_event_defs:
             append_definitions_to_file(EVENTS_FILE, all_event_defs)
 
+    # Fix constants
+    if constant_files:
+        existing_constants = {name for name, _ in find_constants_outside_contracts(CONSTANTS_FILE)} if CONSTANTS_FILE.exists() else set()
+        all_constant_defs = []
+
+        if verbose:
+            print("Processing constants...")
+
+        for sol_file in sorted(constant_files.keys()):
+            defs_to_add, names_removed = extract_and_remove_constants(
+                sol_file, existing_constants, verbose
+            )
+            all_constant_defs.extend(defs_to_add)
+            total_moved += len(defs_to_add)
+
+            # Add import for removed constants
+            if names_removed:
+                add_import_to_file(sol_file, CONSTANTS_FILE, names_removed)
+
+        if all_constant_defs:
+            append_definitions_to_file(CONSTANTS_FILE, all_constant_defs)
+
     return total_moved
 
 
@@ -314,10 +471,11 @@ def check_all(
     skip_interfaces: bool,
     check_errors: bool,
     check_events: bool,
+    check_constants: bool,
 ) -> None:
     """Check all files for misplaced definitions."""
-    error_files, event_files = collect_misplaced_files(
-        skip_interfaces, check_errors, check_events
+    error_files, event_files, constant_files = collect_misplaced_files(
+        skip_interfaces, check_errors, check_events, check_constants
     )
 
     for sol_file, defs in sorted(error_files.items()):
@@ -334,10 +492,17 @@ def check_all(
                 f"{rel_path}:{line_no} event '{name}' should be defined in src/types/Events.sol"
             )
 
+    for sol_file, defs in sorted(constant_files.items()):
+        for name, line_no in defs:
+            rel_path = sol_file.relative_to(ROOT)
+            errors_list.append(
+                f"{rel_path}:{line_no} constant '{name}' should be defined in src/types/Constants.sol"
+            )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Check that errors and events are in canonical locations"
+        description="Check that errors, events, and constants are in canonical locations"
     )
     parser.add_argument(
         "--check-errors",
@@ -350,6 +515,12 @@ def main() -> int:
         action="store_true",
         dest="check_events_only",
         help="only check event definitions",
+    )
+    parser.add_argument(
+        "--check-constants",
+        action="store_true",
+        dest="check_constants_only",
+        help="only check constant definitions",
     )
     parser.add_argument(
         "--skip-interfaces",
@@ -369,9 +540,10 @@ def main() -> int:
     args = parser.parse_args()
 
     # Determine what to check
-    check_both = not args.check_errors_only and not args.check_events_only
-    do_check_errors = check_both or args.check_errors_only
-    do_check_events = check_both or args.check_events_only
+    check_specific = args.check_errors_only or args.check_events_only or args.check_constants_only
+    do_check_errors = not check_specific or args.check_errors_only
+    do_check_events = not check_specific or args.check_events_only
+    do_check_constants = not check_specific or args.check_constants_only
 
     if args.verbose and not args.fix:
         if do_check_errors and ERROR_FILE.exists():
@@ -388,11 +560,19 @@ def main() -> int:
                 print(f"  {line}: {name}")
             print()
 
+        if do_check_constants and CONSTANTS_FILE.exists():
+            defs = find_constants_outside_contracts(CONSTANTS_FILE)
+            print(f"Constants in {CONSTANTS_FILE.relative_to(ROOT)}: {len(defs)}")
+            for name, line in defs:
+                print(f"  {line}: {name}")
+            print()
+
     if args.fix:
         moved = fix_definitions(
             args.skip_interfaces,
             do_check_errors,
             do_check_events,
+            do_check_constants,
             args.verbose,
         )
         if moved > 0:
@@ -403,7 +583,7 @@ def main() -> int:
         return 0
 
     errors: List[str] = []
-    check_all(errors, args.skip_interfaces, do_check_errors, do_check_events)
+    check_all(errors, args.skip_interfaces, do_check_errors, do_check_events, do_check_constants)
 
     if errors:
         print("DEFINITION LOCATION CHECK FAILED")
@@ -414,6 +594,7 @@ def main() -> int:
         print()
         print("Move errors to: src/types/Error.sol")
         print("Move events to: src/types/Events.sol")
+        print("Move constants to: src/types/Constants.sol")
         print()
         print("Use --fix to automatically move definitions")
         return 1
