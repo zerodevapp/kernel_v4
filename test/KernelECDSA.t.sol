@@ -6,6 +6,7 @@ import {ECDSAValidator} from "./mock/ECDSAValidator.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {Install} from "src/types/Structs.sol";
 import {ValidationId} from "src/types/Types.sol";
+import {InvalidRootValidation} from "src/types/Error.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 
 contract KernelECDSATest is KernelTest {
@@ -63,7 +64,7 @@ contract KernelECDSATest is KernelTest {
 
         kernel.setRoot(validatorToIdentifier(newValidator));
 
-        vm.expectRevert();
+        vm.expectRevert(InvalidRootValidation.selector);
         kernel.setRoot(ValidationId.wrap(bytes21(0)));
     }
 }

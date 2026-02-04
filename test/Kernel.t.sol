@@ -13,6 +13,7 @@ import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {NotImplemented} from "src/types/Error.sol";
+import {InvalidInitialization} from "src/types/Error.sol";
 import {Install} from "src/types/Structs.sol";
 import {ERC1967_IMPLEMENTATION_SLOT} from "src/types/Constants.sol";
 import {KernelUserOpTest} from "./KernelUserOpTest.sol";
@@ -58,7 +59,7 @@ contract KernelTest is
         rootValidatorData = hex"";
         Install[] memory pkgs = new Install[](1);
         pkgs[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
-        vm.expectRevert();
+        vm.expectRevert(InvalidInitialization.selector);
         uups.initialize(pkgs);
     }
 
