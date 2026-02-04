@@ -13,7 +13,8 @@ import {
     InvalidPermissionId,
     InvalidSignature,
     NotImplemented,
-    Unauthorized
+    Unauthorized,
+    PermissionInstallNotFinished
 } from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
 import {Install, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
@@ -220,7 +221,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         require(
             ValidationId.unwrap(installingPermission) == bytes21(0)
                 || _validationStorage().vInfo[installingPermission].signer != address(0),
-            "Permission Install not finished"
+            PermissionInstallNotFinished()
         );
     }
 

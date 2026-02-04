@@ -35,3 +35,4 @@ error InvalidSignature();
 error InvalidVid(ValidationId vId);
 
 error UnauthorizedCallData();
+error PermissionInstallNotFinished();
