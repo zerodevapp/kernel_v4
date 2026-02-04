@@ -13,6 +13,7 @@ contract Staker is Ownable, EIP712 {
 
     error NotApprovedFactory();
     error DeployFailed();
+    error InvalidSignature();
 
     constructor(address _owner) {
         _initializeOwner(_owner);
@@ -47,7 +48,7 @@ contract Staker is Ownable, EIP712 {
                 uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(_factory)), approval ? 1 : 0, nonces[_factory]++
             )
         );
-        require(owner() == ECDSA.tryRecoverCalldata(digest, signature), "InvalidSignature");
+        require(owner() == ECDSA.tryRecoverCalldata(digest, signature), InvalidSignature());
         approved[_factory] = approval;
     }
 
