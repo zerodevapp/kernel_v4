@@ -241,6 +241,44 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         _;
     }
 
+    /// @notice it should return SIG_VALIDATION_FAILED when validator returns empty data (misconfiguration)
+    function test_WhenValidatorReturnsEmptyData()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsVALIDATOR
+        givenTheValidatorIsInstalled
+    {
+        // Deploy and install a misconfigured validator that returns empty data
+        MockEmptyReturnValidator emptyValidator = new MockEmptyReturnValidator();
+        kernel.installModule(
+            1, address(emptyValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
+        );
+
+        PackedUserOperation memory op = PackedUserOperation({
+            sender: address(kernel),
+            nonce: encodeNonce(false, false, false, bytes1(0x01), bytes20(address(emptyValidator))),
+            initCode: hex"",
+            callData: abi.encodePacked(
+                Kernel.executeUserOp.selector,
+                abi.encodeWithSelector(
+                    Kernel.execute.selector,
+                    bytes32(0),
+                    abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+                )
+            ),
+            accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
+            preVerificationGas: 0,
+            gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
+            paymasterAndData: hex"",
+            signature: hex""
+        });
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 1, "Validator returning empty data should return SIG_VALIDATION_FAILED");
+    }
+
     modifier givenTheCallDataSelectorIsInTheAllowedListAndHookIsAddress1() {
         _selectorAllowed = true;
         _selectorHook = address(1);
@@ -869,44 +907,6 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
 
         assertEq(validationData, 1, "Invalid validator signature should return SIG_VALIDATION_FAILED");
-    }
-
-    /// @notice it should return SIG_VALIDATION_FAILED when validator returns empty data (misconfiguration)
-    function test_WhenValidatorReturnsEmptyData()
-        external
-        entryPointTest
-        whenCallerIsEntryPointOrSelf
-        givenValidationTypeIsValidator
-    {
-        // Deploy and install a misconfigured validator that returns empty data
-        MockEmptyReturnValidator emptyValidator = new MockEmptyReturnValidator();
-        kernel.installModule(
-            1, address(emptyValidator), abi.encode(hex"", abi.encodePacked(address(0), Kernel.execute.selector))
-        );
-
-        PackedUserOperation memory op = PackedUserOperation({
-            sender: address(kernel),
-            nonce: encodeNonce(false, false, false, bytes1(0x01), bytes20(address(emptyValidator))),
-            initCode: hex"",
-            callData: abi.encodePacked(
-                Kernel.executeUserOp.selector,
-                abi.encodeWithSelector(
-                    Kernel.execute.selector,
-                    bytes32(0),
-                    abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
-                )
-            ),
-            accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
-            preVerificationGas: 0,
-            gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
-            paymasterAndData: hex"",
-            signature: hex""
-        });
-        bytes32 userOpHash = ep.getUserOpHash(op);
-
-        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
-
-        assertEq(validationData, 1, "Validator returning empty data should return SIG_VALIDATION_FAILED");
     }
 
     /// @notice it should revert with UnauthorizedCallData when selector not allowed and not using executeUserOp wrapper

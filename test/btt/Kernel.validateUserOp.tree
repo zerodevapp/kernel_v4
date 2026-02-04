@@ -24,6 +24,8 @@ Kernel_validateUserOp
     │   ├── given the validator is not installed
     │   │   └── it should revert with InvalidVid error
     │   └── given the validator is installed
+    │       ├── when validator returns empty data
+    │       │   └── it should return SIG_VALIDATION_FAILED when validator returns empty data (misconfiguration)
     │       ├── given the callData selector is in the allowed list and hook is address1
     │       │   ├── when the validator signature is valid
     │       │   │   └── it should return 0 for success

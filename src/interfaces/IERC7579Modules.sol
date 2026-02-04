@@ -5,7 +5,6 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {AlreadyInitialized, InvalidTargetAddress, NotInitialized} from "../types/Error.sol";
 
 interface IModule {
-
     /**
      * @dev This function is called by the smart account during installation of the module
      * @param data arbitrary data that may be required on the module during `onInstall`
@@ -39,7 +38,6 @@ interface IModule {
 }
 
 interface IValidator is IModule {
-
     /**
      * @dev Validates a transaction on behalf of the account.
      *         This function is intended to be called by the MSA during the ERC-4337 validation phase

@@ -8,7 +8,6 @@ import {IERC5267} from "../interfaces/IERC5267.sol";
 import {DOMAIN_TYPEHASH_SANS_CHAIN_ID} from "../types/Constants.sol";
 
 library Lib4337 {
-
     function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) external view returns (bytes32) {
         bytes32 overrideInitCodeHash = Eip7702Support._getEip7702InitCodeHashOverride(userOp);
         return _hashTypedDataSansChainId(ep, UserOperationLib.hash(userOp, overrideInitCodeHash));

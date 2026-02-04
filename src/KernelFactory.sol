@@ -10,7 +10,6 @@ import {InvalidSigner} from "./types/Error.sol";
 import {KernelDeployed} from "./types/Events.sol";
 
 contract KernelFactory {
-
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
 

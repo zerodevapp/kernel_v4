@@ -9,8 +9,14 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 contract MockEmptyReturnValidator is IValidator {
     function onInstall(bytes calldata) external payable {}
     function onUninstall(bytes calldata) external payable {}
-    function isModuleType(uint256 typeId) external pure returns (bool) { return typeId == 1; }
-    function isInitialized(address) external pure returns (bool) { return true; }
+
+    function isModuleType(uint256 typeId) external pure returns (bool) {
+        return typeId == 1;
+    }
+
+    function isInitialized(address) external pure returns (bool) {
+        return true;
+    }
 
     function validateUserOp(PackedUserOperation calldata, bytes32) external payable returns (uint256) {
         // Return success but with no return data (simulates misconfigured validator)
