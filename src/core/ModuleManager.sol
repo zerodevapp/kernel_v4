@@ -35,7 +35,13 @@ import {
     VALIDATION_TYPE_VALIDATOR,
     VALIDATION_TYPE_PERMISSION,
     INSTALL_PACKAGES_STRUCT_HASH,
-    INSTALL_STRUCT_HASH
+    INSTALL_STRUCT_HASH,
+    MODULE_TYPE_VALIDATOR,
+    MODULE_TYPE_EXECUTOR,
+    MODULE_TYPE_FALLBACK,
+    MODULE_TYPE_HOOK,
+    MODULE_TYPE_POLICY,
+    MODULE_TYPE_SIGNER
 } from "../types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
@@ -166,17 +172,17 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         installModuleHook(moduleType, module)
     {
         function(address, bytes calldata, bool) hook;
-        if (moduleType == 1) {
+        if (moduleType == MODULE_TYPE_VALIDATOR) {
             hook = _installValidator;
-        } else if (moduleType == 2) {
+        } else if (moduleType == MODULE_TYPE_EXECUTOR) {
             hook = _installExecutor;
-        } else if (moduleType == 3) {
+        } else if (moduleType == MODULE_TYPE_FALLBACK) {
             hook = _installSelector;
-        } else if (moduleType == 4) {
+        } else if (moduleType == MODULE_TYPE_HOOK) {
             hook = _installHook;
-        } else if (moduleType == 5) {
+        } else if (moduleType == MODULE_TYPE_POLICY) {
             hook = _installPolicy;
-        } else if (moduleType == 6) {
+        } else if (moduleType == MODULE_TYPE_SIGNER) {
             hook = _installSigner;
         } else {
             revert NotImplemented();
@@ -192,17 +198,17 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         bytes calldata internalData
     ) internal {
         function(address, bytes calldata, bool) hook;
-        if (moduleType == 1) {
+        if (moduleType == MODULE_TYPE_VALIDATOR) {
             hook = _uninstallValidator;
-        } else if (moduleType == 2) {
+        } else if (moduleType == MODULE_TYPE_EXECUTOR) {
             hook = _uninstallExecutor;
-        } else if (moduleType == 3) {
+        } else if (moduleType == MODULE_TYPE_FALLBACK) {
             hook = _uninstallSelector;
-        } else if (moduleType == 4) {
+        } else if (moduleType == MODULE_TYPE_HOOK) {
             hook = _uninstallHook;
-        } else if (moduleType == 5) {
+        } else if (moduleType == MODULE_TYPE_POLICY) {
             hook = _uninstallPolicy;
-        } else if (moduleType == 6) {
+        } else if (moduleType == MODULE_TYPE_SIGNER) {
             hook = _uninstallSigner;
         } else {
             revert NotImplemented();
@@ -319,7 +325,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
             uint256 i;
             for (i; i < packages.length; i++) {
                 Install calldata pkg = packages[i];
-                if (pkg.moduleType == 1 && pkg.module == address(validator)) {
+                if (pkg.moduleType == MODULE_TYPE_VALIDATOR && pkg.module == address(validator)) {
                     break;
                 }
             }
@@ -340,8 +346,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                 Install calldata pkg = packages[i];
                 if (PermissionId.wrap(bytes4(pkg.internalData)) == pId) {
                     if (sigIdx == permissionSig.signatures.length - 1) {
-                        require(pkg.moduleType == 6, LastSignatureShouldBeSigner());
-                        require(IModule(pkg.module).isModuleType(6), LastSignatureShouldBeSigner());
+                        require(pkg.moduleType == MODULE_TYPE_SIGNER, LastSignatureShouldBeSigner());
+                        require(IModule(pkg.module).isModuleType(MODULE_TYPE_SIGNER), LastSignatureShouldBeSigner());
                     }
                     bool res = IStatelessValidatorWithSender(pkg.module)
                         .validateSignatureWithDataWithSender(
