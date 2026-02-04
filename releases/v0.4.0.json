@@ -1,0 +1,40 @@
+{
+  "version": "v0.4.0",
+  "foundry": {
+    "solc_version": "0.8.33",
+    "optimizer": true,
+    "optimizer_runs": 200,
+    "evm_version": "prague",
+    "via_ir": false
+  },
+  "contracts": [
+    {
+      "name": "Staker",
+      "bytecode_hash": "0x6d61dd1492a8c0ab6e606cc2a76352dec62127d188dbefe437ab2c95ed2f58d3"
+    },
+    {
+      "name": "KernelImmutableECDSA",
+      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "KernelUUPS",
+      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "KernelFactory",
+      "bytecode_hash": "0x5685ce794c7c35dc91ddf37e5b1b3a8c270af483f6c1515396f87df407bd687c"
+    },
+    {
+      "name": "Kernel",
+      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "Kernel7702",
+      "bytecode_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "deployments": {
+    "mainnet": {},
+    "sepolia": {}
+  }
+}

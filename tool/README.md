@@ -1,7 +1,13 @@
+# Kernel v4 Development Tools
+
+This directory contains Python scripts for enforcing code quality rules.
+All tools are designed to run locally and in CI.
+
+---
+
 # BTT Rule Checker
 
 `btt_check.py` enforces the strict Branching Tree Technique (BTT) rules for tests under `test/btt`.
-It is designed to run locally and in CI.
 
 ## Usage
 
@@ -73,6 +79,8 @@ python3 tool/btt_check.py --verbose
 - The checker uses lightweight parsing and regexes; if you see a false positive,
   ping the maintainers and we can refine the rule.
 
+---
+
 # ERC-7201 Storage Slot Checker
 
 `erc7201_check.py` validates `@custom:storage-location` NatSpec tags that follow
@@ -107,6 +115,20 @@ python3 tool/erc7201_check.py --fix
 
 - Foundry installed (`cast` is used for `keccak256`)
 
+## Supported Tags
+
+Examples:
+
+```solidity
+/// @custom:storage-location erc7201:kernel.v4.hook
+```
+
+```solidity
+/// @custom:storage-location bytes32(uint256(keccak256('kernel.v4.hook')) - 1)
+```
+
+---
+
 # String Error Checker
 
 `string_error_check.py` scans Solidity files under `src` and fails if
@@ -124,14 +146,315 @@ Scan additional paths:
 python3 tool/string_error_check.py src test
 ```
 
-## Supported Tags
+---
 
-Examples:
+# Console Log Checker
 
-```solidity
-/// @custom:storage-location erc7201:kernel.v4.hook
+`console_log_check.py` detects leftover debug statements like `console.log`,
+`console2.log`, and forge-std log emissions that should not be in production code.
+
+## Usage
+
+```bash
+python3 tool/console_log_check.py
 ```
 
+Scan additional paths:
+
+```bash
+python3 tool/console_log_check.py src test
+```
+
+Also flag console imports:
+
+```bash
+python3 tool/console_log_check.py --check-imports
+```
+
+---
+
+# TODO/FIXME Checker
+
+`todo_check.py` finds unresolved TODO, FIXME, XXX, and HACK comments in
+production code that should be addressed before deployment.
+
+## Usage
+
+```bash
+python3 tool/todo_check.py
+```
+
+Scan additional paths:
+
+```bash
+python3 tool/todo_check.py src test
+```
+
+Report only (exit 0 even if TODOs found):
+
+```bash
+python3 tool/todo_check.py --warn-only
+```
+
+Only flag critical items (FIXME, XXX, HACK):
+
+```bash
+python3 tool/todo_check.py --include-fixme-only
+```
+
+---
+
+# Definition Location Checker
+
+`definition_location_check.py` ensures code organization by validating that:
+
+1. All custom errors are defined in `src/types/Error.sol`
+2. All events are defined in `src/types/Events.sol`
+
+This centralizes errors and events for easy discovery and documentation.
+
+## Usage
+
+```bash
+python3 tool/definition_location_check.py
+```
+
+Skip interface files (which may define errors/events per ERC standards):
+
+```bash
+python3 tool/definition_location_check.py --skip-interfaces
+```
+
+Automatically move definitions to canonical locations:
+
+```bash
+python3 tool/definition_location_check.py --skip-interfaces --fix
+```
+
+The `--fix` option will:
+- Move error definitions to `src/types/Error.sol`
+- Move event definitions to `src/types/Events.sol`
+- Add appropriate import statements to source files
+- Skip definitions that already exist in the target file
+
+**Note:** After running `--fix`, run `forge fmt` to format the modified files.
+References using contract-qualified names (e.g., `Contract.ErrorName`) may need
+manual updates.
+
+Check only errors or events:
+
+```bash
+python3 tool/definition_location_check.py --check-errors
+python3 tool/definition_location_check.py --check-events
+```
+
+Show detailed output:
+
+```bash
+python3 tool/definition_location_check.py --verbose
+```
+
+---
+
+# EIP-712 Struct Hash Checker
+
+`struct_hash_check.py` validates EIP-712 type hashes by computing `keccak256(typeString)`
+and comparing with the declared constant values.
+
+## What It Checks
+
+1. Finds `@custom:struct-hash` NatSpec tags or type string comments
+2. Computes `keccak256(typeString)` for each documented constant
+3. Compares computed hash with the declared value
+4. Flags any `_STRUCT_HASH` or `_TYPEHASH` constants without documentation
+
+## Supported Comment Formats
+
 ```solidity
-/// @custom:storage-location bytes32(uint256(keccak256('kernel.v4.hook')) - 1)
+/// @custom:struct-hash StructName(type1 name1,type2 name2)
+bytes32 constant MY_STRUCT_HASH = 0x...;
+
+/// @dev `keccak256("StructName(type1 name1,type2 name2)")`.
+bytes32 internal constant _MY_TYPEHASH = 0x...;
+
+//keccak256("StructName(type1 name1)")
+bytes32 constant STRUCT_HASH = 0x...;
+
+//StructName(type1 name1,type2 name2)
+bytes32 constant STRUCT_HASH = 0x...;
+```
+
+## Usage
+
+```bash
+python3 tool/struct_hash_check.py
+```
+
+Verbose output showing all verified hashes:
+
+```bash
+python3 tool/struct_hash_check.py --verbose
+```
+
+Fix mismatched hash constants:
+
+```bash
+python3 tool/struct_hash_check.py --fix
+```
+
+Treat warnings as errors (for CI):
+
+```bash
+python3 tool/struct_hash_check.py --strict
+```
+
+## Requirements
+
+- Foundry installed (`cast` is used for `keccak256`)
+
+---
+
+# Dependency Integrity Checker
+
+`dependency_check.py` validates that Soldeer-managed dependencies are properly
+pinned and haven't been modified locally.
+
+## What It Checks
+
+1. All dependencies in `soldeer.lock` are pinned with checksums
+2. Dependencies directory matches the lock file (no drift)
+3. No local modifications exist in dependency code
+4. Git dependencies have valid commit hashes
+5. No unlisted directories in `dependencies/`
+
+## Usage
+
+```bash
+python3 tool/dependency_check.py
+```
+
+Verbose output:
+
+```bash
+python3 tool/dependency_check.py --verbose
+```
+
+Verify against upstream sources (requires network):
+
+```bash
+python3 tool/dependency_check.py --verify-upstream
+```
+
+Treat warnings as errors:
+
+```bash
+python3 tool/dependency_check.py --strict
+```
+
+---
+
+# Release Configuration Checker
+
+`release_check.py` validates release descriptors to ensure deployments are
+reproducible and verifiable.
+
+## What It Checks
+
+1. Release descriptor has all required fields
+2. Foundry config matches current `foundry.toml` (solc version, optimizer, etc.)
+3. Contract bytecode hashes match compiled artifacts
+4. Address formats are valid
+
+## Release Descriptor Format
+
+Release descriptors are JSON files in `releases/` with this structure:
+
+```json
+{
+  "version": "v0.4.0",
+  "foundry": {
+    "solc_version": "0.8.33",
+    "optimizer": true,
+    "optimizer_runs": 200,
+    "evm_version": "prague",
+    "via_ir": false
+  },
+  "contracts": [
+    {
+      "name": "Kernel",
+      "bytecode_hash": "0x...",
+      "address": "0x..."  // optional: deployment address
+    }
+  ],
+  "deployments": {
+    "mainnet": {},
+    "sepolia": {}
+  }
+}
+```
+
+## Usage
+
+Check all releases:
+
+```bash
+python3 tool/release_check.py
+```
+
+Check a specific release:
+
+```bash
+python3 tool/release_check.py releases/v0.4.0.json
+```
+
+Verify bytecode hashes match compiled artifacts:
+
+```bash
+python3 tool/release_check.py --verify-bytecode
+```
+
+Generate a release template:
+
+```bash
+python3 tool/release_check.py --generate v0.4.0
+```
+
+---
+
+# Running All Checks
+
+To run all checks at once:
+
+```bash
+python3 tool/btt_check.py && \
+python3 tool/erc7201_check.py && \
+python3 tool/struct_hash_check.py && \
+python3 tool/definition_location_check.py --skip-interfaces && \
+python3 tool/string_error_check.py && \
+python3 tool/console_log_check.py && \
+python3 tool/todo_check.py --warn-only && \
+python3 tool/dependency_check.py && \
+python3 tool/release_check.py --verify-bytecode
+```
+
+Note: `forge build` already checks for unused imports and missing SPDX identifiers.
+
+---
+
+# CI Integration
+
+For CI pipelines, use strict mode to fail on warnings:
+
+```bash
+# Pre-merge checks
+python3 tool/btt_check.py
+python3 tool/erc7201_check.py
+python3 tool/struct_hash_check.py --strict
+python3 tool/definition_location_check.py --skip-interfaces
+python3 tool/string_error_check.py
+python3 tool/console_log_check.py
+python3 tool/dependency_check.py --strict
+
+# Release checks
+python3 tool/release_check.py --verify-bytecode --strict
 ```
