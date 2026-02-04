@@ -231,9 +231,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
-            )
+            abi.encodeWithSelector(InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator))))
         );
         kernel.validateUserOp(op, userOpHash, 0);
     }
@@ -520,9 +518,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _permissionSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId))
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId)));
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -605,11 +601,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         // Install permission with execute selector allowed
         // Policy only needs permissionId in internalData
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
-        );
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
         // Signer gets permissionId + hook + selectors in internalData
         kernel.installModule(
             6,
@@ -647,11 +639,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
 
         // Install permission with execute selector allowed
         // Policy only needs permissionId in internalData
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
-        );
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
         // Signer gets permissionId + hook + selectors in internalData
         kernel.installModule(
             6,
@@ -816,9 +804,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator)))
-            )
+            abi.encodeWithSelector(InvalidVid.selector, validatorToIdentifier(IValidator(address(newValidator))))
         );
         kernel.validateUserOp(op, userOpHash, 0);
     }
@@ -921,9 +907,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         op.signature = _permissionSignUserOp(op, true, false);
         bytes32 userOpHash = ep.getUserOpHash(op);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId))
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidVid.selector, permissionToIdentifier(permissionId)));
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
@@ -937,11 +921,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     {
         // Manually install permission with execute selector allowed
         // Policy only needs permissionId in internalData
-        kernel.installModule(
-            5,
-            address(policy),
-            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
-        );
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
         // Signer gets permissionId + hook + selectors in internalData
         kernel.installModule(
             6,
@@ -1257,7 +1237,8 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     function _installValidatorWithSelectorPolicy() internal {
-        bytes memory internalData = _selectorAllowed ? abi.encodePacked(_selectorHook, Kernel.execute.selector) : bytes("");
+        bytes memory internalData =
+            _selectorAllowed ? abi.encodePacked(_selectorHook, Kernel.execute.selector) : bytes("");
         kernel.installModule(1, address(newValidator), abi.encode(hex"", internalData));
     }
 

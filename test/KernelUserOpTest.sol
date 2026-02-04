@@ -253,7 +253,9 @@ abstract contract KernelUserOpTest is KernelTestBase {
         vm.startPrank(address(ep));
         kernel.installModule(4, address(hook), abi.encode(hex"", ""));
         kernel.installModule(
-            1, address(newValidator), abi.encode(hex"deadbeef", abi.encodePacked(address(hook), kernel.execute.selector))
+            1,
+            address(newValidator),
+            abi.encode(hex"deadbeef", abi.encodePacked(address(hook), kernel.execute.selector))
         );
         vm.stopPrank();
         hook.setRevertOnPreHook(true);
@@ -288,7 +290,9 @@ abstract contract KernelUserOpTest is KernelTestBase {
         vm.startPrank(address(ep));
         kernel.installModule(4, address(hook), abi.encode(hex"", ""));
         kernel.installModule(
-            1, address(newValidator), abi.encode(hex"deadbeef", abi.encodePacked(address(hook), kernel.execute.selector))
+            1,
+            address(newValidator),
+            abi.encode(hex"deadbeef", abi.encodePacked(address(hook), kernel.execute.selector))
         );
         vm.stopPrank();
         hook.setRevertOnPostHook(true);

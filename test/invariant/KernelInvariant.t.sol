@@ -175,10 +175,7 @@ contract KernelInvariant is StdInvariant, Test {
     }
 
     function invariant_root_is_installed() external {
-        assertEq(
-            ValidationId.unwrap(kernel.root()),
-            ValidationId.unwrap(validatorToIdentifier(rootValidator))
-        );
+        assertEq(ValidationId.unwrap(kernel.root()), ValidationId.unwrap(validatorToIdentifier(rootValidator)));
         assertTrue(kernel.isModuleInstalled(1, address(rootValidator), hex""));
     }
 
@@ -218,9 +215,7 @@ contract KernelInvariant is StdInvariant, Test {
         for (uint256 i = 0; i < count; i++) {
             address hook = address(handler.hooks(i));
             assertEq(
-                kernel.isModuleInstalled(4, hook, hex""),
-                handler.hookInstalled(hook),
-                "hook install state mismatch"
+                kernel.isModuleInstalled(4, hook, hex""), handler.hookInstalled(hook), "hook install state mismatch"
             );
         }
     }
@@ -233,7 +228,9 @@ contract KernelInvariant is StdInvariant, Test {
             bytes1 callType = handler.selectorCallType(selector);
             bool installed = target != address(0);
             if (installed) {
-                assertTrue(kernel.isModuleInstalled(3, target, abi.encodePacked(selector)), "selector installed mismatch");
+                assertTrue(
+                    kernel.isModuleInstalled(3, target, abi.encodePacked(selector)), "selector installed mismatch"
+                );
             } else {
                 assertFalse(
                     kernel.isModuleInstalled(3, address(0xdead), abi.encodePacked(selector)),

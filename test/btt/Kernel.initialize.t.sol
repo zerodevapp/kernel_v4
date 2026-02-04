@@ -15,7 +15,12 @@ import {MockHook} from "../mock/MockHook.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {PermissionId} from "src/types/Types.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {InvalidInitialization, InvalidRootValidation, InvalidPermissionId, PermissionInstallNotFinished} from "src/types/Error.sol";
+import {
+    InvalidInitialization,
+    InvalidRootValidation,
+    InvalidPermissionId,
+    PermissionInstallNotFinished
+} from "src/types/Error.sol";
 
 /// @title Kernel.initialize BTT Tests
 /// @notice Tests for initialize following Branching Tree Technique

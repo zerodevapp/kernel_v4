@@ -18,7 +18,6 @@ import {InvalidRootValidation, InvalidInitialization} from "src/types/Error.sol"
 /// @notice Tests for KernelFactory following Branching Tree Technique
 /// @dev Tree specification: test/btt/KernelFactory.deploy.tree
 contract KernelFactory_Test is Test {
-
     /*//////////////////////////////////////////////////////////////
                                 STATE
     //////////////////////////////////////////////////////////////*/
