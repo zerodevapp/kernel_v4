@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
@@ -12,8 +13,7 @@ contract KernelUUPS is Kernel, UUPSUpgradeable, Initializable {
     }
 
     function initialize(Install[] calldata packages) external payable override initializer {
-        // this is initialize
-        // require first package to be the root validator
+        // first package will be used as root validation (validator type 1, or permission type 5/6)
         _initialize(packages);
     }
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {Kernel, Install} from "./Kernel.sol";
@@ -8,6 +9,8 @@ import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
 contract KernelFactory {
     error InvalidSigner();
+
+    event KernelDeployed(address indexed kernel, address indexed deployer);
 
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
@@ -26,6 +29,7 @@ contract KernelFactory {
             return k;
         }
         k.initialize(initialPackages);
+        emit KernelDeployed(account, msg.sender);
         return k;
     }
 
@@ -48,6 +52,7 @@ contract KernelFactory {
         Kernel k = Kernel(payable(account));
         if (!deployed) {
             k.initialize(initialPackages);
+            emit KernelDeployed(account, msg.sender);
         }
         return k;
     }
