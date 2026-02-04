@@ -39,3 +39,19 @@ error UnauthorizedCallData();
 error PermissionInstallNotFinished();
 error InvalidPermissionInstall();
 error LastSignatureShouldBeSigner();
+
+error InvalidSigner();
+
+error NotApprovedFactory();
+
+error DeployFailed();
+
+error InvalidOwner();
+
+error NotExecutor();
+
+error AlreadyInitialized(address smartAccount);
+
+error NotInitialized(address smartAccount);
+
+error InvalidTargetAddress(address target);

@@ -5,6 +5,7 @@ import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
 import {APPROVE_FACTORY_STRUCT_HASH} from "src/types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 import {Staker} from "src/Staker.sol";
+import {InvalidSignature} from "src/types/Error.sol";
 
 abstract contract Staker_approveFactoryWithSignature is StakerBTTModifiers {
     function setUp() public override {
@@ -27,7 +28,7 @@ abstract contract Staker_approveFactoryWithSignature is StakerBTTModifiers {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(Staker.InvalidSignature.selector);
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(factoryAddr, true, signature);
     }
 

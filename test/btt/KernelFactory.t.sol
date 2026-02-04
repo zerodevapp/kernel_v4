@@ -12,7 +12,7 @@ import {MockValidator} from "../mock/MockValidator.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
-import {InvalidRootValidation, InvalidInitialization} from "src/types/Error.sol";
+import {InvalidRootValidation, InvalidInitialization, InvalidSigner} from "src/types/Error.sol";
 
 /// @title KernelFactory BTT Tests
 /// @notice Tests for KernelFactory following Branching Tree Technique
@@ -173,7 +173,7 @@ contract KernelFactory_Test is Test {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
 
-        vm.expectRevert(KernelFactory.InvalidSigner.selector);
+        vm.expectRevert(InvalidSigner.selector);
         factory.deployECDSA(address(0), packages, 0);
     }
 

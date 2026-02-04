@@ -7,17 +7,12 @@ import {EIP712} from "solady/utils/EIP712.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 import {APPROVE_FACTORY_STRUCT_HASH} from "./types/Constants.sol";
+import {DeployFailed, InvalidOwner, InvalidSignature, NotApprovedFactory} from "./types/Error.sol";
+import {FactoryApprovalChanged} from "./types/Events.sol";
 
 contract Staker is Ownable, EIP712 {
     mapping(address => bool) public approved;
     mapping(address => uint256) public nonces;
-
-    error NotApprovedFactory();
-    error DeployFailed();
-    error InvalidSignature();
-    error InvalidOwner();
-
-    event FactoryApprovalChanged(address indexed factory, bool approved);
 
     constructor(address _owner) {
         _initializeOwner(_owner);

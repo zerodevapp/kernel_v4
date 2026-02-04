@@ -6,3 +6,7 @@ event ModuleInstalled(uint256 moduleType, address module);
 event ModuleUninstalled(uint256 moduleType, address module);
 
 event Received(address sender, uint256 amount);
+
+event KernelDeployed(address indexed kernel);
+
+event FactoryApprovalChanged(address indexed factory, bool approved);
