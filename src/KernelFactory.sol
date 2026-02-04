@@ -6,11 +6,10 @@ import {KernelUUPS} from "./KernelUUPS.sol";
 import {KernelImmutableECDSA} from "./KernelImmutableECDSA.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
+import {InvalidSigner} from "./types/Error.sol";
+import {KernelDeployed} from "./types/Events.sol";
 
 contract KernelFactory {
-    error InvalidSigner();
-
-    event KernelDeployed(address indexed kernel);
 
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;

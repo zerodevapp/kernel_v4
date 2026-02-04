@@ -2,10 +2,9 @@
 pragma solidity ^0.8.21;
 
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
+import {AlreadyInitialized, InvalidTargetAddress, NotInitialized} from "../types/Error.sol";
 
 interface IModule {
-    error AlreadyInitialized(address smartAccount);
-    error NotInitialized(address smartAccount);
 
     /**
      * @dev This function is called by the smart account during installation of the module
@@ -40,7 +39,6 @@ interface IModule {
 }
 
 interface IValidator is IModule {
-    error InvalidTargetAddress(address target);
 
     /**
      * @dev Validates a transaction on behalf of the account.

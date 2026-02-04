@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
+import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
+
 struct Execution {
     address target;
     uint256 value;
@@ -8,8 +10,6 @@ struct Execution {
 }
 
 interface IERC7579Account {
-    event ModuleInstalled(uint256 moduleTypeId, address module);
-    event ModuleUninstalled(uint256 moduleTypeId, address module);
 
     /**
      * @dev Executes a transaction on behalf of the account.

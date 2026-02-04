@@ -5,6 +5,7 @@ import {FactoryBTTModifiers} from "./FactoryBTTModifiers.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
+import {InvalidSigner} from "src/types/Error.sol";
 
 abstract contract KernelFactory_deployECDSA is FactoryBTTModifiers {
     function test_WhenTheECDSAOwnerIsAddressZero() external {
@@ -12,7 +13,7 @@ abstract contract KernelFactory_deployECDSA is FactoryBTTModifiers {
         // it should revert with InvalidSigner error
         Install[] memory packages = new Install[](0);
 
-        vm.expectRevert(KernelFactory.InvalidSigner.selector);
+        vm.expectRevert(InvalidSigner.selector);
         factory.deployECDSA(address(0), packages, 0);
     }
 

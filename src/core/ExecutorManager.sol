@@ -4,9 +4,9 @@ pragma solidity ^0.8.0;
 import {EXECUTOR_MANAGER_STORAGE_SLOT} from "../types/Constants.sol";
 import {IExecutor, IHook} from "../interfaces/IERC7579Modules.sol";
 import {ExecutorStorage, ExecutorConfig} from "../types/Structs.sol";
+import {NotExecutor} from "../types/Error.sol";
 
 contract ExecutorManager {
-    error NotExecutor();
 
     function _executorStorage() internal pure returns (ExecutorStorage storage $) {
         assembly {

@@ -15,6 +15,7 @@ import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {APPROVE_FACTORY_STRUCT_HASH} from "src/types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
+import {InvalidSignature, NotApprovedFactory} from "src/types/Error.sol";
 
 /// @title Staker BTT Tests
 /// @notice Tests for Staker following Branching Tree Technique
@@ -182,7 +183,7 @@ contract Staker_Test is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signatureKey(), digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(Staker.InvalidSignature.selector);
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(address(factory), true, signature);
     }
 
@@ -197,7 +198,7 @@ contract Staker_Test is Test {
 
         bytes memory deployData = abi.encodeWithSelector(KernelFactory.deploy.selector, packages, uint256(0));
 
-        vm.expectRevert(Staker.NotApprovedFactory.selector);
+        vm.expectRevert(NotApprovedFactory.selector);
         staker.deployWithFactory(address(factory), deployData);
     }
 

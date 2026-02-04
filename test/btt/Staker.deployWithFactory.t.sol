@@ -5,6 +5,7 @@ import {StakerBTTModifiers} from "./StakerBTTModifiers.sol";
 import {Staker} from "src/Staker.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {Install} from "src/types/Structs.sol";
+import {NotApprovedFactory, DeployFailed} from "src/types/Error.sol";
 
 abstract contract Staker_deployWithFactory is StakerBTTModifiers {
     function setUp() public override {
@@ -18,7 +19,7 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
 
         bytes memory deployData = abi.encodeWithSelector(KernelFactory.deploy.selector, packages, uint256(0));
 
-        vm.expectRevert(Staker.NotApprovedFactory.selector);
+        vm.expectRevert(NotApprovedFactory.selector);
         staker.deployWithFactory(address(factory), deployData);
     }
 
@@ -68,7 +69,7 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
 
         bytes memory deployData = abi.encodeWithSelector(MockFailingFactory.deploy.selector);
 
-        vm.expectRevert(Staker.DeployFailed.selector);
+        vm.expectRevert(DeployFailed.selector);
         staker.deployWithFactory(address(failingFactory), deployData);
     }
 }

@@ -8,6 +8,7 @@ import {EntryPointLib} from "./utils/EntryPointLib.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 import {APPROVE_FACTORY_STRUCT_HASH} from "src/types/Constants.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
+import {InvalidSignature, DeployFailed, NotApprovedFactory} from "src/types/Error.sol";
 
 contract MockFactory {
     error Foo();
@@ -98,7 +99,7 @@ contract StakerTest is Test {
         assertEq(staker.nonces(factory), 0);
         staker.approveFactoryWithSignature(factory, true, abi.encodePacked(r, s, v));
         assertEq(staker.nonces(factory), 1);
-        vm.expectRevert(Staker.InvalidSignature.selector);
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(factory, true, abi.encodePacked(r, s, v));
     }
 
@@ -121,7 +122,7 @@ contract StakerTest is Test {
         vm.stopPrank();
         assertEq(staker.approved(address(factory)), true);
 
-        vm.expectRevert(Staker.DeployFailed.selector);
+        vm.expectRevert(DeployFailed.selector);
         staker.deployWithFactory(address(factory), abi.encodeWithSelector(MockFactory.fail.selector));
     }
 
@@ -129,7 +130,7 @@ contract StakerTest is Test {
         MockFactory factory = new MockFactory();
         assertEq(staker.approved(address(factory)), false);
 
-        vm.expectRevert(Staker.NotApprovedFactory.selector);
+        vm.expectRevert(NotApprovedFactory.selector);
         staker.deployWithFactory(address(factory), abi.encodeWithSelector(MockFactory.success.selector));
     }
 
@@ -232,7 +233,7 @@ contract StakerTest is Test {
         staker.approveFactory(address(factory), false);
         vm.stopPrank();
 
-        vm.expectRevert(Staker.NotApprovedFactory.selector);
+        vm.expectRevert(NotApprovedFactory.selector);
         staker.deployWithFactory(address(factory), abi.encodeWithSelector(MockFactory.success.selector));
     }
 
@@ -311,7 +312,7 @@ contract StakerTest is Test {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
 
-        vm.expectRevert(Staker.InvalidSignature.selector);
+        vm.expectRevert(InvalidSignature.selector);
         staker.approveFactoryWithSignature(factory, true, abi.encodePacked(r, s, v));
     }
 
