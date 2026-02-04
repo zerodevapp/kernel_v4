@@ -8,11 +8,7 @@ import {Lib4337} from "src/lib/Lib4337.sol";
 ///         tests can pass PackedUserOperation memory structs (the external call
 ///         boundary provides the automatic memory→calldata conversion).
 contract ChainAgnosticHashHelper {
-    function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp)
-        external
-        view
-        returns (bytes32)
-    {
+    function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) external view returns (bytes32) {
         return Lib4337.chainAgnosticUserOpHash(ep, userOp);
     }
 }
