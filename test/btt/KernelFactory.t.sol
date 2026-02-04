@@ -12,7 +12,7 @@ import {MockValidator} from "../mock/MockValidator.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
-import {InvalidRootValidation} from "src/types/Error.sol";
+import {InvalidRootValidation, InvalidInitialization} from "src/types/Error.sol";
 
 /// @title KernelFactory BTT Tests
 /// @notice Tests for KernelFactory following Branching Tree Technique
@@ -78,8 +78,8 @@ contract KernelFactory_Test is Test {
     function test_RevertWhen_PackagesArrayIsEmpty() external givenPackagesArrayIsEmpty {
         Install[] memory packages = new Install[](0);
 
-        // it should revert with InvalidRootValidation error
-        vm.expectRevert(InvalidRootValidation.selector);
+        // it should revert with InvalidInitialization error (from kernel.initialize)
+        vm.expectRevert(InvalidInitialization.selector);
         factory.deploy(packages, 0);
     }
 

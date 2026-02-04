@@ -6,7 +6,9 @@ import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {BTTModifiers} from "./BTTModifiers.sol";
 import {Install} from "src/types/Structs.sol";
 import {Kernel} from "src/Kernel.sol";
-import {InvalidValidationType, InvalidValidator, InvalidPermissionId, InvalidNonce} from "src/types/Error.sol";
+import {InvalidValidationType, InvalidValidator, InvalidPermissionId, InvalidNonce, InvalidVid} from "src/types/Error.sol";
+import {ValidationId, validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
+import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {MockPolicy} from "../mock/MockPolicy.sol";
 import {MockSigner} from "../mock/MockSigner.sol";
 import {PermissionId} from "src/types/Types.sol";
@@ -71,6 +73,8 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         givenTheSignatureModeByteIndicatesEnableMode
     {
         // it should revert with InvalidNonce error
+        // Note: isValidSignature is a view function, so nonces are validated but not consumed.
+        // To test invalid nonce, we use nonce 1 when stored nonce is 0 (invalid because seq != stored).
         bytes32 messageHash = keccak256("Hello world");
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
@@ -81,34 +85,16 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         uint8 uMode = 0;
         uMode += 2 ** 3; // enable mode flag
 
-        // First, use nonce 0
+        // Use nonce 1 when stored nonce is 0 - this is invalid
         bytes memory sigWithEnable = abi.encodePacked(
             uMode,
             bytes1(0x01),
             newValidator,
-            abi.encode(uint256(0), packages, enableSig(0, true, false, packages, _rootSignHash), sig)
-        );
-
-        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
-
-        // Now try to use nonce 0 again - should fail
-        bytes32 messageHash2 = keccak256("Hello world 2");
-        (bytes32 contentsHash2, bytes memory sig2) =
-            _erc1271Signature(messageHash2, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
-
-        MockValidator newValidator2 = new MockValidator();
-        Install[] memory packages2 = new Install[](1);
-        packages2[0] = Install({moduleType: 1, module: address(newValidator2), moduleData: hex"", internalData: hex""});
-
-        bytes memory sigWithEnable2 = abi.encodePacked(
-            uMode,
-            bytes1(0x01),
-            newValidator2,
-            abi.encode(uint256(0), packages2, enableSig(0, true, false, packages2, _rootSignHash), sig2)
+            abi.encode(uint256(1), packages, enableSig(1, true, false, packages, _rootSignHash), sig)
         );
 
         vm.expectRevert(InvalidNonce.selector);
-        kernel.isValidSignature(_toContentsHash(contentsHash2), sigWithEnable2);
+        kernel.isValidSignature(_toContentsHash(contentsHash), sigWithEnable);
     }
 
     function test_GivenTheEnableSignatureIsInvalid()
@@ -219,6 +205,9 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         MockSigner mockSigner = new MockSigner();
         PermissionId permId1 = PermissionId.wrap(bytes4(keccak256("permId1")));
         PermissionId permId2 = PermissionId.wrap(bytes4(keccak256("permId2"))); // Different!
+
+        // Set up the mock policy to pass validation so we can reach the permissionId consistency check
+        mockPolicy.sudoSetPass(address(kernel), bytes32(PermissionId.unwrap(permId1)), true);
 
         Install[] memory packages = new Install[](2);
         packages[0] = Install({
@@ -717,7 +706,7 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
 
     /// @notice Unlike validateUserOp, isValidSignature does NOT revert for uninstalled validators
     /// It directly calls the validator and returns its result
-    function test_isValidSignature_WhenValidatorNotInstalled_StillCallsValidator()
+    function test_isValidSignature_WhenValidatorNotInstalled_RevertsWithInvalidVid()
         external
         unitTest
         givenHashIsNotERC7739MagicHash
@@ -727,13 +716,14 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _validatorSignHash, false, true);
 
-        // The kernel calls the validator directly without checking if it's installed
-        // Since our mock validator is configured to succeed, it returns MAGICVALUE
-        bytes4 ret = kernel.isValidSignature(
+        // The kernel checks if the validator is installed before calling it
+        // If not installed, it reverts with InvalidVid
+        ValidationId vId = validatorToIdentifier(IValidator(address(newValidator)));
+        vm.expectRevert(abi.encodeWithSelector(InvalidVid.selector, vId));
+        kernel.isValidSignature(
             _toContentsHash(contentsHash),
             abi.encodePacked(bytes1(0), bytes1(0x01), bytes20(address(newValidator)), sig)
         );
-        assertEq(ret, ERC1271_MAGICVALUE, "Uninstalled validator still gets called");
     }
 
     /// @notice it should return ERC1271_MAGICVALUE when validator returns valid (TypedDataSign)
@@ -809,12 +799,13 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         givenHashIsNotERC7739MagicHash
         givenValidationTypeIsPermission
     {
-        // it should revert with InvalidPermissionId error
+        // it should revert with InvalidVid error when permission is not installed
         bytes32 messageHash = keccak256("Hello world");
         (bytes32 contentsHash, bytes memory sig) =
             _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _permissionSignHash, false, true);
 
-        vm.expectRevert(InvalidPermissionId.selector);
+        ValidationId vId = permissionToIdentifier(permissionId);
+        vm.expectRevert(abi.encodeWithSelector(InvalidVid.selector, vId));
         kernel.isValidSignature(
             _toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0x02), permissionId, sig)
         );

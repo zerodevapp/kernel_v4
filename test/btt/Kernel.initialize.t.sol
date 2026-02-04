@@ -15,7 +15,7 @@ import {MockHook} from "../mock/MockHook.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {PermissionId} from "src/types/Types.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {InvalidInitialization, InvalidRootValidation, InvalidPermissionId} from "src/types/Error.sol";
+import {InvalidInitialization, InvalidRootValidation, InvalidPermissionId, PermissionInstallNotFinished} from "src/types/Error.sol";
 
 /// @title Kernel.initialize BTT Tests
 /// @notice Tests for initialize following Branching Tree Technique
@@ -45,8 +45,8 @@ abstract contract Kernel_initialize is BTTModifiers {
         // Deploy a new kernel without initializing
         Install[] memory emptyPackages = new Install[](0);
 
-        // it should revert with InvalidRootValidation error
-        vm.expectRevert(InvalidRootValidation.selector);
+        // it should revert with InvalidInitialization error
+        vm.expectRevert(InvalidInitialization.selector);
         factory.deploy(emptyPackages, 999);
     }
 
@@ -158,7 +158,7 @@ abstract contract Kernel_initialize is BTTModifiers {
         });
 
         // Deploying with only policy (no signer) should revert
-        vm.expectRevert(InvalidPermissionId.selector);
+        vm.expectRevert(PermissionInstallNotFinished.selector);
         factory.deploy(packages, 1003);
     }
 
