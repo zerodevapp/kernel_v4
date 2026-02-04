@@ -11,6 +11,8 @@ solc_version = '0.8.30'
 
 isolate = true
 extra_output = ["storageLayout"]
+ignored_warnings_from = ["test/"]
+ignored_error_codes = [9302, 2072, 5667, 2018, 2394]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 [invariant]
@@ -26,4 +28,6 @@ forge-std = "1.11.0"
 
 
 [lint]
-exclude_lints = ["unwrapped-modifier-logic"]
+exclude_lints = ["unwrapped-modifier-logic", "unchecked-call"]
+ignore = ["test"]
+lint_on_build = false
