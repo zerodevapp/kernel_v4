@@ -13,8 +13,23 @@
       "bytecode_hash": "0x00708cdae86b51054cd67e4e94e1dcd8edfefac0947fbfb7c71c6d92a3a7a76d"
     },
     {
+      "name": "KernelImmutableECDSA",
+      "bytecode_hash": "0x05cba5a8e790594bb8e536f0c6b1b660a5b8ade0921e7a81b15910242902a33b",
+      "has_link_references": true
+    },
+    {
+      "name": "KernelUUPS",
+      "bytecode_hash": "0x13f02d0e30ba6889a17eb337eb57ad17dfef54e0e1a22b6848e40b1ad97c587d",
+      "has_link_references": true
+    },
+    {
       "name": "KernelFactory",
       "bytecode_hash": "0xbafd431bb5a15763199fc976acb9c0dfea9927e7eebeeb05cd48cdaef39685f2"
+    },
+    {
+      "name": "Kernel7702",
+      "bytecode_hash": "0x1d405ca9840201185e6c567bb3d5874383fb1eef4e0c9a7bbde9a96c30c7c140",
+      "has_link_references": true
     }
   ],
   "deployments": {

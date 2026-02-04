@@ -78,8 +78,13 @@ def parse_foundry_toml(path: Path) -> Dict[str, Any]:
     return config
 
 
-def compute_bytecode_hash(contract_name: str) -> Optional[str]:
-    """Compute bytecode hash from compiled artifacts."""
+def compute_bytecode_hash(contract_name: str) -> Optional[Tuple[str, bool]]:
+    """Compute bytecode hash from compiled artifacts.
+
+    Returns:
+        Tuple of (hash, has_link_references) or None if not found.
+        has_link_references is True if bytecode contains library placeholders.
+    """
     # Look for the contract in out/
     for json_file in OUT_DIR.rglob(f"{contract_name}.json"):
         try:
@@ -88,14 +93,20 @@ def compute_bytecode_hash(contract_name: str) -> Optional[str]:
 
             bytecode = artifact.get("bytecode", {}).get("object", "")
             if bytecode and bytecode != "0x":
+                # Check for library link references (format: __$<hash>$__)
+                has_link_refs = "__$" in bytecode
+
+                # Replace library placeholders with zeros for consistent hashing
+                clean_bytecode = re.sub(r"__\$[a-fA-F0-9]+\$__", "0" * 40, bytecode)
+
                 # Use keccak256 via cast
                 result = subprocess.run(
-                    ["cast", "keccak", bytecode],
+                    ["cast", "keccak", clean_bytecode],
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode == 0:
-                    return result.stdout.strip()
+                    return (result.stdout.strip(), has_link_refs)
         except (json.JSONDecodeError, KeyError):
             continue
 
@@ -104,23 +115,9 @@ def compute_bytecode_hash(contract_name: str) -> Optional[str]:
 
 def compute_init_code_hash(contract_name: str) -> Optional[str]:
     """Compute init code hash (bytecode + constructor args placeholder)."""
-    for json_file in OUT_DIR.rglob(f"{contract_name}.json"):
-        try:
-            with open(json_file) as f:
-                artifact = json.load(f)
-
-            bytecode = artifact.get("bytecode", {}).get("object", "")
-            if bytecode and bytecode != "0x":
-                result = subprocess.run(
-                    ["cast", "keccak", bytecode],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0:
-                    return result.stdout.strip()
-        except (json.JSONDecodeError, KeyError):
-            continue
-
+    result = compute_bytecode_hash(contract_name)
+    if result:
+        return result[0]  # Return just the hash
     return None
 
 
@@ -213,18 +210,21 @@ def verify_bytecode_hashes(release: Dict, errors: List[str], warnings: List[str]
             warnings.append(f"{name}: no bytecode_hash specified")
             continue
 
-        actual_hash = compute_bytecode_hash(name)
+        result = compute_bytecode_hash(name)
 
-        if actual_hash is None:
+        if result is None:
             warnings.append(f"{name}: compiled artifact not found (run forge build)")
-        elif actual_hash.lower() != expected_hash.lower():
-            errors.append(
-                f"{name}: bytecode hash mismatch\n"
-                f"    expected: {expected_hash}\n"
-                f"    actual:   {actual_hash}"
-            )
-        elif verbose:
-            print(f"  {name}: bytecode hash verified")
+        else:
+            actual_hash, has_link_refs = result
+            if actual_hash.lower() != expected_hash.lower():
+                errors.append(
+                    f"{name}: bytecode hash mismatch\n"
+                    f"    expected: {expected_hash}\n"
+                    f"    actual:   {actual_hash}"
+                )
+            elif verbose:
+                suffix = " (has library references)" if has_link_refs else ""
+                print(f"  {name}: bytecode hash verified{suffix}")
 
 
 def generate_release_template(version: str, output_path: Path) -> None:
@@ -234,25 +234,34 @@ def generate_release_template(version: str, output_path: Path) -> None:
     # Find main contracts in src/
     contracts = []
     skipped = []
+    linked = []
     src_dir = ROOT / "src"
     for sol_file in src_dir.glob("*.sol"):
         if sol_file.name.startswith("I"):  # Skip interfaces
             continue
         contract_name = sol_file.stem
-        bytecode_hash = compute_bytecode_hash(contract_name)
+        result = compute_bytecode_hash(contract_name)
 
-        if bytecode_hash is None:
+        if result is None:
             skipped.append(contract_name)
             continue
+
+        bytecode_hash, has_link_refs = result
+        if has_link_refs:
+            linked.append(contract_name)
 
         contract_entry = {
             "name": contract_name,
             "bytecode_hash": bytecode_hash,
         }
+        if has_link_refs:
+            contract_entry["has_link_references"] = True
         contracts.append(contract_entry)
 
     if skipped:
         print(f"Skipped (abstract or no bytecode): {', '.join(skipped)}")
+    if linked:
+        print(f"Has library references (hash uses zero placeholders): {', '.join(linked)}")
 
     release = {
         "version": version,
