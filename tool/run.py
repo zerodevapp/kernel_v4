@@ -61,6 +61,9 @@ def build_commands(strict: bool = False, fix: bool = False) -> list[tuple[str, l
         argv.append("--strict")
     cmds.append(("dependency_check", argv))
 
+    # Link reference check
+    cmds.append(("link_reference_check", [*py, str(TOOL_DIR / "link_reference_check.py")]))
+
     # Release configuration check
     argv = [*py, str(TOOL_DIR / "release_check.py"), "--verify-bytecode"]
     if strict:
