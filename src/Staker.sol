@@ -14,6 +14,9 @@ contract Staker is Ownable, EIP712 {
     error NotApprovedFactory();
     error DeployFailed();
     error InvalidSignature();
+    error InvalidOwner();
+
+    event FactoryApprovalChanged(address indexed factory, bool approved);
 
     constructor(address _owner) {
         _initializeOwner(_owner);
@@ -34,6 +37,7 @@ contract Staker is Ownable, EIP712 {
 
     function approveFactory(address _factory, bool approval) external payable onlyOwner {
         approved[_factory] = approval;
+        emit FactoryApprovalChanged(_factory, approval);
     }
 
     function approveFactoryWithSignature(address _factory, bool approval, bytes calldata signature) external payable {
@@ -43,13 +47,16 @@ contract Staker is Ownable, EIP712 {
         //   approval: bool,
         //   nonce: uint256,
         // }
+        address _owner = owner();
+        require(_owner != address(0), InvalidOwner());
         bytes32 digest = _hashTypedDataSansChainId(
             EfficientHashLib.hash(
                 uint256(APPROVE_FACTORY_STRUCT_HASH), uint256(uint160(_factory)), approval ? 1 : 0, nonces[_factory]++
             )
         );
-        require(owner() == ECDSA.tryRecoverCalldata(digest, signature), InvalidSignature());
+        require(_owner == ECDSA.tryRecoverCalldata(digest, signature), InvalidSignature());
         approved[_factory] = approval;
+        emit FactoryApprovalChanged(_factory, approval);
     }
 
     function stake(IEntryPoint entryPoint, uint32 unstakeDelay) external payable onlyOwner {
