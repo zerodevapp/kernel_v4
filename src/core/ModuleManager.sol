@@ -14,7 +14,8 @@ import {
     InvalidSignature,
     NotImplemented,
     Unauthorized,
-    PermissionInstallNotFinished
+    PermissionInstallNotFinished,
+    LastSignatureShouldBeSigner
 } from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
 import {Install, EnableModeSignature, ModuleStorage, PermissionSignature} from "../types/Structs.sol";
@@ -339,8 +340,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                 Install calldata pkg = packages[i];
                 if (PermissionId.wrap(bytes4(pkg.internalData)) == pId) {
                     if (sigIdx == permissionSig.signatures.length - 1) {
-                        require(pkg.moduleType == 6, "last signature should be signer");
-                        require(IModule(pkg.module).isModuleType(6), "last signature should be signer");
+                        require(pkg.moduleType == 6, LastSignatureShouldBeSigner());
+                        require(IModule(pkg.module).isModuleType(6), LastSignatureShouldBeSigner());
                     }
                     bool res = IStatelessValidatorWithSender(pkg.module)
                         .validateSignatureWithDataWithSender(

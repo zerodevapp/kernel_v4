@@ -13,7 +13,8 @@ import {
     CannotUninstallRoot,
     InvalidVid,
     InvalidDataLength,
-    NotInstalled
+    NotInstalled,
+    InvalidPermissionInstall
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
 import {
@@ -137,11 +138,11 @@ abstract contract ValidationManager {
         ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
         $ = _validationStorage().vInfo[vId];
         if (installingPermission == ValidationId.wrap(bytes21(0))) {
-            require(vId != ValidationId.wrap(bytes21(0)), "invalid validationId");
+            require(vId != ValidationId.wrap(bytes21(0)), InvalidPermissionInstall());
             installingPermission = vId;
             // _initializeValidation(vId, _internalData[4:]);
         } else {
-            require(installingPermission == vId, "permissionId should be consistent");
+            require(installingPermission == vId, InvalidPermissionInstall());
         }
     }
 
