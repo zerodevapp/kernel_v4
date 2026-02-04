@@ -101,6 +101,23 @@ python3 tool/erc7201_check.py --verbose
 
 - Foundry installed (`cast` is used for `keccak256`)
 
+# String Error Checker
+
+`string_error_check.py` scans Solidity files under `src` and fails if
+`revert("...")` or `require(..., "...")` uses a string literal.
+
+## Usage
+
+```bash
+python3 tool/string_error_check.py
+```
+
+Scan additional paths:
+
+```bash
+python3 tool/string_error_check.py src test
+```
+
 ## Supported Tags
 
 Examples:

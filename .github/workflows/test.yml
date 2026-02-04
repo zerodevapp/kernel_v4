@@ -65,6 +65,10 @@ jobs:
         run: |
           python3 tool/erc7201_check.py
 
+      - name: Run string error check
+        run: |
+          python3 tool/string_error_check.py
+
   coverage:
     name: Coverage Report
     runs-on: ubuntu-latest
