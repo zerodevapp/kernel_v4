@@ -27,7 +27,9 @@ import {
     InvalidSelector,
     InstallSignatureVerificationFailed,
     InvalidDataLength,
-    InvalidRootValidation
+    InvalidRootValidation,
+    InvalidInitialization,
+    InvalidVid
 } from "./types/Error.sol";
 import {Received} from "./types/Events.sol";
 import {VALIDATION_TYPE_ROOT, VALIDATION_TYPE_PERMISSION, VALIDATION_TYPE_VALIDATOR} from "./types/Constants.sol";
@@ -59,7 +61,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     function initialize(Install[] calldata packages) external payable virtual;
 
     function _initialize(Install[] calldata packages) internal virtual {
-        require(packages.length > 0);
+        require(packages.length > 0, InvalidInitialization());
         Install calldata root = packages[0];
         _install(packages);
         _setRoot(root);
@@ -115,6 +117,11 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             signature = sig.userOpSignature;
         }
         ValidationStorage storage $ = _validationStorage();
+
+        // For non-root validation, check if validation exists before checking selectors
+        if (vType != VALIDATION_TYPE_ROOT) {
+            require($.vInfo[vId].hook > address(0), InvalidVid(vId));
+        }
 
         // check if the call data is allowed by the validationId
         if (
@@ -245,6 +252,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     // we are going to let array of pkgs to be installed and use first one as root
     function setRoot(Install[] calldata pkg, bool removeCurrent, bytes calldata uninstallData) external payable {
         _onlyEntryPointOrSelf();
+        require(pkg.length > 0, InvalidInitialization());
         ValidationId vId = _validationStorage().root;
         _setRoot(pkg[0]);
         if (removeCurrent) {
