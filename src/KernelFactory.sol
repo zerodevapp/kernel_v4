@@ -10,7 +10,7 @@ import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 contract KernelFactory {
     error InvalidSigner();
 
-    event KernelDeployed(address indexed kernel, address indexed deployer);
+    event KernelDeployed(address indexed kernel);
 
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
@@ -29,7 +29,7 @@ contract KernelFactory {
             return k;
         }
         k.initialize(initialPackages);
-        emit KernelDeployed(account, msg.sender);
+        emit KernelDeployed(account);
         return k;
     }
 
@@ -52,7 +52,7 @@ contract KernelFactory {
         Kernel k = Kernel(payable(account));
         if (!deployed) {
             k.initialize(initialPackages);
-            emit KernelDeployed(account, msg.sender);
+            emit KernelDeployed(account);
         }
         return k;
     }
