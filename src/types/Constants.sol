@@ -53,3 +53,10 @@ bytes32 constant INSTALL_PACKAGES_STRUCT_HASH = 0x633d6810f7f4053622dad4c187707d
 bytes32 constant INSTALL_STRUCT_HASH = 0x50c63c739a5f8d2e99954b3d4c7008fcdcef795a1b755ab9287372b01d6ac239;
 //ApproveFactory(address factory,bool approval,uint256 nonce)
 bytes32 constant APPROVE_FACTORY_STRUCT_HASH = 0xefd04fcbcf7166a7a34d3a97718e39af7d5bac9fe12232a5041ce5fbe04fe44d;
+
+// --- EIP-712 type hashes ---
+/// @dev `keccak256("PersonalSign(bytes prefixed)")`.
+bytes32 constant PERSONAL_SIGN_TYPEHASH = 0x983e65e5148e570cd828ead231ee759a8d7958721a768f93bc4483ba005c32de;
+
+///@custom:struct-hash EIP712Domain(string name,string version,address verifyingContract)
+bytes32 constant DOMAIN_TYPEHASH_SANS_CHAIN_ID = 0x91ab3d17e3a50a9d89e63fd30b92be7f5336b03b287bb946787a83a9d62a2766;

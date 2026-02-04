@@ -5,10 +5,9 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {Eip7702Support} from "account-abstraction/core/Eip7702Support.sol";
 import {IERC5267} from "../interfaces/IERC5267.sol";
+import {DOMAIN_TYPEHASH_SANS_CHAIN_ID} from "../types/Constants.sol";
 
 library Lib4337 {
-    bytes32 internal constant _DOMAIN_TYPEHASH_SANS_CHAIN_ID =
-        0x91ab3d17e3a50a9d89e63fd30b92be7f5336b03b287bb946787a83a9d62a2766;
 
     function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) external view returns (bytes32) {
         bytes32 overrideInitCodeHash = Eip7702Support._getEip7702InitCodeHashOverride(userOp);
@@ -44,7 +43,7 @@ library Lib4337 {
         /// @solidity memory-safe-assembly
         assembly {
             let m := mload(0x40) // Load the free memory pointer.
-            mstore(0x00, _DOMAIN_TYPEHASH_SANS_CHAIN_ID)
+            mstore(0x00, DOMAIN_TYPEHASH_SANS_CHAIN_ID)
             mstore(0x20, keccak256(add(name, 0x20), mload(name)))
             mstore(0x40, keccak256(add(version, 0x20), mload(version)))
             mstore(0x60, addr)
