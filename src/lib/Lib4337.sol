@@ -12,7 +12,7 @@ library Lib4337 {
     /// @dev Highest bit of uint48, indicates block number mode when set on both validAfter and validUntil
     uint48 internal constant MODE_BIT = 0x800000000000;
 
-    function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) external view returns (bytes32) {
+    function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) internal view returns (bytes32) {
         bytes32 overrideInitCodeHash = Eip7702Support._getEip7702InitCodeHashOverride(userOp);
         return _hashTypedDataSansChainId(ep, UserOperationLib.hash(userOp, overrideInitCodeHash));
     }
