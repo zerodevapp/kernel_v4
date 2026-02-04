@@ -38,7 +38,7 @@ bytes32 constant EXECUTOR_MANAGER_STORAGE_SLOT = 0xc98f19fae81314cbf0302e1e3c055
 ///@custom:storage-location bytes32(uint256(keccak256('kernel.v4.hook'))-1)
 bytes32 constant HOOK_MANAGER_STORAGE_SLOT = 0x5419def70c6ad54339f14ca6da31808409bec8ff0f178491c5b59f0d8276d4d3;
 ///@custom:storage-location bytes32(uint256(keccak256('kernel.v4.validation')) - 1)
-bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e;
+bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260c;
 ///@custom:storage-location bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
 bytes32 constant ERC1967_IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 bytes4 constant ERC1271_MAGICVALUE = 0x1626ba7e;

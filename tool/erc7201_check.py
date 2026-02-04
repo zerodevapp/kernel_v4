@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Dict
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,6 +125,7 @@ def check_file(
     warnings: List[str],
     found: List[str],
     records: List[Tuple[bool, str, int, str, str, str, str]],
+    fixes: List[Tuple[Path, int, str]],
 ) -> None:
     lines = path.read_text().splitlines()
     matched_storage_consts: set[int] = set()
@@ -176,6 +177,8 @@ def check_file(
         const_line, const_name, actual = next_const
         passed = expected == actual
         matched_storage_consts.add(const_line)
+        if not passed:
+            fixes.append((path, const_line, expected))
         records.append(
             (passed, str(path.relative_to(ROOT)), const_line, const_name, label, expected, actual)
         )
@@ -215,6 +218,39 @@ def check_file(
         )
 
 
+def apply_fixes(fixes: List[Tuple[Path, int, str]], errors: List[str]) -> None:
+    if not fixes:
+        return
+    by_file: Dict[Path, List[Tuple[int, str]]] = {}
+    for path, line_no, expected in fixes:
+        by_file.setdefault(path, []).append((line_no, expected))
+
+    for path, items in by_file.items():
+        lines = path.read_text().splitlines()
+        for line_no, expected in items:
+            idx = line_no - 1
+            if idx < 0 or idx >= len(lines):
+                errors.append(f"cannot fix {path.relative_to(ROOT)}:{line_no} (line out of range)")
+                continue
+            line = lines[idx]
+            if not HEX_RE.search(line):
+                errors.append(f"cannot fix {path.relative_to(ROOT)}:{line_no} (no hex literal)")
+                continue
+            lines[idx] = HEX_RE.sub(expected, line, count=1)
+        path.write_text("\n".join(lines) + "\n")
+
+
+def run_checks(paths: List[Path]) -> Tuple[List[str], List[str], List[str], List[Tuple[bool, str, int, str, str, str, str]], List[Tuple[Path, int, str]]]:
+    errors: List[str] = []
+    warnings: List[str] = []
+    found: List[str] = []
+    records: List[Tuple[bool, str, int, str, str, str, str]] = []
+    fixes: List[Tuple[Path, int, str]] = []
+    for path in iter_sol_files(paths):
+        check_file(path, errors, warnings, found, records, fixes)
+    return errors, warnings, found, records, fixes
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="ERC-7201 storage slot checker")
     parser.add_argument(
@@ -224,15 +260,14 @@ def main() -> int:
         help="paths to scan (default: src)",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="show warnings")
+    parser.add_argument("--fix", action="store_true", help="fix mismatched slot constants")
     args = parser.parse_args()
 
-    errors: List[str] = []
-    warnings: List[str] = []
-    found: List[str] = []
-    records: List[Tuple[bool, str, int, str, str, str, str]] = []
-
-    for path in iter_sol_files([Path(p) for p in args.paths]):
-        check_file(path, errors, warnings, found, records)
+    paths = [Path(p) for p in args.paths]
+    errors, warnings, found, records, fixes = run_checks(paths)
+    if args.fix and fixes:
+        apply_fixes(fixes, errors)
+        errors, warnings, found, records, _ = run_checks(paths)
 
     if args.verbose and found:
         print("FOUND CONSTANTS:")
