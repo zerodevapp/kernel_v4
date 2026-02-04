@@ -237,8 +237,10 @@ abstract contract Kernel_setRoot is BTTModifiers {
         givenUninstallDataHasCorrectLength
     {
         // it should revert with InvalidPermissionUninstallOrder error
+        // Note: setRoot always uninstalls in reverse order internally, so we test
+        // the order enforcement by directly calling uninstallModule with wrong order
 
-        // First set a permission as root with multiple policies
+        // First set up a permission with multiple policies
         MockPolicy mockPolicy1 = new MockPolicy();
         MockPolicy mockPolicy2 = new MockPolicy();
         MockSigner mockSigner = new MockSigner();
@@ -248,25 +250,11 @@ abstract contract Kernel_setRoot is BTTModifiers {
         kernel.installModule(5, address(mockPolicy1), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(5, address(mockPolicy2), abi.encode(hex"", abi.encodePacked(testPermId)));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(testPermId)));
-        _setPermissionRootIfNeeded(testPermId);
 
-        // Try to replace with new root
-        MockValidator newRoot = new MockValidator();
-        Install[] memory packages = new Install[](1);
-        packages[0] = Install({moduleType: 1, module: address(newRoot), moduleData: hex"", internalData: hex""});
-
-        // Uninstall data with wrong order - policies must be uninstalled in reverse order
-        // (policy2 should be first, then policy1, then signer)
-        // But we provide policy1 first (wrong order)
-        bytes[] memory wrongOrderData = new bytes[](_uninstallDataCorrectLength ? 3 : 1);
-        wrongOrderData[0] = hex""; // Policy1 uninstall data (wrong - should be policy2)
-        if (_uninstallDataCorrectLength) {
-            wrongOrderData[1] = hex""; // Policy2 uninstall data
-            wrongOrderData[2] = hex""; // Signer uninstall data
-        }
-
+        // Try to uninstall policy1 first (wrong order - policy2 should be uninstalled first)
+        // Policies are stored as [policy1, policy2], so policy2 (last) must be uninstalled first
         vm.expectRevert(InvalidPermissionUninstallOrder.selector);
-        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, abi.encode(wrongOrderData));
+        kernel.uninstallModule(5, address(mockPolicy1), abi.encode(hex"", abi.encodePacked(testPermId)));
     }
 
     function test_GivenPoliciesAreUninstalledInReverseOrder()
@@ -335,6 +323,7 @@ abstract contract Kernel_setRoot is BTTModifiers {
         givenTheOverloadSetRootWithInstallArrayIsCalled
         givenRemoveCurrentIsTrue
         givenTheCurrentRootIsAPERMISSION
+        givenUninstallDataHasCorrectLength
     {
         // First set a permission as root
         MockPolicy mockPolicy = new MockPolicy();

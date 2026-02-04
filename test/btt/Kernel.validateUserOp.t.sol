@@ -412,6 +412,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.stopPrank();
         vm.startPrank(address(ep));
 
+        // For "inner selector in allowed list", we need to allow the execute selector
+        // while using executeUserOp wrapper (outer selector not directly checked)
+        _selectorAllowed = true;
         _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
@@ -474,6 +477,9 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         // Install hook first
         kernel.installModule(4, address(hook), abi.encode(hex"", hex""));
 
+        // Configure to allow execute selector with the hook
+        _selectorAllowed = true;
+        _selectorHook = address(hook);
         _installValidatorWithSelectorPolicy();
 
         PackedUserOperation memory op = _createUserOpWithValidatorValidation();
@@ -598,12 +604,18 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with execute selector allowed
+        // Policy only needs permissionId in internalData
         kernel.installModule(
             5,
             address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
+        );
+        // Signer gets permissionId + hook + selectors in internalData
+        kernel.installModule(
+            6,
+            address(signer),
             abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
         );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
         op.callData = abi.encodePacked(
@@ -634,12 +646,18 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         vm.startPrank(address(ep));
 
         // Install permission with execute selector allowed
+        // Policy only needs permissionId in internalData
         kernel.installModule(
             5,
             address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
+        );
+        // Signer gets permissionId + hook + selectors in internalData
+        kernel.installModule(
+            6,
+            address(signer),
             abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
         );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
         op.callData = abi.encodePacked(
@@ -918,12 +936,18 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         givenValidationTypeIsPermission
     {
         // Manually install permission with execute selector allowed
+        // Policy only needs permissionId in internalData
         kernel.installModule(
             5,
             address(policy),
+            abi.encode(hex"deadbeef", abi.encodePacked(permissionId))
+        );
+        // Signer gets permissionId + hook + selectors in internalData
+        kernel.installModule(
+            6,
+            address(signer),
             abi.encode(hex"deadbeef", abi.encodePacked(permissionId, address(0), Kernel.execute.selector))
         );
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
 
         PackedUserOperation memory op = _createUserOpWithPermissionValidation();
         op.callData = abi.encodePacked(
@@ -993,7 +1017,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         external
         entryPointTest
         whenCallerIsEntryPointOrSelf
-        givenValidationModeHasEnableFlagSet
+        givenTheValidationModeHasEnableFlagSet
         givenEnableSignatureIsValidAndNonceUnused
     {
         PackedUserOperation memory op = _createUserOpWithEnableMode();
@@ -1016,7 +1040,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         external
         entryPointTest
         whenCallerIsEntryPointOrSelf
-        givenValidationModeHasEnableFlagSet
+        givenTheValidationModeHasEnableFlagSet
         givenEnableSignatureIsInvalid
     {
         PackedUserOperation memory op = _createUserOpWithEnableMode();
@@ -1238,11 +1262,14 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
     }
 
     function _installPermissionWithSelectorPolicy() internal {
-        bytes memory internalData = _selectorAllowed
+        // Policy only needs permissionId in internalData (4 bytes)
+        bytes memory policyInternalData = abi.encodePacked(permissionId);
+        // Signer gets permissionId + hook + selectors in internalData
+        bytes memory signerInternalData = _selectorAllowed
             ? abi.encodePacked(permissionId, _selectorHook, Kernel.execute.selector)
             : abi.encodePacked(permissionId);
-        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", internalData));
-        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", internalData));
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", policyInternalData));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", signerInternalData));
     }
 
     function _createBasicUserOp() internal view returns (PackedUserOperation memory) {
