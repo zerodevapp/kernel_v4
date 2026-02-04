@@ -11,6 +11,7 @@ import {
     InvalidNonce,
     InvalidValidator,
     InvalidPermissionId,
+    InvalidSignature,
     NotImplemented,
     Unauthorized
 } from "../types/Error.sol";
@@ -264,7 +265,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         _moduleStorage().nonce[nonceKey] = seq;
     }
 
-    function _checkAndIncrementNonce(uint256 _nonce) internal virtual returns (bool) {
+    function _checkAndIncrementNonce(uint256 _nonce) internal virtual {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -272,18 +273,21 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
             _moduleStorage().nonce[key] = _moduleStorage().nonceValidFrom;
         }
-        return _moduleStorage().nonce[key]++ == seq;
+        require(_moduleStorage().nonce[key]++ == seq, InvalidNonce());
     }
 
-    function _checkNonce(uint256 _nonce) internal view virtual returns (bool) {
+    function _checkNonce(uint256 _nonce) internal view virtual {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 seq = uint64(_nonce);
+        bool result;
         if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
-            return seq == _moduleStorage().nonceValidFrom;
+            result = seq == _moduleStorage().nonceValidFrom;
+        } else {
+            result = _moduleStorage().nonce[key] == seq;
         }
-        return _moduleStorage().nonce[key] == seq;
+        require(result, InvalidNonce());
     }
 
     function _verifyInstallSignatureRaw(
@@ -295,7 +299,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         ValidationId vId = _validationStorage().root;
         function(bytes32) internal view returns (bytes32) hashTypedData =
             replayable ? _hashTypedDataSansChainId : _hashTypedData;
-        require(_checkNonce(_nonce), InvalidNonce());
+        _checkNonce(_nonce);
         bytes32 digest =
             hashTypedData(EfficientHashLib.hash(INSTALL_PACKAGES_STRUCT_HASH, bytes32(_nonce), _installHash(packages)));
         return _verifySignature(vId, address(this), digest, signature);
@@ -328,6 +332,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
             assembly {
                 permissionSig := signature.offset
             }
+            require(permissionSig.signatures.length > 0, InvalidSignature());
             uint256 sigIdx;
             for (uint256 i; i < packages.length; i++) {
                 Install calldata pkg = packages[i];

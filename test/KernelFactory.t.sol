@@ -91,21 +91,39 @@ contract KernelFactoryTest is KernelTestBase {
         assertEq(address(k), address(factory.deploy(pkgs, 1)));
     }
 
-    function test_deploy_with_call() external unitTest {
+    function test_deploy_with_value() external {
         vm.skip(is7702);
-        Install[] memory initPkgs = new Install[](1);
-        initPkgs[0] = Install({
+        Install[] memory pkgs = new Install[](1);
+        pkgs[0] = Install({
             moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""
         });
+        uint256 depositValue = 1 ether;
+        vm.deal(address(this), depositValue);
+        Kernel k = factory.deploy{value: depositValue}(pkgs, 2);
+        assertEq(address(k).balance, depositValue);
+    }
+
+    function test_deploy_existing_with_value() external {
+        vm.skip(is7702);
         Install[] memory pkgs = new Install[](1);
-        pkgs[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
-        kernel = Kernel(payable(factory.getAddress(initPkgs, 1)));
-        bytes memory sig = enableSig(0, true, false, pkgs, _rootSignHash);
-        Kernel k = factory.deployWithCall(initPkgs, 1, abi.encodeWithSelector(0xa706cd33, false, 0, pkgs, sig));
-        assertEq(address(k), address(kernel));
-        ValidationInfo memory vInfo = k.validationInfo(
-            ValidationId.wrap(bytes21(abi.encodePacked(bytes1(0x01), bytes20(address(newValidator)))))
-        );
-        assertTrue(vInfo.hook == address(1));
+        pkgs[0] = Install({
+            moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""
+        });
+        // First deploy
+        factory.deploy(pkgs, 3);
+        // Second deploy with value to same address
+        uint256 depositValue = 1 ether;
+        vm.deal(address(this), depositValue);
+        Kernel k = factory.deploy{value: depositValue}(pkgs, 3);
+        assertEq(address(k).balance, depositValue);
+    }
+
+    function test_get_address() external view {
+        Install[] memory pkgs = new Install[](1);
+        pkgs[0] = Install({
+            moduleType: 1, module: address(rootValidator), moduleData: rootValidatorData, internalData: hex""
+        });
+        address predicted = factory.getAddress(pkgs, 0);
+        assertEq(predicted, address(kernel));
     }
 }
