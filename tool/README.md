@@ -97,6 +97,12 @@ Show warnings:
 python3 tool/erc7201_check.py --verbose
 ```
 
+Fix mismatched constants:
+
+```bash
+python3 tool/erc7201_check.py --fix
+```
+
 ## Requirements
 
 - Foundry installed (`cast` is used for `keccak256`)
