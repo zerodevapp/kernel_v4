@@ -55,3 +55,5 @@ error AlreadyInitialized(address smartAccount);
 error NotInitialized(address smartAccount);
 
 error InvalidTargetAddress(address target);
+
+error ValidityFormatMismatch();
