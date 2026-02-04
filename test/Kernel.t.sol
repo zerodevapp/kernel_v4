@@ -24,6 +24,7 @@ import {KernelValidatorTest} from "./KernelValidatorTest.sol";
 import {KernelExecuteTest} from "./KernelExecuteTest.sol";
 import {KernelSelectorTest} from "./KernelSelectorTest.sol";
 import {KernelHookTest} from "./KernelHookTest.sol";
+import {ChainAgnosticHashHelper} from "./utils/ChainAgnosticHashHelper.sol";
 import {PermissionId} from "src/types/Types.sol";
 
 contract KernelTest is
@@ -51,6 +52,7 @@ contract KernelTest is
         policy = new MockPolicy();
         signer = new MockSigner();
         hook = new MockHook();
+        hashHelper = new ChainAgnosticHashHelper();
         permissionId = PermissionId.wrap(bytes4(keccak256(abi.encodePacked("Hello world"))));
         _initialize();
     }
