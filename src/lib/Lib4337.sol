@@ -11,8 +11,6 @@ import {ValidityFormatMismatch} from "../types/Error.sol";
 library Lib4337 {
     /// @dev Highest bit of uint48, indicates block number mode when set on both validAfter and validUntil
     uint48 internal constant MODE_BIT = 0x800000000000;
-    bytes32 internal constant DOMAIN_TYPEHASH_SANS_CHAIN_ID =
-        0x91ab3d17e3a50a9d89e63fd30b92be7f5336b03b287bb946787a83a9d62a2766;
 
     function chainAgnosticUserOpHash(address ep, PackedUserOperation calldata userOp) external view returns (bytes32) {
         bytes32 overrideInitCodeHash = Eip7702Support._getEip7702InitCodeHashOverride(userOp);
