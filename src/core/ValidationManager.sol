@@ -6,7 +6,6 @@ import {
     InvalidRootValidation,
     ModuleInstallFailed,
     OccupiedValidationId,
-    ModuleInstallFailed,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
     InvalidValidationType,
@@ -23,7 +22,10 @@ import {
     VALIDATION_TYPE_VALIDATOR,
     VALIDATION_TYPE_PERMISSION,
     VALIDATION_TYPE_FALLBACK,
-    ERC1271_MAGICVALUE
+    ERC1271_MAGICVALUE,
+    MODULE_TYPE_VALIDATOR,
+    MODULE_TYPE_POLICY,
+    MODULE_TYPE_SIGNER
 } from "../types/Constants.sol";
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
@@ -329,9 +331,9 @@ abstract contract ValidationManager {
 
     function _setRoot(Install calldata pkg) internal {
         ValidationId vId;
-        if (pkg.moduleType == 1) {
+        if (pkg.moduleType == MODULE_TYPE_VALIDATOR) {
             vId = validatorToIdentifier(IValidator(address(bytes20(pkg.module))));
-        } else if (pkg.moduleType == 5 || pkg.moduleType == 6) {
+        } else if (pkg.moduleType == MODULE_TYPE_POLICY || pkg.moduleType == MODULE_TYPE_SIGNER) {
             vId = permissionToIdentifier(PermissionId.wrap(bytes4(pkg.internalData[0:4])));
         } else {
             revert InvalidRootValidation();
