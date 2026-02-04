@@ -368,8 +368,8 @@ abstract contract Kernel_setRoot is BTTModifiers {
         // This case would only occur if the root was manually set to an invalid state
         // We use vm.store to simulate this edge case for coverage
 
-        // VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e
-        bytes32 validationStorageSlot = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260e;
+        // VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260c
+        bytes32 validationStorageSlot = 0xded5d420c407eac3c615e6abe13ab4a0bd7173e5045ea543765b46f0df6e260c;
 
         // Create a malformed root ValidationId with type 0x00 (ROOT type) but non-zero ID
         // ValidationId is bytes21: first byte = type, next 20 bytes = ID
