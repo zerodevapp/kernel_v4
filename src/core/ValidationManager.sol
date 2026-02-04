@@ -294,7 +294,7 @@ abstract contract ValidationManager {
             address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
         //validationData = success ? abi.decode(ret, (uint256)) : 1;
         // forge-lint: disable-next-line(unsafe-typecast)
-        validationData = success ? uint256(bytes32(ret)) : 1;
+        validationData = (success && ret.length >= 32) ? uint256(bytes32(ret)) : 1;
     }
 
     function _validateUserOpPermission(
