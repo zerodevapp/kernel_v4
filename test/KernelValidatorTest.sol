@@ -7,9 +7,10 @@ import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
-import {InvalidRootValidation, InvalidNonce, NotInstalled} from "src/types/Error.sol";
+import {InvalidRootValidation, InvalidNonce, NotInstalled, UnauthorizedCallData} from "src/types/Error.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
 import {permissionToIdentifier, validatorToIdentifier} from "src/lib/Utils.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 abstract contract KernelValidatorTest is KernelTestBase {
     function caller() external view returns (address) {
@@ -49,7 +50,14 @@ abstract contract KernelValidatorTest is KernelTestBase {
             assertEq(hook.preHookData(address(kernel)), hex"");
         }
         if (!success) {
-            vm.expectRevert();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IEntryPoint.FailedOpWithRevert.selector,
+                    0,
+                    "AA23 reverted",
+                    abi.encodeWithSelector(UnauthorizedCallData.selector)
+                )
+            );
         }
         ep.handleOps(ops, beneficiary);
         vm.startPrank(prevCaller);
@@ -89,7 +97,14 @@ abstract contract KernelValidatorTest is KernelTestBase {
             assertEq(hook.preHookData(address(kernel)), hex"");
         }
         if (!success) {
-            vm.expectRevert();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IEntryPoint.FailedOpWithRevert.selector,
+                    0,
+                    "AA23 reverted",
+                    abi.encodeWithSelector(UnauthorizedCallData.selector)
+                )
+            );
         }
         vm.startPrank(beneficiary, beneficiary);
         ep.handleOps(ops, beneficiary);
