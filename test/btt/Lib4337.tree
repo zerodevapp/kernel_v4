@@ -31,7 +31,15 @@ Lib4337_Test
     │   │   └── it should use validAfter2 in the result
     │   ├── given validAfter1 is greater than or equal to validAfter2
     │   │   └── it should use validAfter1 in the result
-    │   ├── given preValidationData result is 1 for aggregator
+    │   ├── given either result is 1
     │   │   └── it should return 1 as the result address
-    │   └── given preValidationData result is not 1
-    │       └── it should return validationRes result address
+    │   ├── given both results are 0
+    │   │   └── it should return 0 as the result address
+    │   ├── given preValidationData has aggregator and validationRes is success
+    │   │   └── it should preserve preValidationData aggregator
+    │   ├── given preValidationData is success and validationRes has aggregator
+    │   │   └── it should adopt validationRes aggregator
+    │   ├── given both have the same aggregator
+    │   │   └── it should return that aggregator
+    │   └── given both have different aggregators
+    │       └── it should return 1 as the result address
