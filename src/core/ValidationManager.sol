@@ -354,6 +354,9 @@ abstract contract ValidationManager {
             InvalidValidationType()
         );
         ValidationStorage storage $ = _validationStorage();
+        if (ValidationId.unwrap(vId) != bytes21(0)) {
+            require($.vInfo[vId].hook > address(0), InvalidVid(vId));
+        }
         $.root = vId;
     }
 }

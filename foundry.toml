@@ -22,6 +22,10 @@ ignored_error_codes = [9302, 2072, 5667, 2018, 2394]
 runs = 1000
 depth = 1000
 
+[profile.ci.invariant]
+runs = 10
+depth = 10
+
 [dependencies]
 solady = "0.1.26"
 eth-infinitism-account-abstraction = { version = "0.9.0", git = "https://github.com/eth-infinitism/account-abstraction.git", branch = "release-v09" }
