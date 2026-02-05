@@ -261,6 +261,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         _onlyEntryPointOrSelf();
         require(pkg.length > 0, InvalidInitialization());
         ValidationId vId = _validationStorage().root;
+        _install(pkg);
         _setRoot(pkg[0]);
         if (removeCurrent) {
             ValidationType vType = getType(vId);
@@ -304,7 +305,6 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 revert InvalidRootValidation();
             }
         }
-        _install(pkg);
     }
 
     function setRoot(ValidationId vId) external payable {
