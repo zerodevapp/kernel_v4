@@ -8,7 +8,9 @@ that should not be in production code.
 import argparse
 import re
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
+
+from sol_utils import iter_sol_files, strip_comments
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,50 +28,6 @@ CONSOLE_IMPORT_RE = re.compile(
     r'^\s*import\s+[^;]*["\'](?:forge-std/)?(?:console2?|Test)\.sol["\']',
     re.MULTILINE,
 )
-
-
-def iter_sol_files(paths: Iterable[Path]) -> Iterable[Path]:
-    for path in paths:
-        if path.is_file() and path.suffix == ".sol":
-            yield path
-        elif path.is_dir():
-            yield from path.rglob("*.sol")
-
-
-def strip_comments(lines: List[str]) -> str:
-    """Strip single-line and multi-line comments while preserving line numbers."""
-    out_lines: List[str] = []
-    in_block = False
-    for line in lines:
-        i = 0
-        res = ""
-        while i < len(line):
-            if in_block:
-                end = line.find("*/", i)
-                if end == -1:
-                    res += " " * (len(line) - i)
-                    i = len(line)
-                else:
-                    res += " " * (end + 2 - i)
-                    i = end + 2
-                    in_block = False
-            else:
-                start_block = line.find("/*", i)
-                start_line = line.find("//", i)
-                if start_line != -1 and (start_block == -1 or start_line < start_block):
-                    res += line[i:start_line]
-                    res += " " * (len(line) - start_line)
-                    i = len(line)
-                elif start_block != -1:
-                    res += line[i:start_block]
-                    res += "  "
-                    i = start_block + 2
-                    in_block = True
-                else:
-                    res += line[i:]
-                    i = len(line)
-        out_lines.append(res)
-    return "\n".join(out_lines)
 
 
 def find_console_logs(text: str) -> List[Tuple[int, str]]:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for release_check.py — verifies release descriptor integrity.
+"""Tests for release_check.py -- verifies release descriptor integrity.
 
 Runs two layers of verification:
   1. Python-based: validates JSON structure, bytecode matching, init_code
@@ -13,55 +13,22 @@ Usage:
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT_DIR = ROOT / "out"
+# Add tool/ to sys.path so we can import release_check
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from release_check import (
+    ROOT,
+    compute_create2_address,
+    get_bytecode,
+    keccak256,
+)
+
 RELEASES_DIR = ROOT / "releases"
-
-
-# ─── Helpers ────────────────────────────────────────────────────────
-
-
-def keccak256(hex_data: str) -> str:
-    """Compute keccak256 hash using cast."""
-    result = subprocess.run(
-        ["cast", "keccak", hex_data],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"cast keccak failed: {result.stderr}")
-    return result.stdout.strip()
-
-
-def get_artifact_bytecode(contract_name: str) -> str | None:
-    """Get compiled creation bytecode from Foundry artifacts."""
-    for json_file in OUT_DIR.rglob(f"{contract_name}.json"):
-        try:
-            with open(json_file) as f:
-                artifact = json.load(f)
-            bytecode = artifact.get("bytecode", {}).get("object", "")
-            if bytecode and bytecode != "0x":
-                return bytecode
-        except (json.JSONDecodeError, KeyError):
-            continue
-    return None
-
-
-def compute_create2_address(factory: str, salt: str, init_code_hex: str) -> str:
-    """Compute CREATE2 address: keccak256(0xff ++ factory ++ salt ++ keccak256(init_code))[12:]"""
-    init_code_hash = keccak256(init_code_hex)
-
-    factory_bytes = factory.lower().replace("0x", "")
-    salt_bytes = salt.replace("0x", "")
-    hash_bytes = init_code_hash.replace("0x", "")
-
-    preimage = "ff" + factory_bytes + salt_bytes + hash_bytes
-    result = keccak256("0x" + preimage)
-    return "0x" + result[-40:]
 
 
 def abi_encode_address(addr: str) -> str:
@@ -69,13 +36,16 @@ def abi_encode_address(addr: str) -> str:
     return addr.lower().replace("0x", "").zfill(64)
 
 
-# ─── Test functions ─────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Test functions
+# ---------------------------------------------------------------------------
 
 
 def test_json_structure(release: dict, errors: list[str]) -> None:
     """Validate required fields exist with correct types."""
     if "version" not in release:
         errors.append("missing 'version'")
+
     if "create2" not in release:
         errors.append("missing 'create2'")
     else:
@@ -109,7 +79,7 @@ def test_bytecodes_match_artifacts(release: dict, errors: list[str]) -> None:
     for c in release.get("contracts", []):
         name = c["name"]
         release_bytecode = c.get("bytecode", "")
-        artifact_bytecode = get_artifact_bytecode(name)
+        artifact_bytecode = get_bytecode(name)
 
         if artifact_bytecode is None:
             errors.append(f"{name}: compiled artifact not found (run forge build)")
@@ -124,7 +94,7 @@ def test_init_code_integrity(release: dict, errors: list[str]) -> None:
     for c in release.get("contracts", []):
         name = c["name"]
         init_code = c.get("init_code", "")
-        artifact_bytecode = get_artifact_bytecode(name)
+        artifact_bytecode = get_bytecode(name)
 
         if not artifact_bytecode or not init_code:
             continue
@@ -149,12 +119,10 @@ def test_init_code_args(release: dict, errors: list[str]) -> None:
         args = c.get("arguments")
 
         if not args:
-            # No constructor args — init_code should equal bytecode
             if init_code.lower() != bytecode.lower():
                 errors.append(f"{name}: no args but init_code != bytecode")
             continue
 
-        # Reconstruct init_code from bytecode + encoded args
         encoded_args = ""
         for param in args.get("params", []):
             if param["type"] == "address":
@@ -200,23 +168,18 @@ def test_create2_addresses(release: dict, errors: list[str]) -> None:
 def test_deployment_chain(release: dict, errors: list[str]) -> None:
     """Verify dependency chain: constructor args reference correct computed addresses."""
     addresses: dict[str, str] = {}
-    factory = release.get("create2", {}).get("factory", "")
-    salt = release.get("create2", {}).get("salt", "")
 
     for c in release.get("contracts", []):
         name = c["name"]
         expected_address = c.get("expected_address", "")
 
-        # Check if any constructor arg references another contract's address
         args = c.get("arguments")
         if args:
             for param in args.get("params", []):
                 if param["type"] == "address":
                     value = param["value"].lower()
-                    # Check if this value matches a previously computed address
                     for dep_name, dep_addr in addresses.items():
                         if value == dep_addr.lower():
-                            # Verify the referenced address was correctly computed
                             break
 
         if expected_address:
@@ -226,22 +189,18 @@ def test_deployment_chain(release: dict, errors: list[str]) -> None:
 def run_forge_test() -> bool:
     """Run the Solidity ReleaseVerification test via forge."""
     print("\nRunning Solidity release verification tests...")
+    env = {**os.environ, "FOUNDRY_PROFILE": "release-check"}
     result = subprocess.run(
-        [
-            "forge", "test",
-            "--match-contract", "ReleaseVerificationTest",
-            "-vvv",
-        ],
+        ["forge", "test", "--match-contract", "ReleaseVerificationTest", "-vvv"],
         cwd=str(ROOT),
-        env={
-            **__import__("os").environ,
-            "FOUNDRY_PROFILE": "release-check",
-        },
+        env=env,
     )
     return result.returncode == 0
 
 
-# ─── Main ───────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 
 def main() -> int:
@@ -266,7 +225,6 @@ def main() -> int:
     with open(release_path) as f:
         release = json.load(f)
 
-    # Run Python tests
     tests = [
         ("JSON structure", test_json_structure),
         ("Bytecodes match artifacts", test_bytecodes_match_artifacts),
@@ -288,7 +246,6 @@ def main() -> int:
         else:
             print(f"  OK    {label}")
 
-    # Run Solidity tests
     forge_ok = True
     if not args.skip_forge:
         forge_ok = run_forge_test()
@@ -307,4 +264,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

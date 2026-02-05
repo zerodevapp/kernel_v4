@@ -15,7 +15,6 @@ Usage:
 import argparse
 import json
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,10 +68,10 @@ def main() -> int:
         for err in errors:
             print(err)
         return 1
-    else:
-        print("LINK REFERENCE CHECK PASSED")
-        return 0
+
+    print("LINK REFERENCE CHECK PASSED")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -13,8 +13,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple, Dict
+from typing import Dict, List, Tuple
 
+from sol_utils import colorize, iter_sol_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -109,14 +110,6 @@ def find_next_bytes32_constant(lines: List[str], start_idx: int) -> Tuple[int, s
         if hex_value:
             return (i + 1, name, hex_value)
     return None
-
-
-def iter_sol_files(paths: Iterable[Path]) -> Iterable[Path]:
-    for path in paths:
-        if path.is_file() and path.suffix == ".sol":
-            yield path
-        elif path.is_dir():
-            yield from path.rglob("*.sol")
 
 
 def check_file(
@@ -274,13 +267,6 @@ def main() -> int:
         for item in found:
             print(f"- {item}")
         print()
-
-    def colorize(text: str, color: str) -> str:
-        codes = {"red": "31", "green": "32"}
-        code = codes.get(color)
-        if not code:
-            return text
-        return f"\x1b[{code}m{text}\x1b[0m"
 
     if args.verbose and records:
         print("RESULTS:")
