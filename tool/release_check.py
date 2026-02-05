@@ -4,15 +4,18 @@ Release configuration checker for Kernel v4.
 
 Validates that each release includes a complete and valid release descriptor containing:
 1. Foundry config (solc version, optimizer settings)
-2. Contract bytecodes
-3. Deployment verification data
+2. Contract bytecodes with encoded constructor arguments
+3. Expected CREATE2 deployment addresses
+4. Deployment verification data
 
 The release descriptor should be a JSON file (e.g., releases/v0.4.0.json) containing
 all information needed to verify a deployment matches the expected state.
 """
 import argparse
+import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,6 +24,39 @@ ROOT = Path(__file__).resolve().parents[1]
 FOUNDRY_TOML = ROOT / "foundry.toml"
 RELEASES_DIR = ROOT / "releases"
 OUT_DIR = ROOT / "out"
+
+# Deterministic CREATE2 factory (nick's factory)
+CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+CREATE2_SALT = "0x" + "00" * 32
+
+# EntryPoint v0.9.0 canonical address
+ENTRYPOINT_V09 = "0x433709009B8330FDa32311DF1C2AFA402eD8D009"
+
+# Contract deployment order and constructor argument definitions.
+# Arguments reference either a constant or another contract's computed address.
+# Contracts are listed in deploy order (dependencies first).
+DEPLOY_ORDER = [
+    {
+        "name": "Staker",
+        "args": [],  # owner is per-deployment, not encoded
+    },
+    {
+        "name": "KernelUUPS",
+        "args": [("address", ENTRYPOINT_V09)],
+    },
+    {
+        "name": "KernelImmutableECDSA",
+        "args": [("address", ENTRYPOINT_V09)],
+    },
+    {
+        "name": "KernelFactory",
+        "args": [("address", "@KernelUUPS"), ("address", "@KernelImmutableECDSA")],
+    },
+    {
+        "name": "Kernel7702",
+        "args": [("address", ENTRYPOINT_V09)],
+    },
+]
 
 # Required fields in release descriptor
 REQUIRED_FIELDS = {
@@ -34,18 +70,6 @@ REQUIRED_FIELDS = {
     "contracts": list,
 }
 
-# Required fields per contract
-REQUIRED_CONTRACT_FIELDS = {
-    "name": str,
-    "bytecode": str,
-}
-
-OPTIONAL_CONTRACT_FIELDS = {
-    "address": str,  # Optional: deployment address
-    "init_code_hash": str,  # Optional: for CREATE2
-    "source_hash": str,  # Optional: source code hash
-}
-
 
 def parse_foundry_toml(path: Path) -> Dict[str, Any]:
     """Parse foundry.toml and extract relevant config."""
@@ -55,7 +79,6 @@ def parse_foundry_toml(path: Path) -> Dict[str, Any]:
     config = {}
     text = path.read_text()
 
-    # Simple TOML parsing for the fields we care about
     patterns = {
         "solc_version": r"solc_version\s*=\s*['\"]([^'\"]+)['\"]",
         "optimizer": r"optimizer\s*=\s*(true|false)",
@@ -97,6 +120,72 @@ def get_bytecode(contract_name: str) -> Optional[str]:
     return None
 
 
+def keccak256(hex_data: str) -> str:
+    """Compute keccak256 hash using cast."""
+    result = subprocess.run(
+        ["cast", "keccak", hex_data],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"cast keccak failed: {result.stderr}")
+    return result.stdout.strip()
+
+
+def abi_encode_args(arg_types: list[tuple[str, str]]) -> str:
+    """ABI-encode constructor arguments.
+
+    Returns hex string without 0x prefix, or empty string if no args.
+    """
+    if not arg_types:
+        return ""
+
+    parts = []
+    for typ, value in arg_types:
+        if typ == "address":
+            # Pad address to 32 bytes
+            addr = value.lower().replace("0x", "")
+            parts.append(addr.zfill(64))
+        else:
+            raise ValueError(f"Unsupported ABI type: {typ}")
+
+    return "".join(parts)
+
+
+def compute_create2_address(factory: str, salt: str, init_code_hex: str) -> str:
+    """Compute CREATE2 address.
+
+    address = keccak256(0xff ++ factory ++ salt ++ keccak256(init_code))[12:]
+    """
+    init_code_hash = keccak256(init_code_hex)
+
+    factory_bytes = factory.lower().replace("0x", "")
+    salt_bytes = salt.replace("0x", "")
+    hash_bytes = init_code_hash.replace("0x", "")
+
+    preimage = "ff" + factory_bytes + salt_bytes + hash_bytes
+    result = keccak256("0x" + preimage)
+    # Take last 20 bytes (40 hex chars)
+    addr = "0x" + result[-40:]
+    return addr
+
+
+def resolve_args(
+    arg_defs: list[tuple[str, str]],
+    addresses: dict[str, str],
+) -> list[tuple[str, str]]:
+    """Resolve argument definitions, replacing @ContractName references with computed addresses."""
+    resolved = []
+    for typ, value in arg_defs:
+        if value.startswith("@"):
+            contract_ref = value[1:]
+            if contract_ref not in addresses:
+                raise ValueError(f"Contract {contract_ref} not yet deployed (check DEPLOY_ORDER)")
+            value = addresses[contract_ref]
+        resolved.append((typ, value))
+    return resolved
+
+
 def validate_release_descriptor(path: Path, errors: List[str], warnings: List[str]) -> Dict:
     """Validate a release descriptor file."""
     try:
@@ -128,21 +217,22 @@ def validate_release_descriptor(path: Path, errors: List[str], warnings: List[st
         warnings.append(f"{path.name}: no contracts listed")
 
     for i, contract in enumerate(contracts):
-        for field, expected_type in REQUIRED_CONTRACT_FIELDS.items():
-            if field not in contract:
-                errors.append(f"{path.name}: contract[{i}] missing '{field}'")
-            elif not isinstance(contract[field], expected_type):
-                errors.append(f"{path.name}: contract[{i}].{field} has wrong type")
+        name = contract.get("name", f"contract[{i}]")
+        if "name" not in contract:
+            errors.append(f"{path.name}: {name} missing 'name'")
+        if "bytecode" not in contract:
+            errors.append(f"{path.name}: {name} missing 'bytecode'")
 
-        # Validate bytecode format (should start with 0x and be valid hex)
-        bytecode = contract.get("bytecode", "")
-        if bytecode and not re.match(r"^0x[a-fA-F0-9]+$", bytecode):
-            errors.append(f"{path.name}: contract[{i}].bytecode invalid format")
+        # Validate hex formats
+        for field in ("bytecode", "init_code"):
+            val = contract.get(field, "")
+            if val and not re.match(r"^0x[a-fA-F0-9]+$", val):
+                errors.append(f"{path.name}: {name}.{field} invalid hex format")
 
-        # Validate address format if present
-        address = contract.get("address", "")
-        if address and not re.match(r"^0x[a-fA-F0-9]{40}$", address):
-            errors.append(f"{path.name}: contract[{i}].address invalid format")
+        for field in ("expected_address",):
+            val = contract.get(field, "")
+            if val and not re.match(r"^0x[a-fA-F0-9]{40}$", val):
+                errors.append(f"{path.name}: {name}.{field} invalid address format")
 
     return release
 
@@ -175,56 +265,113 @@ def verify_foundry_config(release: Dict, errors: List[str], warnings: List[str])
 
 
 def verify_bytecodes(release: Dict, errors: List[str], warnings: List[str], verbose: bool) -> None:
-    """Verify bytecodes match compiled artifacts."""
+    """Verify bytecodes and init_codes match compiled artifacts and computed addresses."""
     contracts = release.get("contracts", [])
+    addresses: dict[str, str] = {}
 
     for contract in contracts:
         name = contract.get("name", "unknown")
-        expected = contract.get("bytecode", "")
 
-        if not expected:
+        # Verify raw bytecode matches artifact
+        expected_bytecode = contract.get("bytecode", "")
+        if not expected_bytecode:
             warnings.append(f"{name}: no bytecode specified")
             continue
 
-        actual = get_bytecode(name)
-
-        if actual is None:
+        actual_bytecode = get_bytecode(name)
+        if actual_bytecode is None:
             warnings.append(f"{name}: compiled artifact not found (run forge build)")
-        else:
-            if actual.lower() != expected.lower():
-                errors.append(f"{name}: bytecode mismatch")
-            elif verbose:
-                print(f"  {name}: bytecode verified")
+            continue
+
+        if actual_bytecode.lower() != expected_bytecode.lower():
+            errors.append(f"{name}: bytecode mismatch")
+            continue
+
+        # Verify init_code = bytecode + encoded args
+        init_code = contract.get("init_code", "")
+        args = contract.get("arguments", {})
+        if args:
+            arg_hex = abi_encode_args([(a["type"], a["value"]) for a in args.get("params", [])])
+            expected_init = actual_bytecode + arg_hex
+            if init_code and init_code.lower() != ("0x" + expected_init.replace("0x", "")).lower():
+                errors.append(f"{name}: init_code does not match bytecode + encoded arguments")
+                continue
+
+        # Verify expected_address via CREATE2
+        expected_addr = contract.get("expected_address", "")
+        if expected_addr and init_code:
+            computed = compute_create2_address(CREATE2_FACTORY, CREATE2_SALT, init_code)
+            if computed.lower() != expected_addr.lower():
+                errors.append(
+                    f"{name}: expected_address mismatch\n"
+                    f"    release:  {expected_addr}\n"
+                    f"    computed: {computed}"
+                )
+                continue
+
+        if expected_addr:
+            addresses[name] = expected_addr
+
+        if verbose:
+            suffix = f" @ {expected_addr}" if expected_addr else ""
+            print(f"  {name}: verified{suffix}")
 
 
 def generate_release_template(version: str, output_path: Path) -> None:
-    """Generate a release descriptor template."""
+    """Generate a release descriptor template with constructor args and CREATE2 addresses."""
     config = parse_foundry_toml(FOUNDRY_TOML)
-
-    # Find main contracts in src/
     contracts = []
     skipped = []
-    src_dir = ROOT / "src"
-    for sol_file in src_dir.glob("*.sol"):
-        if sol_file.name.startswith("I"):  # Skip interfaces
-            continue
-        contract_name = sol_file.stem
-        bytecode = get_bytecode(contract_name)
+    addresses: dict[str, str] = {}
 
+    for spec in DEPLOY_ORDER:
+        name = spec["name"]
+        arg_defs = spec["args"]
+
+        bytecode = get_bytecode(name)
         if bytecode is None:
-            skipped.append(contract_name)
+            skipped.append(name)
             continue
 
-        contracts.append({
-            "name": contract_name,
+        # Resolve constructor arguments (replace @ContractName with computed addresses)
+        resolved_args = resolve_args(arg_defs, addresses)
+        encoded_args = abi_encode_args(resolved_args)
+
+        # init_code = bytecode + encoded constructor args
+        bytecode_hex = bytecode.replace("0x", "")
+        init_code = "0x" + bytecode_hex + encoded_args
+
+        # Compute CREATE2 address
+        expected_address = compute_create2_address(CREATE2_FACTORY, CREATE2_SALT, init_code)
+        addresses[name] = expected_address
+
+        # Build contract entry
+        entry: dict[str, Any] = {
+            "name": name,
             "bytecode": bytecode,
-        })
+        }
+
+        if resolved_args:
+            entry["arguments"] = {
+                "constructor": " | ".join(t for t, _ in resolved_args),
+                "params": [{"type": t, "value": v} for t, v in resolved_args],
+            }
+
+        entry["init_code"] = init_code
+        entry["expected_address"] = expected_address
+
+        contracts.append(entry)
+        print(f"  {name} -> {expected_address}")
 
     if skipped:
         print(f"Skipped (abstract or no bytecode): {', '.join(skipped)}")
 
     release = {
         "version": version,
+        "create2": {
+            "factory": CREATE2_FACTORY,
+            "salt": CREATE2_SALT,
+        },
         "foundry": {
             "solc_version": config.get("solc_version", ""),
             "optimizer": config.get("optimizer", True),
@@ -262,7 +409,7 @@ def main() -> int:
     parser.add_argument(
         "--verify-bytecode",
         action="store_true",
-        help="verify bytecodes match compiled artifacts",
+        help="verify bytecodes, init_codes, and addresses match",
     )
     parser.add_argument(
         "--verbose", "-v",
