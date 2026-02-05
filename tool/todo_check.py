@@ -8,19 +8,13 @@ resolved before deployment.
 import argparse
 import re
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
+
+from sol_utils import iter_sol_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
 TODO_RE = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b\s*:?\s*(.*)", re.IGNORECASE)
-
-
-def iter_sol_files(paths: Iterable[Path]) -> Iterable[Path]:
-    for path in paths:
-        if path.is_file() and path.suffix == ".sol":
-            yield path
-        elif path.is_dir():
-            yield from path.rglob("*.sol")
 
 
 def find_todos(text: str) -> List[Tuple[int, str, str]]:

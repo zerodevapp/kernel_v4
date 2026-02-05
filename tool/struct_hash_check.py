@@ -21,7 +21,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple, Dict
+from typing import Dict, List, Tuple
+
+from sol_utils import colorize, iter_sol_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,14 +102,6 @@ def extract_hex_value(assignment: str) -> str | None:
     value = m.group(0).lower()
     # Pad to 64 hex chars
     return f"0x{int(value, 16):064x}"
-
-
-def iter_sol_files(paths: Iterable[Path]) -> Iterable[Path]:
-    for path in paths:
-        if path.is_file() and path.suffix == ".sol":
-            yield path
-        elif path.is_dir():
-            yield from path.rglob("*.sol")
 
 
 def find_type_string_before_line(lines: List[str], const_line_idx: int) -> Tuple[str | None, int | None]:
@@ -292,14 +286,6 @@ def main() -> int:
         records.clear()
         for path in iter_sol_files([Path(p) for p in args.paths]):
             check_file(path, errors, warnings, records, [])
-
-    # Colorize output
-    def colorize(text: str, color: str) -> str:
-        codes = {"red": "31", "green": "32", "yellow": "33"}
-        code = codes.get(color)
-        if not code:
-            return text
-        return f"\x1b[{code}m{text}\x1b[0m"
 
     # Show results
     if args.verbose and records:

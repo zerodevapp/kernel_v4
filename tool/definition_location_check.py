@@ -290,7 +290,7 @@ def collect_misplaced_files(
 
     for sol_file in SRC_DIR.rglob("*.sol"):
         # Skip canonical files
-        if sol_file == ERROR_FILE or sol_file == EVENTS_FILE or sol_file == CONSTANTS_FILE:
+        if sol_file in {ERROR_FILE, EVENTS_FILE, CONSTANTS_FILE}:
             continue
 
         # Skip interface files if requested
