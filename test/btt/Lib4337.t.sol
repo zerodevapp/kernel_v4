@@ -223,38 +223,82 @@ abstract contract Lib4337_Test is Test {
         assertEq(resultValidAfter, 300, "should use validAfter1 (larger value)");
     }
 
-    function test_GivenPreValidationDataResultIs1ForAggregator()
+    function test_GivenEitherResultIs1()
         external
         whenCallingIntersectValidationData
         givenBothValuesAreNon_zero
     {
-        // preValidationData result = 1 (aggregator marker)
+        // preValidationData result = 1 (failure)
         uint256 preValidationData = packValidationData(100, 1000, address(1));
         uint256 validationRes = packValidationData(100, 1000, address(0x5678));
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(1), "should return 1 when preValidationData is failure");
 
-        uint256 result = harness.intersectValidationData(preValidationData, validationRes);
-
-        // Extract result address
-        address resultAddr = address(uint160(result));
-        assertEq(resultAddr, address(1), "should return 1 as result when preValidationData result is 1");
+        // validationRes result = 1 (failure)
+        preValidationData = packValidationData(100, 1000, address(0x1234));
+        validationRes = packValidationData(100, 1000, address(1));
+        resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(1), "should return 1 when validationRes is failure");
     }
 
-    function test_GivenPreValidationDataResultIsNot1()
+    function test_GivenBothResultsAre0()
         external
         whenCallingIntersectValidationData
         givenBothValuesAreNon_zero
     {
-        // preValidationData result = 0x1234 (not 1)
+        uint256 preValidationData = packValidationData(100, 1000, address(0));
+        uint256 validationRes = packValidationData(100, 1000, address(0));
+
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(0), "should return 0 when both succeed");
+    }
+
+    function test_GivenPreValidationDataHasAggregatorAndValidationResIsSuccess()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        uint256 preValidationData = packValidationData(100, 1000, address(0x1234));
+        uint256 validationRes = packValidationData(100, 1000, address(0));
+
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(0x1234), "should preserve preValidationData aggregator");
+    }
+
+    function test_GivenPreValidationDataIsSuccessAndValidationResHasAggregator()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        uint256 preValidationData = packValidationData(100, 1000, address(0));
+        uint256 validationRes = packValidationData(100, 1000, address(0x5678));
+
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(0x5678), "should adopt validationRes aggregator");
+    }
+
+    function test_GivenBothHaveTheSameAggregator()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        uint256 preValidationData = packValidationData(100, 1000, address(0xABCD));
+        uint256 validationRes = packValidationData(100, 1000, address(0xABCD));
+
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(0xABCD), "should return the shared aggregator");
+    }
+
+    function test_GivenBothHaveDifferentAggregators()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
         uint256 preValidationData = packValidationData(100, 1000, address(0x1234));
         uint256 validationRes = packValidationData(100, 1000, address(0x5678));
 
-        uint256 result = harness.intersectValidationData(preValidationData, validationRes);
-
-        // Extract result address
-        address resultAddr = address(uint160(result));
-        assertEq(
-            resultAddr, address(0x5678), "should return validationRes result when preValidationData result is not 1"
-        );
+        address resultAddr = address(uint160(harness.intersectValidationData(preValidationData, validationRes)));
+        assertEq(resultAddr, address(1), "should return 1 (conflict) when aggregators differ");
     }
 }
 
