@@ -223,11 +223,7 @@ abstract contract Lib4337_Test is Test {
         assertEq(resultValidAfter, 300, "should use validAfter1 (larger value)");
     }
 
-    function test_GivenEitherResultIs1()
-        external
-        whenCallingIntersectValidationData
-        givenBothValuesAreNon_zero
-    {
+    function test_GivenEitherResultIs1() external whenCallingIntersectValidationData givenBothValuesAreNon_zero {
         // preValidationData result = 1 (failure)
         uint256 preValidationData = packValidationData(100, 1000, address(1));
         uint256 validationRes = packValidationData(100, 1000, address(0x5678));
@@ -241,11 +237,7 @@ abstract contract Lib4337_Test is Test {
         assertEq(resultAddr, address(1), "should return 1 when validationRes is failure");
     }
 
-    function test_GivenBothResultsAre0()
-        external
-        whenCallingIntersectValidationData
-        givenBothValuesAreNon_zero
-    {
+    function test_GivenBothResultsAre0() external whenCallingIntersectValidationData givenBothValuesAreNon_zero {
         uint256 preValidationData = packValidationData(100, 1000, address(0));
         uint256 validationRes = packValidationData(100, 1000, address(0));
 
