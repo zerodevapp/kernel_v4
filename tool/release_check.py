@@ -38,7 +38,7 @@ ENTRYPOINT_V09 = "0x433709009B8330FDa32311DF1C2AFA402eD8D009"
 DEPLOY_ORDER = [
     {
         "name": "Staker",
-        "args": [],  # owner is per-deployment, not encoded
+        "args": [("address", "0x9775137314fE595c943712B0b336327dfa80aE8A")],  # owner is per-deployment, not encoded
     },
     {
         "name": "KernelUUPS",
@@ -317,6 +317,139 @@ def verify_bytecodes(release: Dict, errors: List[str], warnings: List[str], verb
             print(f"  {name}: verified{suffix}")
 
 
+def _start_anvil(port: int) -> subprocess.Popen:
+    """Start an anvil instance and wait until it's ready."""
+    import time
+
+    anvil = subprocess.Popen(
+        ["anvil", "--port", str(port), "--silent"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    rpc = f"http://127.0.0.1:{port}"
+    for _ in range(40):
+        result = subprocess.run(
+            ["cast", "chain-id", "--rpc-url", rpc],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return anvil
+        time.sleep(0.25)
+
+    anvil.terminate()
+    anvil.wait()
+    raise RuntimeError("anvil failed to start")
+
+
+def verify_deploy_order(
+    release: Dict, errors: List[str], warnings: List[str], verbose: bool = False
+) -> None:
+    """Deploy contracts to a local anvil instance and verify expected addresses have code.
+
+    For each contract in DEPLOY_ORDER:
+      1. Build init_code from compiled artifact + resolved constructor args
+      2. Deploy via CREATE2 factory on anvil
+      3. Verify code exists at the expected address
+      4. Compare the expected address against the release JSON
+    """
+    import random
+
+    release_contracts = {c["name"]: c for c in release.get("contracts", [])}
+    deploy_names = {spec["name"] for spec in DEPLOY_ORDER}
+    computed_addresses: dict[str, str] = {}
+
+    # Check for release contracts not in DEPLOY_ORDER
+    for name in release_contracts:
+        if name not in deploy_names:
+            errors.append(f"{name}: in release but not listed in DEPLOY_ORDER")
+
+    # Pre-check: all artifacts must exist before starting anvil
+    for spec in DEPLOY_ORDER:
+        name = spec["name"]
+        if name not in release_contracts:
+            errors.append(f"{name}: listed in DEPLOY_ORDER but missing from release")
+            continue
+        if get_bytecode(name) is None:
+            errors.append(f"{name}: compiled artifact not found (run forge build)")
+
+    if errors:
+        return
+
+    port = random.randint(10000, 60000)
+    rpc = f"http://127.0.0.1:{port}"
+    # anvil account 0 private key
+    private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+    try:
+        anvil = _start_anvil(port)
+    except RuntimeError as e:
+        errors.append(str(e))
+        return
+
+    try:
+        for spec in DEPLOY_ORDER:
+            name = spec["name"]
+            contract = release_contracts[name]
+
+            # 1. Build init_code from artifact + DEPLOY_ORDER args
+            artifact_bytecode = get_bytecode(name)
+            resolved_args = resolve_args(spec["args"], computed_addresses)
+            encoded_args = abi_encode_args(resolved_args)
+            bytecode_hex = artifact_bytecode.replace("0x", "")
+            computed_init_code = "0x" + bytecode_hex + encoded_args
+
+            # 2. Deploy via CREATE2 factory
+            salt_hex = CREATE2_SALT.replace("0x", "")
+            init_hex = computed_init_code.replace("0x", "")
+            calldata = "0x" + salt_hex + init_hex
+
+            result = subprocess.run(
+                [
+                    "cast", "send",
+                    "--private-key", private_key,
+                    CREATE2_FACTORY, calldata,
+                    "--rpc-url", rpc,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                errors.append(f"{name}: CREATE2 deployment failed - {result.stderr.strip()}")
+                continue
+
+            # 3. Verify code exists at expected address
+            code_result = subprocess.run(
+                ["cast", "code", contract["expected_address"], "--rpc-url", rpc],
+                capture_output=True,
+                text=True,
+            )
+            code = code_result.stdout.strip()
+            if not code or code == "0x":
+                errors.append(
+                    f"{name}: no code at release expected_address {contract['expected_address']}"
+                )
+                continue
+
+            # 4. Compare release fields against computed values
+            release_init = contract.get("init_code", "")
+            if release_init.lower() != computed_init_code.lower():
+                errors.append(
+                    f"{name}: init_code mismatch\n"
+                    f"    computed: {computed_init_code[:80]}...\n"
+                    f"    release:  {release_init[:80]}..."
+                )
+
+            computed_addresses[name] = contract["expected_address"]
+
+            if verbose:
+                print(f"  {name}: deployed @ {contract['expected_address']}")
+
+    finally:
+        anvil.terminate()
+        anvil.wait()
+
+
 def generate_release_template(version: str, output_path: Path) -> None:
     """Generate a release descriptor template with constructor args and CREATE2 addresses."""
     config = parse_foundry_toml(FOUNDRY_TOML)
@@ -464,9 +597,10 @@ def main() -> int:
         # Verify foundry config matches
         verify_foundry_config(release, errors, warnings)
 
-        # Optionally verify bytecodes
+        # Optionally verify bytecodes and deploy
         if args.verify_bytecode:
             verify_bytecodes(release, errors, warnings, args.verbose)
+            verify_deploy_order(release, errors, warnings, args.verbose)
 
     # Report results
     if args.verbose:

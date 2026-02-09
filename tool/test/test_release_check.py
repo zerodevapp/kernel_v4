@@ -26,6 +26,7 @@ from release_check import (
     compute_create2_address,
     get_bytecode,
     keccak256,
+    verify_deploy_order,
 )
 
 RELEASES_DIR = ROOT / "releases"
@@ -166,24 +167,10 @@ def test_create2_addresses(release: dict, errors: list[str]) -> None:
 
 
 def test_deployment_chain(release: dict, errors: list[str]) -> None:
-    """Verify dependency chain: constructor args reference correct computed addresses."""
-    addresses: dict[str, str] = {}
-
-    for c in release.get("contracts", []):
-        name = c["name"]
-        expected_address = c.get("expected_address", "")
-
-        args = c.get("arguments")
-        if args:
-            for param in args.get("params", []):
-                if param["type"] == "address":
-                    value = param["value"].lower()
-                    for dep_name, dep_addr in addresses.items():
-                        if value == dep_addr.lower():
-                            break
-
-        if expected_address:
-            addresses[name] = expected_address
+    """Deploy contracts via CREATE2 on anvil and verify expected addresses have code."""
+    warnings: list[str] = []
+    verify_deploy_order(release, errors, warnings, verbose=True)
+    errors.extend(warnings)
 
 
 def run_forge_test() -> bool:
@@ -231,7 +218,7 @@ def main() -> int:
         ("init_code integrity", test_init_code_integrity),
         ("init_code args composition", test_init_code_args),
         ("CREATE2 addresses", test_create2_addresses),
-        ("Deployment chain", test_deployment_chain),
+        ("Args match DEPLOY_ORDER", test_deployment_chain),
     ]
 
     all_errors: list[str] = []
