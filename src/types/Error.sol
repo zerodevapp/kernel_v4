@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {ValidationId} from "./Types.sol";
 
+error ImplementationNotDeployed();
+
 error ModuleInstallFailed();
 error ModuleUninstallFailed();
 
