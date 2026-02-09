@@ -37,7 +37,13 @@ import {
     VALIDATION_TYPE_PERMISSION,
     VALIDATION_TYPE_VALIDATOR,
     CALLTYPE_SINGLE,
-    CALLTYPE_DELEGATECALL
+    CALLTYPE_DELEGATECALL,
+    MODULE_TYPE_VALIDATOR,
+    MODULE_TYPE_EXECUTOR,
+    MODULE_TYPE_FALLBACK,
+    MODULE_TYPE_HOOK,
+    MODULE_TYPE_POLICY,
+    MODULE_TYPE_SIGNER
 } from "./types/Constants.sol";
 import {
     ValidationStorage,
@@ -364,18 +370,18 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         override
         returns (bool)
     {
-        if (moduleTypeId == 1) {
+        if (moduleTypeId == MODULE_TYPE_VALIDATOR) {
             ValidationId vId = validatorToIdentifier(IValidator(module));
             return _validationStorage().vInfo[vId].hook != address(0);
-        } else if (moduleTypeId == 2) {
+        } else if (moduleTypeId == MODULE_TYPE_EXECUTOR) {
             return address(_executorConfig(IExecutor(module)).hook) != address(0);
-        } else if (moduleTypeId == 3) {
+        } else if (moduleTypeId == MODULE_TYPE_FALLBACK) {
             // forge-lint: disable-next-line(unsafe-typecast)
             bytes4 selector = bytes4(additionalContext);
             return _selectorConfig(selector).target == module;
-        } else if (moduleTypeId == 4) {
+        } else if (moduleTypeId == MODULE_TYPE_HOOK) {
             return _hookStorage().enabled[module];
-        } else if (moduleTypeId == 5) {
+        } else if (moduleTypeId == MODULE_TYPE_POLICY) {
             // forge-lint: disable-next-line(unsafe-typecast)
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
@@ -385,7 +391,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 }
             }
             return false;
-        } else if (moduleTypeId == 6) {
+        } else if (moduleTypeId == MODULE_TYPE_SIGNER) {
             // forge-lint: disable-next-line(unsafe-typecast)
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
