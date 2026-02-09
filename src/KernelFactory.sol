@@ -6,7 +6,7 @@ import {KernelUUPS} from "./KernelUUPS.sol";
 import {KernelImmutableECDSA} from "./KernelImmutableECDSA.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
-import {InvalidSigner} from "./types/Error.sol";
+import {InvalidSigner, ImplementationNotDeployed} from "./types/Error.sol";
 import {KernelDeployed} from "./types/Events.sol";
 
 contract KernelFactory {
@@ -14,6 +14,7 @@ contract KernelFactory {
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
 
     constructor(KernelUUPS _uups, KernelImmutableECDSA _immutableEcdsa) {
+        require(address(_uups).code.length > 0 && address(_immutableEcdsa).code.length > 0, ImplementationNotDeployed());
         UUPS = _uups;
         IMMUTABLE_ECDSA = _immutableEcdsa;
     }
