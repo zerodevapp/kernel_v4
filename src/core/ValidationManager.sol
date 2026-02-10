@@ -14,7 +14,8 @@ import {
     InvalidVid,
     InvalidDataLength,
     NotInstalled,
-    InvalidPermissionInstall
+    InvalidPermissionInstall,
+    InvalidSignature
 } from "../types/Error.sol";
 import {ValidationId, PermissionId, ValidationType} from "../types/Types.sol";
 import {
@@ -244,6 +245,7 @@ abstract contract ValidationManager {
             assembly {
                 permissionSig := _signature.offset
             }
+            require(permissionSig.signatures.length == vInfo.policies.length + 1, InvalidSignature());
             bytes32 paddedVId = bytes32(PermissionId.unwrap(getPermissionId(vId)));
             for (uint256 i = 0; i < vInfo.policies.length; i++) {
                 IPolicy policy = IPolicy(vInfo.policies[i]);
@@ -302,6 +304,7 @@ abstract contract ValidationManager {
             assembly {
                 permissionSig := userOpSignature.offset
             }
+            require(permissionSig.signatures.length == vInfo.policies.length + 1, InvalidSignature());
             bytes32 paddedVId = bytes32(PermissionId.unwrap(getPermissionId(vId)));
             for (uint256 i = 0; i < vInfo.policies.length; ++i) {
                 IPolicy policy = IPolicy(vInfo.policies[i]);
