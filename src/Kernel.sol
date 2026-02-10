@@ -25,6 +25,7 @@ import {
     Unauthorized,
     UnauthorizedCallData,
     InvalidSelector,
+    InvalidCallType,
     InstallSignatureVerificationFailed,
     InvalidDataLength,
     InvalidRootValidation,
@@ -161,7 +162,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         IHook hook = _validationHook(userOpHash);
         bytes memory context = _preHook(hook, userOp.callData[4:]);
         (bool success, bytes memory ret) = address(this).delegatecall(userOp.callData[4:]);
-        // propagete the revert message
+        // propagate the revert message
         if (!success) {
             assembly {
                 revert(add(ret, 0x20), mload(ret))
@@ -223,6 +224,8 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             success = _call($.target, 0, abi.encodePacked(msg.data, msg.sender));
         } else if ($.callType == CALLTYPE_DELEGATECALL) {
             success = _delegateCall($.target, msg.data);
+        } else {
+            revert InvalidCallType();
         }
         if (!success) {
             _onRevertThrow();
