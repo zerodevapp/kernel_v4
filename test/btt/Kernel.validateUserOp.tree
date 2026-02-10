@@ -54,6 +54,8 @@ Kernel_validateUserOp
     │   └── given the permission is installed
     │       ├── given the callData selector restrictions are not met
     │       │   └── it should revert with UnauthorizedCallData error
+    │       ├── given the signature count does not match policies plus one
+    │       │   └── it should revert with InvalidSignature error
     │       ├── when all policies pass validation
     │       │   ├── when the signer signature is valid
     │       │   │   └── it should return 0 for success
