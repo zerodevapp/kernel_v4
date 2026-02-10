@@ -327,7 +327,7 @@ abstract contract ValidationManager {
     function _setRoot(Install calldata pkg) internal {
         ValidationId vId;
         if (pkg.moduleType == MODULE_TYPE_VALIDATOR) {
-            vId = validatorToIdentifier(IValidator(address(bytes20(pkg.module))));
+            vId = validatorToIdentifier(IValidator(pkg.module));
         } else if (pkg.moduleType == MODULE_TYPE_POLICY || pkg.moduleType == MODULE_TYPE_SIGNER) {
             vId = permissionToIdentifier(PermissionId.wrap(bytes4(pkg.internalData[0:4])));
         } else {
