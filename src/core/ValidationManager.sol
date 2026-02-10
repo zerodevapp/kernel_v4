@@ -27,7 +27,11 @@ import {
     ERC1271_MAGICVALUE,
     MODULE_TYPE_VALIDATOR,
     MODULE_TYPE_POLICY,
-    MODULE_TYPE_SIGNER
+    MODULE_TYPE_SIGNER,
+    SIG_VALIDATION_FAILED_UINT,
+    SIG_VALIDATION_SUCCESS_UINT,
+    HOOK_MODULE_NOT_INSTALLED,
+    HOOK_MODULE_INSTALLED_NO_HOOK
 } from "../types/Constants.sol";
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
@@ -89,18 +93,21 @@ abstract contract ValidationManager {
 
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
-        require($.vInfo[vId].hook == address(0), OccupiedValidationId());
+        require($.vInfo[vId].hook == HOOK_MODULE_NOT_INSTALLED, OccupiedValidationId());
         // if _internalData is empty, skip the initialization but increment nonce
         // to ensure _allowedSelector returns false for any selector (no selectors allowed)
         if (_internalData.length == 0) {
-            $.vInfo[vId].hook = address(1);
+            $.vInfo[vId].hook = HOOK_MODULE_INSTALLED_NO_HOOK;
             ++$.vInfo[vId].nonce;
             return;
         }
         // if not, first 20 bytes is the hook address
         address hook = address(bytes20(_internalData[0:20]));
-        require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
-        $.vInfo[vId].hook = hook == address(0) ? address(1) : hook;
+        require(
+            hook == HOOK_MODULE_NOT_INSTALLED || hook == HOOK_MODULE_INSTALLED_NO_HOOK || _hookEnabled(IHook(hook)),
+            NotInstalled()
+        );
+        $.vInfo[vId].hook = hook == HOOK_MODULE_NOT_INSTALLED ? HOOK_MODULE_INSTALLED_NO_HOOK : hook;
         _internalData = _internalData[20:];
         // then the rest is the allowed selectors
         _grantAccess(vId, _internalData);
@@ -145,7 +152,7 @@ abstract contract ValidationManager {
     function _uninstallValidation(ValidationId _vId) internal {
         ValidationStorage storage $ = _validationStorage();
         require($.root != _vId, CannotUninstallRoot());
-        $.vInfo[_vId].hook = address(0);
+        $.vInfo[_vId].hook = HOOK_MODULE_NOT_INSTALLED;
     }
 
     function _uninstallValidator(address _validator, bytes calldata, bool) internal {
@@ -202,7 +209,7 @@ abstract contract ValidationManager {
         }
 
         ValidationInfo storage info = _validationStorage().vInfo[v];
-        require(info.hook > address(0), InvalidVid(v));
+        require(info.hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(v));
 
         if (vType == VALIDATION_TYPE_PERMISSION) {
             validateUserOp = _validateUserOpPermission;
@@ -217,19 +224,21 @@ abstract contract ValidationManager {
         returns (uint256 validationData)
     {
         if (ValidationId.unwrap(vId) == bytes21(0)) {
-            return _verifyFallbackSignature(_hash, _signature) ? 0 : 1;
+            return
+                _verifyFallbackSignature(_hash, _signature) ? SIG_VALIDATION_SUCCESS_UINT : SIG_VALIDATION_FAILED_UINT;
         }
         ValidationInfo storage vInfo = _validationStorage().vInfo[vId];
-        require(vInfo.hook > address(0), InvalidVid(vId));
+        require(vInfo.hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
         ValidationType vType = getType(vId);
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = getValidator(vId);
-            validationData =
-                validator.isValidSignatureWithSender(requester, _hash, _signature) == ERC1271_MAGICVALUE ? 0 : 1;
+            validationData = validator.isValidSignatureWithSender(requester, _hash, _signature) == ERC1271_MAGICVALUE
+                ? SIG_VALIDATION_SUCCESS_UINT
+                : SIG_VALIDATION_FAILED_UINT;
         } else if (vType == VALIDATION_TYPE_PERMISSION) {
             return _verifySignaturePermission(vId, vInfo, requester, _hash, _signature);
         } else {
-            return 1;
+            return SIG_VALIDATION_FAILED_UINT;
         }
     }
 
@@ -260,8 +269,8 @@ abstract contract ValidationManager {
                     .checkSignature(
                         paddedVId, requester, _hash, permissionSig.signatures[permissionSig.signatures.length - 1]
                     ) == ERC1271_MAGICVALUE
-                    ? 0
-                    : 1
+                    ? SIG_VALIDATION_SUCCESS_UINT
+                    : SIG_VALIDATION_FAILED_UINT
             );
         }
     }
@@ -272,7 +281,9 @@ abstract contract ValidationManager {
         PackedUserOperation memory,
         bytes calldata userOpSignature
     ) internal virtual returns (uint256 validationData) {
-        return _verifyFallbackSignature(opHash, userOpSignature) ? 0 : 1;
+        return _verifyFallbackSignature(opHash, userOpSignature)
+            ? SIG_VALIDATION_SUCCESS_UINT
+            : SIG_VALIDATION_FAILED_UINT;
     }
 
     function _validateUserOpValidator(
@@ -289,7 +300,7 @@ abstract contract ValidationManager {
             address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
         //validationData = success ? abi.decode(ret, (uint256)) : 1;
         // forge-lint: disable-next-line(unsafe-typecast)
-        validationData = (success && ret.length >= 32) ? uint256(bytes32(ret)) : 1;
+        validationData = (success && ret.length >= 32) ? uint256(bytes32(ret)) : SIG_VALIDATION_FAILED_UINT;
     }
 
     function _validateUserOpPermission(
@@ -351,7 +362,7 @@ abstract contract ValidationManager {
         );
         ValidationStorage storage $ = _validationStorage();
         if (ValidationId.unwrap(vId) != bytes21(0)) {
-            require($.vInfo[vId].hook > address(0), InvalidVid(vId));
+            require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
         }
         $.root = vId;
     }

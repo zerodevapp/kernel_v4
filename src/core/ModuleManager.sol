@@ -42,14 +42,15 @@ import {
     MODULE_TYPE_FALLBACK,
     MODULE_TYPE_HOOK,
     MODULE_TYPE_POLICY,
-    MODULE_TYPE_SIGNER
+    MODULE_TYPE_SIGNER,
+    HOOK_MODULE_NOT_INSTALLED
 } from "../types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
 abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManager, SelectorManager, ERC1271 {
     modifier executorHook() {
         IHook hook = _executorConfig(IExecutor(msg.sender)).hook;
-        require(address(hook) != address(0), Unauthorized());
+        require(address(hook) != HOOK_MODULE_NOT_INSTALLED, Unauthorized());
         bytes memory hookData = _preHook(hook, msg.data);
         _;
         _postHook(hook, hookData);
