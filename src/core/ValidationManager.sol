@@ -113,14 +113,7 @@ abstract contract ValidationManager {
 
     function _installPolicy(address _policy, bytes calldata _internalData, bool _installSuccess) internal {
         ValidationInfo storage $ = _checkPermissionInstall(_internalData, _installSuccess);
-        // Require at least 4 bytes for permissionId
         require(_internalData.length >= 4, InvalidDataLength());
-        // If there's additional data, validate the hook address
-        if (_internalData.length > 4) {
-            require(_internalData.length >= 24, InvalidDataLength());
-            address hook = address(bytes20(_internalData[4:24]));
-            require(hook == address(0) || hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
-        }
         $.policies.push(_policy);
     }
 

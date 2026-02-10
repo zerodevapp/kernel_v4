@@ -379,15 +379,17 @@ abstract contract Kernel_installModule is BTTModifiers {
         whenTheCallerIsTheEntryPointOrSelf
         givenModuleTypeIsPolicy
     {
-        // it should revert with NotInstalled error
+        // Policy internalData hook bytes are ignored (hook is set via signer install),
+        // so policy install should succeed regardless of extra bytes in internalData
         MockPolicy mockPolicy = new MockPolicy();
         PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("testPolicy")));
         MockHook uninstalledHook = new MockHook();
 
-        // Specify an uninstalled hook in internalData
-        vm.expectRevert(NotInstalled.selector);
         kernel.installModule(
             5, address(mockPolicy), abi.encode(hex"", abi.encodePacked(testPermId, address(uninstalledHook)))
+        );
+        assertTrue(
+            kernel.isModuleInstalled(5, address(mockPolicy), abi.encodePacked(testPermId)), "Policy should be installed"
         );
     }
 
@@ -722,13 +724,16 @@ abstract contract Kernel_installModule is BTTModifiers {
         whenTheCallerIsTheEntryPointOrSelf
         givenModuleTypeIsPolicy
     {
-        // it should revert with NotInstalled error
+        // Policy internalData hook bytes are ignored (hook is set via signer install),
+        // so policy install should succeed regardless of extra bytes in internalData
         MockPolicy mockPolicy = new MockPolicy();
         PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("invalidHookPolicy")));
         address fakeHook = makeAddr("fakeHook");
 
-        vm.expectRevert(NotInstalled.selector);
         kernel.installModule(5, address(mockPolicy), abi.encode(hex"", abi.encodePacked(testPermId, fakeHook)));
+        assertTrue(
+            kernel.isModuleInstalled(5, address(mockPolicy), abi.encodePacked(testPermId)), "Policy should be installed"
+        );
     }
 
     function test_GivenThePermissionIdChangesDuringMultiPackageInstall_Policy()
