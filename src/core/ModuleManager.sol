@@ -76,7 +76,12 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return (uint256(key) << 64) + seq;
     }
 
-    function _hookEnabled(IHook _hook) internal view override(ValidationManager, HookManager) returns (bool) {
+    function _hookEnabled(IHook _hook)
+        internal
+        view
+        override(ValidationManager, ExecutorManager, HookManager)
+        returns (bool)
+    {
         return HookManager._hookEnabled(_hook);
     }
 
