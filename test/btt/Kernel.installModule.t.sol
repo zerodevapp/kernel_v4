@@ -215,6 +215,43 @@ abstract contract Kernel_installModule is BTTModifiers {
         assertTrue(kernel.isModuleInstalled(2, address(mockExecutor), ""), "Executor should be installed");
     }
 
+    function test_GivenTheExecutorHookIsEnabled()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenModuleTypeIsExecutor
+    {
+        // it should associate the hook with this executor
+        MockExecutor mockExecutor = new MockExecutor();
+        MockHook mockHook = new MockHook();
+
+        // Install hook first so it's enabled
+        kernel.installModule(4, address(mockHook), abi.encode(hex"", hex""));
+
+        // Install executor with the enabled hook
+        kernel.installModule(2, address(mockExecutor), abi.encode(hex"", abi.encodePacked(address(mockHook))));
+
+        assertTrue(kernel.isModuleInstalled(2, address(mockExecutor), ""), "Executor should be installed");
+        assertEq(
+            address(kernel.executorConfig(address(mockExecutor)).hook),
+            address(mockHook),
+            "Executor should have the custom hook"
+        );
+    }
+
+    function test_GivenTheExecutorHookIsNotEnabled()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenModuleTypeIsExecutor
+    {
+        // it should revert with NotInstalled error
+        MockExecutor mockExecutor = new MockExecutor();
+        MockHook mockHook = new MockHook();
+
+        // Do NOT install hook first - try to use an uninstalled hook
+        vm.expectRevert(NotInstalled.selector);
+        kernel.installModule(2, address(mockExecutor), abi.encode(hex"", abi.encodePacked(address(mockHook))));
+    }
+
     modifier givenModuleTypeIsFallback() override {
         _;
     }

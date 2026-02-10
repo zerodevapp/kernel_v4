@@ -25,10 +25,15 @@ Kernel_installModule
     ├── given moduleType is Executor
     │   ├── when onInstall reverts
     │   │   └── it should NOT revert and still mark the executor as installed
-    │   └── when onInstall succeeds
-    │       ├── it should mark the executor as installed
-    │       ├── it should set the hook from internalData or address1 if empty
-    │       └── it should emit ModuleInstalled event
+    │   ├── when onInstall succeeds
+    │   │   ├── it should mark the executor as installed
+    │   │   ├── it should set the hook from internalData or address1 if empty
+    │   │   └── it should emit ModuleInstalled event
+    │   └── given internalData contains a hook address
+    │       ├── given the hook is enabled
+    │       │   └── it should associate the hook with this executor
+    │       └── given the hook is not enabled
+    │           └── it should revert with NotInstalled error
     ├── given moduleType is Fallback
     │   ├── given the selector is already registered
     │   │   └── it should overwrite the selector config
@@ -52,8 +57,8 @@ Kernel_installModule
     │   ├── it should parse the permissionId from internalData
     │   ├── when onInstall reverts
     │   │   └── it should revert with ModuleInstallFailed error
-    │   ├── given the hook address in internalData is invalid
-    │   │   └── it should revert with NotInstalled error
+    │   ├── given extra bytes in internalData beyond permissionId
+    │   │   └── it should succeed because policy does not parse hook from internalData
     │   ├── given the permissionId changes during a multi-package install
     │   │   └── it should revert with "permissionId should be consistent"
     │   └── when onInstall succeeds

@@ -16,7 +16,8 @@ import {
     InvalidValidator,
     InvalidPermissionId,
     InvalidNonce,
-    InvalidVid
+    InvalidVid,
+    InvalidSignature
 } from "src/types/Error.sol";
 import {ValidationManager} from "src/core/ValidationManager.sol";
 import {Install} from "src/types/Structs.sol";
@@ -585,6 +586,86 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         vm.expectRevert(UnauthorizedCallData.selector);
+        kernel.validateUserOp(op, userOpHash, 0);
+    }
+
+    function test_GivenTheSignatureCountDoesNotMatchPoliciesPlusOne()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsPERMISSION
+        givenThePermissionIsInstalled
+    {
+        // it should revert with InvalidSignature error
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install permission with execute selector allowed
+        _selectorAllowed = true;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = true;
+        _installPermissionWithSelectorPolicy();
+
+        PackedUserOperation memory op = _createUserOpWithPermissionValidation();
+        op.callData = abi.encodePacked(
+            Kernel.executeUserOp.selector,
+            abi.encodeWithSelector(
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            )
+        );
+
+        // Craft signature with wrong number of signatures (1 instead of 2)
+        // Permission has 1 policy + 1 signer = requires 2 signatures
+        bytes[] memory signatures = new bytes[](1);
+        signatures[0] = hex"dead";
+        policy.sudoSetValidSig(address(kernel), PermissionId.unwrap(permissionId), hex"dead");
+        op.signature = abi.encode(signatures);
+
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        vm.expectRevert(InvalidSignature.selector);
+        kernel.validateUserOp(op, userOpHash, 0);
+    }
+
+    function test_GivenTheSignatureCountExceedsPoliciesPlusOne()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsPERMISSION
+        givenThePermissionIsInstalled
+    {
+        // it should revert with InvalidSignature error (too many signatures)
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install permission with execute selector allowed
+        _selectorAllowed = true;
+        _selectorHook = address(0);
+        _useExecuteUserOpWrapper = true;
+        _installPermissionWithSelectorPolicy();
+
+        PackedUserOperation memory op = _createUserOpWithPermissionValidation();
+        op.callData = abi.encodePacked(
+            Kernel.executeUserOp.selector,
+            abi.encodeWithSelector(
+                Kernel.execute.selector,
+                bytes32(0),
+                abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+            )
+        );
+
+        // Craft signature with too many signatures (3 instead of 2)
+        bytes[] memory signatures = new bytes[](3);
+        signatures[0] = hex"dead";
+        signatures[1] = hex"beef";
+        signatures[2] = hex"cafe";
+        policy.sudoSetValidSig(address(kernel), PermissionId.unwrap(permissionId), hex"dead");
+        signer.sudoSetValidSig(address(kernel), PermissionId.unwrap(permissionId), hex"beef");
+        op.signature = abi.encode(signatures);
+
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        vm.expectRevert(InvalidSignature.selector);
         kernel.validateUserOp(op, userOpHash, 0);
     }
 
