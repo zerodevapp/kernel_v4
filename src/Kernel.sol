@@ -44,7 +44,9 @@ import {
     MODULE_TYPE_FALLBACK,
     MODULE_TYPE_HOOK,
     MODULE_TYPE_POLICY,
-    MODULE_TYPE_SIGNER
+    MODULE_TYPE_SIGNER,
+    HOOK_MODULE_NOT_INSTALLED,
+    HOOK_MODULE_INSTALLED_NO_HOOK
 } from "./types/Constants.sol";
 import {
     ValidationStorage,
@@ -133,13 +135,14 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
 
         // For non-root validation, check if validation exists before checking selectors
         if (vType != VALIDATION_TYPE_ROOT) {
-            require($.vInfo[vId].hook > address(0), InvalidVid(vId));
+            require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
         }
 
         // check if the call data is allowed by the validationId
         if (
             vType == VALIDATION_TYPE_ROOT
-                || (_allowedSelector(vId, bytes4(userOp.callData[0:4])) && $.vInfo[vId].hook == address(1))
+                || (_allowedSelector(vId, bytes4(userOp.callData[0:4]))
+                    && $.vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK)
         ) {
             // No-op, this is cheaper in gas
         } else {
@@ -210,12 +213,13 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         SelectorConfig storage $ = _selectorConfig(selector);
         // if the selector is not initialized, revert
         // if the selector is installed but hook is not set, only entrypoint can call it
-        if ($.target == address(0) || ($.hook == IHook(address(0)) && msg.sender != address(ENTRYPOINT))) {
+        if ($.target == address(0) || ($.hook == IHook(HOOK_MODULE_NOT_INSTALLED) && msg.sender != address(ENTRYPOINT)))
+        {
             revert InvalidSelector();
         }
         bytes memory hookData;
         // explicitly set to address(1) to skip the hook while allowing anyone to call it
-        if (address($.hook) != address(0) && address($.hook) != address(1)) {
+        if (address($.hook) != HOOK_MODULE_NOT_INSTALLED && address($.hook) != HOOK_MODULE_INSTALLED_NO_HOOK) {
             hookData = _preHook($.hook, msg.data);
         }
 
@@ -232,7 +236,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         } else {
             res = _getReturn();
         }
-        if (address($.hook) != address(0) && address($.hook) != address(1)) {
+        if (address($.hook) != HOOK_MODULE_NOT_INSTALLED && address($.hook) != HOOK_MODULE_INSTALLED_NO_HOOK) {
             _postHook($.hook, hookData);
         }
     }
@@ -375,9 +379,9 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     {
         if (moduleTypeId == MODULE_TYPE_VALIDATOR) {
             ValidationId vId = validatorToIdentifier(IValidator(module));
-            return _validationStorage().vInfo[vId].hook != address(0);
+            return _validationStorage().vInfo[vId].hook != HOOK_MODULE_NOT_INSTALLED;
         } else if (moduleTypeId == MODULE_TYPE_EXECUTOR) {
-            return address(_executorConfig(IExecutor(module)).hook) != address(0);
+            return address(_executorConfig(IExecutor(module)).hook) != HOOK_MODULE_NOT_INSTALLED;
         } else if (moduleTypeId == MODULE_TYPE_FALLBACK) {
             // forge-lint: disable-next-line(unsafe-typecast)
             bytes4 selector = bytes4(additionalContext);

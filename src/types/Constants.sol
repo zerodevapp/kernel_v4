@@ -47,6 +47,9 @@ ValidationData constant SIG_VALIDATION_FAILED = ValidationData.wrap(SIG_VALIDATI
 uint256 constant SIG_VALIDATION_FAILED_UINT = 1;
 uint256 constant SIG_VALIDATION_SUCCESS_UINT = 0;
 
+address constant HOOK_MODULE_NOT_INSTALLED = address(0);
+address constant HOOK_MODULE_INSTALLED_NO_HOOK = address(1);
+
 //InstallPackages(uint256 nonce,Install[] packages)Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)
 bytes32 constant INSTALL_PACKAGES_STRUCT_HASH = 0x633d6810f7f4053622dad4c187707d9c3cd7f57b8b68943473d3437060aefc6d;
 //keccak256("Install(uint256 moduleType,address module,bytes moduleData,bytes internalData)"),
