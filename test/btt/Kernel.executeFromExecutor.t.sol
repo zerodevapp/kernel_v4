@@ -57,6 +57,8 @@ abstract contract Kernel_executeFromExecutor is BTTModifiers {
         _hookContract = new MockHook();
         _executorWithHook = new MockExecutor();
         vm.startPrank(address(ep));
+        // Install the hook module first so it's recognized as a valid hook
+        kernel.installModule(4, address(_hookContract), abi.encode(hex"", hex""));
         kernel.installModule(2, address(_executorWithHook), abi.encode(hex"", abi.encodePacked(address(_hookContract))));
         vm.stopPrank();
     }

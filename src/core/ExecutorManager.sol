@@ -4,9 +4,11 @@ pragma solidity ^0.8.0;
 import {EXECUTOR_MANAGER_STORAGE_SLOT} from "../types/Constants.sol";
 import {IExecutor, IHook} from "../interfaces/IERC7579Modules.sol";
 import {ExecutorStorage, ExecutorConfig} from "../types/Structs.sol";
-import {NotExecutor} from "../types/Error.sol";
+import {NotExecutor, NotInstalled} from "../types/Error.sol";
 
-contract ExecutorManager {
+abstract contract ExecutorManager {
+    function _hookEnabled(IHook _hook) internal view virtual returns (bool);
+
     function _executorStorage() internal pure returns (ExecutorStorage storage $) {
         assembly {
             $.slot := EXECUTOR_MANAGER_STORAGE_SLOT
@@ -26,6 +28,8 @@ contract ExecutorManager {
         address hook = _internalData.length >= 20 ? address(bytes20(_internalData[0:20])) : address(0);
         if (hook == address(0)) {
             hook = address(1); // address(1) indicates it is installed and does not require any hook
+        } else {
+            require(hook == address(1) || _hookEnabled(IHook(hook)), NotInstalled());
         }
         _executorConfig(IExecutor(_executor)).hook = IHook(hook);
     }
