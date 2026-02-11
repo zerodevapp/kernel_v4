@@ -86,18 +86,6 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return HookManager._hookEnabled(_hook);
     }
 
-    //    function _initialized() internal view virtual returns (bool) {
-    //        return _statelessInitializeCheck() || _statefulInitializeCheck();
-    //    }
-
-    //    function _statelessInitializeCheck() internal view virtual returns (bool) {
-    //        return bytes3(address(this).code) == bytes3(0xef0100);
-    //    }
-    //
-    //    function _statefulInitializeCheck() internal view virtual returns (bool) {
-    //        return ValidationId.unwrap(_validationStorage().root) != bytes20(0);
-    //    }
-
     function _moduleStorage() internal pure returns (ModuleStorage storage $) {
         assembly {
             $.slot := MODULE_MANAGER_STORAGE_SLOT
