@@ -2,6 +2,7 @@ pragma solidity ^0.8.0;
 
 import {KernelTest} from "./Kernel.t.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {Kernel7702} from "src/Kernel7702.sol";
 import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
@@ -9,6 +10,19 @@ import {ValidationId} from "src/types/Types.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
 import {ERC1271_INVALID} from "src/types/Constants.sol";
 import {InvalidValidationType} from "src/types/Error.sol";
+
+contract Kernel7702Harness is Kernel7702 {
+    constructor(IEntryPoint _ep) Kernel7702(_ep) {}
+
+    function exposed_verifyStatelessSignature(
+        Install[] calldata packages,
+        ValidationId vId,
+        bytes32 hash,
+        bytes calldata signature
+    ) external view returns (bool) {
+        return _verifyStatelessSignature(packages, vId, hash, signature);
+    }
+}
 
 contract Kernel7702Test is KernelTest {
     address owner;
@@ -89,5 +103,94 @@ contract Kernel7702Test is KernelTest {
         kernel.setRoot(packages, false, hex"");
 
         kernel.setRoot(ValidationId.wrap(bytes20(0)));
+    }
+
+    // ===== Kernel7702.initialize() is a NO-OP =====
+
+    function test_7702_initialize_is_noop() external {
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        kernel.initialize(packages);
+        // Nothing should be installed since initialize is a no-op
+        assertFalse(kernel.isModuleInstalled(1, address(newValidator), ""));
+    }
+
+    function test_7702_initialize_empty_packages() external {
+        Install[] memory packages = new Install[](0);
+        kernel.initialize(packages);
+    }
+
+    function test_7702_initialize_callable_multiple_times() external {
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: hex""});
+        kernel.initialize(packages);
+        kernel.initialize(packages);
+        assertFalse(kernel.isModuleInstalled(1, address(newValidator), ""));
+    }
+
+    // ===== _verifyFallbackSignature via validateUserOp (root = bytes21(0) path) =====
+
+    function test_7702_fallback_sig_valid_returns_success() external {
+        PackedUserOperation memory op;
+        op.sender = address(kernel);
+        op.nonce = encodeNonce(false, false, false, bytes1(0), bytes20(0));
+        op.callData = abi.encodeWithSelector(kernel.execute.selector, bytes32(0), "");
+        op.accountGasLimits = bytes32(uint256(100000) << 128 | uint256(100000));
+        op.preVerificationGas = 100000;
+        op.gasFees = bytes32(uint256(1) << 128 | uint256(1));
+
+        bytes32 opHash = ep.getUserOpHash(op);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, opHash);
+        op.signature = abi.encodePacked(r, s, v);
+
+        vm.prank(address(ep));
+        uint256 validationData = kernel.validateUserOp(op, opHash, 0);
+        assertEq(validationData, 0);
+    }
+
+    function test_7702_fallback_sig_invalid_returns_failure() external {
+        PackedUserOperation memory op;
+        op.sender = address(kernel);
+        op.nonce = encodeNonce(false, false, false, bytes1(0), bytes20(0));
+        op.callData = abi.encodeWithSelector(kernel.execute.selector, bytes32(0), "");
+        op.accountGasLimits = bytes32(uint256(100000) << 128 | uint256(100000));
+        op.preVerificationGas = 100000;
+        op.gasFees = bytes32(uint256(1) << 128 | uint256(1));
+
+        bytes32 opHash = ep.getUserOpHash(op);
+        (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, opHash);
+        op.signature = abi.encodePacked(r, s, v);
+
+        vm.prank(address(ep));
+        uint256 validationData = kernel.validateUserOp(op, opHash, 0);
+        assertEq(validationData, 1);
+    }
+
+    function test_7702_fallback_sig_malformed_returns_failure() external {
+        PackedUserOperation memory op;
+        op.sender = address(kernel);
+        op.nonce = encodeNonce(false, false, false, bytes1(0), bytes20(0));
+        op.callData = abi.encodeWithSelector(kernel.execute.selector, bytes32(0), "");
+        op.accountGasLimits = bytes32(uint256(100000) << 128 | uint256(100000));
+        op.preVerificationGas = 100000;
+        op.gasFees = bytes32(uint256(1) << 128 | uint256(1));
+
+        bytes32 opHash = ep.getUserOpHash(op);
+        op.signature = hex"deadbeef"; // malformed signature
+
+        vm.prank(address(ep));
+        uint256 validationData = kernel.validateUserOp(op, opHash, 0);
+        assertEq(validationData, 1);
+    }
+
+    // ===== _verifyStatelessSignature: InvalidValidationType route =====
+
+    function test_7702_verifyStatelessSignature_revert_invalidValidationType() external {
+        Kernel7702Harness harness = new Kernel7702Harness(ep);
+        Install[] memory packages = new Install[](0);
+        // ValidationId with ROOT type (0x00) is neither VALIDATOR nor PERMISSION
+        vm.expectRevert(InvalidValidationType.selector);
+        harness.exposed_verifyStatelessSignature(packages, ValidationId.wrap(bytes21(0)), bytes32(0), hex"");
     }
 }
