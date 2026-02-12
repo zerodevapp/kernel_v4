@@ -70,9 +70,10 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     }
 
     function nonce(uint192 key) external view returns (uint256) {
-        uint64 seq = _moduleStorage().nonce[key];
-        if (_moduleStorage().nonceValidFrom > seq) {
-            seq = _moduleStorage().nonceValidFrom;
+        ModuleStorage storage ms = _moduleStorage();
+        uint64 seq = ms.nonce[key];
+        if (ms.nonceValidFrom > seq) {
+            seq = ms.nonceValidFrom;
         }
         return (uint256(key) << 64) + seq;
     }
@@ -259,13 +260,15 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
     }
 
     function _setValidNonceFrom(uint64 nonceFrom) internal {
-        require(nonceFrom > _moduleStorage().nonceValidFrom, InvalidNonce());
-        _moduleStorage().nonceValidFrom = nonceFrom;
+        ModuleStorage storage ms = _moduleStorage();
+        require(nonceFrom > ms.nonceValidFrom, InvalidNonce());
+        ms.nonceValidFrom = nonceFrom;
     }
 
     function _setNonce(uint192 nonceKey, uint64 seq) internal {
-        require(seq > _moduleStorage().nonce[nonceKey], InvalidNonce());
-        _moduleStorage().nonce[nonceKey] = seq;
+        ModuleStorage storage ms = _moduleStorage();
+        require(seq > ms.nonce[nonceKey], InvalidNonce());
+        ms.nonce[nonceKey] = seq;
     }
 
     function _checkAndIncrementNonce(uint256 _nonce) internal virtual {
@@ -273,10 +276,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         uint192 key = uint192(_nonce >> 64);
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 seq = uint64(_nonce);
-        if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
-            _moduleStorage().nonce[key] = _moduleStorage().nonceValidFrom;
+        ModuleStorage storage ms = _moduleStorage();
+        if (ms.nonceValidFrom > ms.nonce[key]) {
+            ms.nonce[key] = ms.nonceValidFrom;
         }
-        require(_moduleStorage().nonce[key]++ == seq, InvalidNonce());
+        require(ms.nonce[key]++ == seq, InvalidNonce());
     }
 
     function _checkNonce(uint256 _nonce) internal view virtual {
@@ -284,11 +288,12 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         uint192 key = uint192(_nonce >> 64);
         // forge-lint: disable-next-line(unsafe-typecast)
         uint64 seq = uint64(_nonce);
+        ModuleStorage storage ms = _moduleStorage();
         bool result;
-        if (_moduleStorage().nonceValidFrom > _moduleStorage().nonce[key]) {
-            result = seq == _moduleStorage().nonceValidFrom;
+        if (ms.nonceValidFrom > ms.nonce[key]) {
+            result = seq == ms.nonceValidFrom;
         } else {
-            result = _moduleStorage().nonce[key] == seq;
+            result = ms.nonce[key] == seq;
         }
         require(result, InvalidNonce());
     }
