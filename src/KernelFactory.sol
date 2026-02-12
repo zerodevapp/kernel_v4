@@ -10,7 +10,7 @@ import {InvalidSigner, ImplementationNotDeployed} from "./types/Error.sol";
 import {KernelDeployed} from "./types/Events.sol";
 
 /// @title KernelFactory
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Factory for deterministic deployment of Kernel smart accounts using ERC-1967 proxies.
 contract KernelFactory {
     KernelUUPS public immutable UUPS;

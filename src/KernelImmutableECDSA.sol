@@ -8,7 +8,7 @@ import {LibClone} from "solady/utils/LibClone.sol";
 import {Install} from "./core/ModuleManager.sol";
 
 /// @title KernelImmutableECDSA
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Kernel variant with an immutable ECDSA fallback signer stored in the ERC-1967 clone's immutable args.
 /// @dev The signer address is packed into the first 20 bytes of the clone's immutable args.
 ///      Root validation is NOT set during initialization, allowing the immutable signer to act as fallback.

@@ -48,7 +48,7 @@ import {
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
 /// @title ModuleManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Composes validation, executor, hook, and selector managers; handles module installation,
 ///         enable-mode signature verification, nonce management, and ERC-1271 signature flows.
 abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManager, SelectorManager, ERC1271 {

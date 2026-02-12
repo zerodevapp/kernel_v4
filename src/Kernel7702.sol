@@ -7,7 +7,7 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
 import {Install} from "./types/Structs.sol";
 
 /// @title Kernel7702
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice EIP-7702 variant of Kernel that uses the EOA's own address as the fallback signer.
 /// @dev Initialize is a no-op since the EOA delegates its code via EIP-7702.
 ///      The fallback signature verifies against address(this), which is the EOA itself.

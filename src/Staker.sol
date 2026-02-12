@@ -11,7 +11,7 @@ import {DeployFailed, InvalidOwner, InvalidSignature, NotApprovedFactory} from "
 import {FactoryApprovalChanged} from "./types/Events.sol";
 
 /// @title Staker
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Manages ERC-4337 entry point staking and approved factory deployments for Kernel accounts.
 contract Staker is Ownable, EIP712 {
     mapping(address => bool) public approved;

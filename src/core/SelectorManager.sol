@@ -13,7 +13,7 @@ import {ModuleInstallFailed, NotInstalled} from "../types/Error.sol";
 import {SelectorConfig, SelectorStorage} from "../types/Structs.sol";
 
 /// @title SelectorManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Manages fallback module routing by function selector, including call type and hook configuration.
 abstract contract SelectorManager {
     function _hookEnabled(IHook _hook) internal view virtual returns (bool);

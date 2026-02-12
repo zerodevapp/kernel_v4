@@ -11,7 +11,7 @@ import {ModuleInstallFailed} from "../types/Error.sol";
 import {HookStorage} from "../types/Structs.sol";
 
 /// @title HookManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Manages hook module installation and pre/post execution checks.
 abstract contract HookManager {
     /// @notice Returns whether a hook module is enabled.

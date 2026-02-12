@@ -11,7 +11,7 @@ import {ExecutorStorage, ExecutorConfig} from "../types/Structs.sol";
 import {NotExecutor, NotInstalled} from "../types/Error.sol";
 
 /// @title ExecutorManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Manages executor module installation and their associated hook configurations.
 abstract contract ExecutorManager {
     function _hookEnabled(IHook _hook) internal view virtual returns (bool);

@@ -38,7 +38,7 @@ import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, getValidator, getPermissionId, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 
 /// @title ValidationManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Manages validation identifiers (validators and permissions), root validation, and signature verification.
 abstract contract ValidationManager {
     /// @dev Tracks the permission being installed within a batch to ensure consistency.

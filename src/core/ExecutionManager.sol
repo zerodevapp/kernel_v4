@@ -5,7 +5,7 @@ import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {InvalidExecType, InvalidCallType} from "../types/Error.sol";
 
 /// @title ExecutionManager
-/// @author leekt <leekt216@gmail.com>
+/// @author taek <leekt216@gmail.com>
 /// @notice Dispatches ERC-7579 execution modes (single, batch, delegatecall) with default/try semantics.
 abstract contract ExecutionManager {
     /// @notice Executes calldata according to the given ERC-7579 mode.
