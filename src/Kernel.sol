@@ -181,6 +181,10 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     /// @notice Executes a user operation with validation-hook context.
     /// @dev Called by the entry point after validateUserOp. Runs pre/post hooks stored transiently
     ///      and delegatecalls the inner calldata (userOp.callData[4:]).
+    /// @dev SECURITY: The inner calldata (userOp.callData[4:]) is delegatecalled to `address(this)`
+    ///      with no additional selector or target validation. Any function on Kernel (including
+    ///      privileged ones like `installModule`, `setRoot`, `execute`) can be invoked this way.
+    ///      Authorization relies entirely on `validateUserOp` having approved the outer UserOp.
     /// @param userOp The packed user operation containing the execution calldata.
     /// @param userOpHash The hash of the user operation, used to retrieve the transient validation hook.
     function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external payable {
@@ -226,6 +230,10 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         return _execute(mode, executionData);
     }
 
+    /// @dev SECURITY: When `callType` is `CALLTYPE_DELEGATECALL`, the fallback target executes
+    ///      in Kernel's storage context via `delegatecall`. A malicious or buggy fallback module
+    ///      can overwrite any Kernel storage slot. Only install trusted, audited fallback modules
+    ///      with `CALLTYPE_DELEGATECALL`. Prefer `CALLTYPE_SINGLE` (regular call) when possible.
     function _fallback() internal returns (bytes memory res) {
         /// @solidity memory-safe-assembly
         assembly {
