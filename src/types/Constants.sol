@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {CallType, ValidationType, ValidationData} from "./Types.sol";
+import {CallType, ValidationType} from "./Types.sol";
 
 // Default CallType
 CallType constant CALLTYPE_SINGLE = CallType.wrap(0x00);
 // Batched CallType
 CallType constant CALLTYPE_BATCH = CallType.wrap(0x01);
-CallType constant CALLTYPE_STATIC = CallType.wrap(0xFE);
 // @dev Implementing delegatecall is OPTIONAL!
 // implement delegatecall with extreme care.
 CallType constant CALLTYPE_DELEGATECALL = CallType.wrap(0xFF);
@@ -43,7 +42,6 @@ bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT = 0xded5d420c407eac3c615e6abe13
 bytes32 constant ERC1967_IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 bytes4 constant ERC1271_MAGICVALUE = 0x1626ba7e;
 bytes4 constant ERC1271_INVALID = 0xffffffff;
-ValidationData constant SIG_VALIDATION_FAILED = ValidationData.wrap(SIG_VALIDATION_FAILED_UINT);
 uint256 constant SIG_VALIDATION_FAILED_UINT = 1;
 uint256 constant SIG_VALIDATION_SUCCESS_UINT = 0;
 
