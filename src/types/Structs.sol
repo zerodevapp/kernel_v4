@@ -71,7 +71,7 @@ struct HookStorage {
 }
 
 struct ModuleStorage {
-    address registry; // Note : not used on vanila kernel but saving the storage slot for future usage
+    address registry; // Note : not used on vanilla kernel but saving the storage slot for future usage
     uint64 nonceValidFrom;
     mapping(uint192 key => uint64) nonce;
 }
