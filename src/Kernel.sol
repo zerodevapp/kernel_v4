@@ -217,11 +217,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         {
             revert InvalidSelector();
         }
-        bytes memory hookData;
-        // explicitly set to address(1) to skip the hook while allowing anyone to call it
-        if (address($.hook) != HOOK_MODULE_NOT_INSTALLED && address($.hook) != HOOK_MODULE_INSTALLED_NO_HOOK) {
-            hookData = _preHook($.hook, msg.data);
-        }
+        bytes memory hookData = _preHook($.hook, msg.data);
 
         bool success;
         if ($.callType == CALLTYPE_SINGLE) {
@@ -236,9 +232,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         } else {
             res = _getReturn();
         }
-        if (address($.hook) != HOOK_MODULE_NOT_INSTALLED && address($.hook) != HOOK_MODULE_INSTALLED_NO_HOOK) {
-            _postHook($.hook, hookData);
-        }
+        _postHook($.hook, hookData);
     }
 
     function setNonce(uint192 nonceKey, uint64 seq) external payable {
