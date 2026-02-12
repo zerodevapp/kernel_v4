@@ -9,6 +9,9 @@ import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 import {InvalidSigner, ImplementationNotDeployed} from "./types/Error.sol";
 import {KernelDeployed} from "./types/Events.sol";
 
+/// @title KernelFactory
+/// @author Zerodev
+/// @notice Factory for deterministic deployment of Kernel smart accounts using ERC-1967 proxies.
 contract KernelFactory {
     KernelUUPS public immutable UUPS;
     KernelImmutableECDSA public immutable IMMUTABLE_ECDSA;
@@ -19,7 +22,10 @@ contract KernelFactory {
         IMMUTABLE_ECDSA = _immutableEcdsa;
     }
 
-    // Kernel UUPS
+    /// @notice Deploys a new UUPS Kernel account or returns the existing one at the deterministic address.
+    /// @param initialPackages The module install packages for initialization; the first becomes root validator.
+    /// @param nonce A deployment nonce for salt derivation.
+    /// @return The deployed Kernel account.
     function deploy(Install[] calldata initialPackages, uint256 nonce) external payable returns (Kernel) {
         bytes32 salt = _calculateSalt(initialPackages, nonce);
         (bool deployed, address account) = LibClone.createDeterministicERC1967(msg.value, address(UUPS), salt);
@@ -32,12 +38,21 @@ contract KernelFactory {
         return k;
     }
 
+    /// @notice Computes the deterministic address for a UUPS Kernel deployment.
+    /// @param initialPackages The module install packages used for salt derivation.
+    /// @param nonce A deployment nonce for salt derivation.
+    /// @return The predicted deployment address.
     function getAddress(Install[] calldata initialPackages, uint256 nonce) public view virtual returns (address) {
         bytes32 salt = _calculateSalt(initialPackages, nonce);
         return LibClone.predictDeterministicAddressERC1967(address(UUPS), salt, address(this));
     }
 
-    // Kernel UUPS ECDSA fallback
+    /// @notice Deploys a Kernel account with an immutable ECDSA fallback signer.
+    /// @dev Uses ERC-1967 clones with immutable args to store the signer address.
+    /// @param signer The ECDSA signer address stored immutably in the clone; must not be address(0).
+    /// @param initialPackages The module install packages for initialization.
+    /// @param nonce A deployment nonce for salt derivation.
+    /// @return The deployed Kernel account.
     /// forge-lint: disable-next-line(mixed-case-function)
     function deployECDSA(address signer, Install[] calldata initialPackages, uint256 nonce)
         external
@@ -56,6 +71,11 @@ contract KernelFactory {
         return k;
     }
 
+    /// @notice Computes the deterministic address for an immutable ECDSA Kernel deployment.
+    /// @param signer The ECDSA signer address.
+    /// @param initialPackages The module install packages used for salt derivation.
+    /// @param nonce A deployment nonce for salt derivation.
+    /// @return The predicted deployment address.
     /// forge-lint: disable-next-line(mixed-case-function)
     function getECDSAAddress(address signer, Install[] calldata initialPackages, uint256 nonce)
         public
@@ -69,6 +89,10 @@ contract KernelFactory {
         );
     }
 
+    /// @notice Computes a deterministic salt from the install packages and nonce.
+    /// @param initialPackages The module install packages.
+    /// @param nonce A deployment nonce.
+    /// @return The computed salt hash.
     function _calculateSalt(Install[] calldata initialPackages, uint256 nonce) internal pure returns (bytes32) {
         unchecked {
             bytes32[] memory buffer = EfficientHashLib.malloc(initialPackages.length + 1);
