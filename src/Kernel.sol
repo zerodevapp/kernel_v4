@@ -58,7 +58,7 @@ import {
 } from "./types/Structs.sol";
 
 /// @title Kernel
-/// @author Zerodev
+/// @author leekt <leekt216@gmail.com>
 /// @notice ERC-7579 compliant modular smart account with pluggable validation, execution, and hook modules.
 abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     IEntryPoint immutable ENTRYPOINT;

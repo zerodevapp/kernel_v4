@@ -5,7 +5,7 @@ import {EIP712} from "solady/utils/EIP712.sol";
 import {PERSONAL_SIGN_TYPEHASH} from "../types/Constants.sol";
 
 /// @notice ERC1271 mixin with nested EIP-712 approach.
-/// @author Solady (https://github.com/vectorized/solady/blob/main/src/accounts/ERC1271.sol)
+/// @author leekt <leekt216@gmail.com>
 abstract contract ERC1271 is EIP712 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     ERC1271 OPERATIONS                     */

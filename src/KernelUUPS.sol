@@ -8,7 +8,7 @@ import {UUPSUpgradeable} from "solady/utils/UUPSUpgradeable.sol";
 import {Initializable} from "solady/utils/Initializable.sol";
 
 /// @title KernelUUPS
-/// @author Zerodev
+/// @author leekt <leekt216@gmail.com>
 /// @notice UUPS-upgradeable Kernel smart account implementation.
 /// @dev Uses Solady's Initializable guard; the constructor disables initializers on the implementation.
 contract KernelUUPS is Kernel, UUPSUpgradeable, Initializable {
