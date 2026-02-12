@@ -47,7 +47,12 @@ import {
 } from "../types/Constants.sol";
 import {EfficientHashLib} from "solady/utils/EfficientHashLib.sol";
 
+/// @title ModuleManager
+/// @author Zerodev
+/// @notice Composes validation, executor, hook, and selector managers; handles module installation,
+///         enable-mode signature verification, nonce management, and ERC-1271 signature flows.
 abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManager, SelectorManager, ERC1271 {
+    /// @dev Modifier that wraps executor calls with their configured hook's pre/post checks.
     modifier executorHook() {
         IHook hook = _executorConfig(IExecutor(msg.sender)).hook;
         require(address(hook) != HOOK_MODULE_NOT_INSTALLED, Unauthorized());
@@ -56,19 +61,26 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         _postHook(hook, hookData);
     }
 
-    // NOTE : override this to use erc7484 registry
+    /// @dev Override this modifier to integrate an ERC-7484 module registry.
     modifier installModuleHook(uint256 moduleType, address module) virtual {
         _;
     }
 
+    /// @notice Returns the ERC-7484 module registry address (reserved for future use).
+    /// @return The registry address.
     function registry() external view returns (address) {
         return _moduleStorage().registry;
     }
 
+    /// @notice Returns the global minimum nonce sequence number.
+    /// @return The minimum valid nonce sequence.
     function validNonceFrom() external view returns (uint64) {
         return _moduleStorage().nonceValidFrom;
     }
 
+    /// @notice Returns the next valid nonce for the given key, respecting the global minimum.
+    /// @param key The 192-bit nonce key.
+    /// @return The full 256-bit nonce (key << 64 | seq).
     function nonce(uint192 key) external view returns (uint256) {
         ModuleStorage storage ms = _moduleStorage();
         uint64 seq = ms.nonce[key];
@@ -142,6 +154,9 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         }
     }
 
+    /// @notice Computes the EIP-712 hash of an array of Install packages.
+    /// @param packages The install packages to hash.
+    /// @return The hash of the packages array.
     function _installHash(Install[] calldata packages) internal pure returns (bytes32) {
         bytes32[] memory buffer = EfficientHashLib.malloc(packages.length);
         unchecked {
@@ -163,6 +178,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return EfficientHashLib.hash(buffer);
     }
 
+    /// @notice Routes a module installation to the appropriate type-specific handler.
+    /// @param moduleType The module type (1=validator, 2=executor, 3=fallback, 4=hook, 5=policy, 6=signer).
+    /// @param module The module address.
+    /// @param moduleData Data forwarded to the module's onInstall callback.
+    /// @param internalData Kernel-internal configuration data (format varies by module type).
     function _installModule(uint256 moduleType, address module, bytes calldata moduleData, bytes calldata internalData)
         internal
         installModuleHook(moduleType, module)
@@ -187,6 +207,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         emit ModuleInstalled(moduleType, module);
     }
 
+    /// @notice Routes a module uninstallation to the appropriate type-specific handler.
+    /// @param moduleType The module type.
+    /// @param module The module address.
+    /// @param moduleData Data forwarded to the module's onUninstall callback.
+    /// @param internalData Kernel-internal configuration data.
     function _uninstallModule(
         uint256 moduleType,
         address module,
@@ -213,6 +238,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         emit ModuleUninstalled(moduleType, module);
     }
 
+    /// @notice Batch-installs an array of module packages and verifies permission completeness.
+    /// @param packages The install packages to process sequentially.
     function _install(Install[] calldata packages) internal {
         unchecked {
             for (uint256 i = 0; i < packages.length; i++) {
@@ -228,6 +255,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         );
     }
 
+    /// @notice Calls a module's onInstall and passes the result to the type-specific handler.
+    /// @param module The module address.
+    /// @param data Data forwarded to onInstall.
+    /// @param internalData Internal configuration data forwarded to the handler.
+    /// @param hook The type-specific install handler function.
     function _install(
         address module,
         bytes calldata data,
@@ -238,6 +270,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         hook(module, internalData, success);
     }
 
+    /// @notice Calls a module's onUninstall and passes the result to the type-specific handler.
+    /// @param module The module address.
+    /// @param data Data forwarded to onUninstall.
+    /// @param internalData Internal configuration data forwarded to the handler.
+    /// @param hook The type-specific uninstall handler function.
     function _uninstall(
         address module,
         bytes calldata data,
@@ -248,6 +285,12 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         hook(module, internalData, success);
     }
 
+    /// @notice Verifies an install signature, increments the nonce, and returns success.
+    /// @param replayable If true, uses chain-agnostic hashing.
+    /// @param _nonce The install nonce.
+    /// @param packages The packages being installed.
+    /// @param signature The root validator's signature.
+    /// @return success True if the signature is valid and the nonce is correct.
     function _verifyInstallSignature(
         bool replayable,
         uint256 _nonce,
@@ -259,18 +302,25 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return Lib4337.checkValidation(validationData);
     }
 
+    /// @notice Sets the global minimum nonce, invalidating all nonces below it.
+    /// @param nonceFrom The new minimum nonce value; must exceed the current value.
     function _setValidNonceFrom(uint64 nonceFrom) internal {
         ModuleStorage storage ms = _moduleStorage();
         require(nonceFrom > ms.nonceValidFrom, InvalidNonce());
         ms.nonceValidFrom = nonceFrom;
     }
 
+    /// @notice Sets the nonce for a specific key; must be strictly increasing.
+    /// @param nonceKey The 192-bit nonce key.
+    /// @param seq The new sequence number; must exceed the current value.
     function _setNonce(uint192 nonceKey, uint64 seq) internal {
         ModuleStorage storage ms = _moduleStorage();
         require(seq > ms.nonce[nonceKey], InvalidNonce());
         ms.nonce[nonceKey] = seq;
     }
 
+    /// @notice Validates and increments the nonce atomically. Reverts if sequence mismatch.
+    /// @param _nonce The full 256-bit nonce (key << 64 | seq).
     function _checkAndIncrementNonce(uint256 _nonce) internal virtual {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
@@ -283,6 +333,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         require(ms.nonce[key]++ == seq, InvalidNonce());
     }
 
+    /// @notice Validates a nonce without incrementing. Reverts on sequence mismatch.
+    /// @param _nonce The full 256-bit nonce (key << 64 | seq).
     function _checkNonce(uint256 _nonce) internal view virtual {
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(_nonce >> 64);
@@ -298,6 +350,12 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         require(result, InvalidNonce());
     }
 
+    /// @notice Verifies an install signature without modifying nonce state.
+    /// @param replayable If true, uses chain-agnostic EIP-712 hashing.
+    /// @param _nonce The install nonce for the digest.
+    /// @param packages The packages to include in the digest.
+    /// @param signature The root validator's signature.
+    /// @return validationData Packed validation result from signature verification.
     function _verifyInstallSignatureRaw(
         bool replayable,
         uint256 _nonce,
@@ -313,6 +371,13 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         return _verifySignature(vId, address(this), digest, signature);
     }
 
+    /// @notice Verifies a stateless signature for enable-mode ERC-1271 flows.
+    /// @dev Locates the validator/permission modules in the packages and calls their stateless verify.
+    /// @param packages The install packages containing the modules to verify against.
+    /// @param vId The validation identifier to use.
+    /// @param hash The hash to verify.
+    /// @param signature The signature bytes.
+    /// @return True if the stateless signature verification succeeds.
     function _verifyStatelessSignature(
         Install[] calldata packages,
         ValidationId vId,
