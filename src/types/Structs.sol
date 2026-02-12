@@ -11,12 +11,6 @@ struct Install {
     bytes internalData;
 }
 
-struct Uninstall {
-    uint256 moduleType;
-    address module;
-    bytes data;
-}
-
 struct ValidationInfo {
     uint32 nonce;
     address hook;

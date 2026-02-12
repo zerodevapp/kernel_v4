@@ -6,7 +6,6 @@ import {ValidationId} from "./Types.sol";
 error ImplementationNotDeployed();
 
 error ModuleInstallFailed();
-error ModuleUninstallFailed();
 
 error InvalidValidator();
 
@@ -21,7 +20,6 @@ error InvalidCallType();
 error InvalidExecType();
 
 error InvalidSelector();
-error InvalidEnableSignature();
 
 error Unauthorized();
 

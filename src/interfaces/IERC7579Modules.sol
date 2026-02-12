@@ -88,13 +88,6 @@ interface ISigner is IModule {
     function checkSignature(bytes32 id, address sender, bytes32 hash, bytes calldata sig) external view returns (bytes4);
 }
 
-interface IStatelessValidator is IValidator {
-    function validateSignatureWithData(bytes32 hash, bytes calldata signature, bytes calldata data)
-        external
-        view
-        returns (bool);
-}
-
 interface IStatelessValidatorWithSender is IModule {
     function validateSignatureWithDataWithSender(
         address sender,
