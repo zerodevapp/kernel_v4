@@ -72,6 +72,28 @@ abstract contract Staker_deployWithFactory is StakerBTTModifiers {
         vm.expectRevert(DeployFailed.selector);
         staker.deployWithFactory(address(failingFactory), deployData);
     }
+
+    function test_WhenETHValueIsSentWithTheCall() external givenTheFactoryIsApproved {
+        // it should forward the ETH value to the factory
+        MockValueReceivingFactory valueFactory = new MockValueReceivingFactory();
+
+        vm.prank(owner);
+        staker.approveFactory(address(valueFactory), true);
+
+        uint256 sendValue = 1 ether;
+        uint256 factoryBalanceBefore = address(valueFactory).balance;
+
+        bytes memory deployData = abi.encodeWithSelector(MockValueReceivingFactory.deploy.selector);
+
+        address account = staker.deployWithFactory{value: sendValue}(address(valueFactory), deployData);
+
+        assertEq(
+            address(valueFactory).balance - factoryBalanceBefore,
+            sendValue,
+            "Factory should have received the ETH value"
+        );
+        assertTrue(account != address(0), "Should return a non-zero address");
+    }
 }
 
 contract MockFailingFactory {
@@ -79,5 +101,12 @@ contract MockFailingFactory {
 
     function deploy() external pure returns (address) {
         revert DeployFailed();
+    }
+}
+
+contract MockValueReceivingFactory {
+    function deploy() external payable returns (address) {
+        // Return a deterministic non-zero address to indicate success
+        return address(uint160(uint256(keccak256(abi.encodePacked(msg.value, block.timestamp)))));
     }
 }

@@ -15,6 +15,8 @@ Kernel_validateUserOp
     ├── given the validation type is ROOT
     │   ├── given the root is not set
     │   │   └── it should use the fallback validator
+    │   ├── given the root is set to a permission type
+    │   │   └── it should use permission validation for root
     │   ├── when the signature is valid
     │   │   ├── it should return 0 for success
     │   │   └── it should allow any callData without restrictions
@@ -25,7 +27,7 @@ Kernel_validateUserOp
     │   │   └── it should revert with InvalidVid error
     │   └── given the validator is installed
     │       ├── when validator returns empty data
-    │       │   └── it should return SIG_VALIDATION_FAILED when validator returns empty data (misconfiguration)
+    │       │   └── it should return SIG_VALIDATION_FAILED when validator returns empty data
     │       ├── given the callData selector is in the allowed list and hook is address1
     │       │   ├── when the validator signature is valid
     │       │   │   └── it should return 0 for success
@@ -61,8 +63,10 @@ Kernel_validateUserOp
     │       │   │   └── it should return 0 for success
     │       │   └── when the signer signature is invalid
     │       │       └── it should return SIG_VALIDATION_FAILED
-    │       └── when any policy fails validation
-    │           └── it should return SIG_VALIDATION_FAILED
+    │       ├── when any policy fails validation
+    │       │   └── it should return SIG_VALIDATION_FAILED
+    │       └── given multiple policies are installed
+    │           └── it should iterate all policies in the loop
     ├── given the validation mode is replayable
     │   ├── it should compute userOpHash without chainId
     │   └── it should allow the same signature to be valid across different chains

@@ -416,6 +416,66 @@ abstract contract Kernel_setRoot is BTTModifiers {
         _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
     }
 
+    function test_GivenTheFirstPackageModuleTypeIsPOLICY()
+        external
+        whenCallerIsEntryPointOrSelfSetRoot
+        givenTheOverloadSetRootWithInstallArrayIsCalled
+    {
+        // it should derive root from permissionId in internalData
+        MockPolicy mockPolicy = new MockPolicy();
+        MockSigner mockSigner = new MockSigner();
+        PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("policyFirstPkg")));
+
+        Install[] memory packages = new Install[](2);
+        packages[0] = Install({
+            moduleType: 5, // POLICY
+            module: address(mockPolicy),
+            moduleData: hex"",
+            internalData: abi.encodePacked(testPermId)
+        });
+        packages[1] = Install({
+            moduleType: 6, // SIGNER
+            module: address(mockSigner),
+            moduleData: hex"",
+            internalData: abi.encodePacked(testPermId)
+        });
+
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
+
+        // Root should be set to the permission derived from testPermId
+        ValidationId expectedRoot = permissionToIdentifier(testPermId);
+        assertEq(kernel.validationInfo(expectedRoot).hook, address(1), "Permission should be installed and set as root");
+    }
+
+    function test_GivenTheFirstPackageModuleTypeIsSIGNER()
+        external
+        whenCallerIsEntryPointOrSelfSetRoot
+        givenTheOverloadSetRootWithInstallArrayIsCalled
+    {
+        // it should derive root from permissionId in internalData
+        // A signer-only permission (no policies) can be root
+        MockSigner mockSigner = new MockSigner();
+        PermissionId testPermId = PermissionId.wrap(bytes4(keccak256("signerFirstPkg")));
+
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({
+            moduleType: 6, // SIGNER
+            module: address(mockSigner),
+            moduleData: hex"",
+            internalData: abi.encodePacked(testPermId)
+        });
+
+        _callSetRoot(ValidationId.wrap(bytes21(0)), packages, hex"");
+
+        // Root should be set to the permission derived from testPermId
+        ValidationId expectedRoot = permissionToIdentifier(testPermId);
+        assertEq(
+            kernel.validationInfo(expectedRoot).hook,
+            address(1),
+            "Permission (signer-only) should be installed and set as root"
+        );
+    }
+
     /*//////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
