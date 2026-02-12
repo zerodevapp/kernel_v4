@@ -9,8 +9,15 @@ import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
 import {Install, SelectorConfig, ValidationInfo} from "src/types/Structs.sol";
 import {ValidationId, CallType, PermissionId} from "src/types/Types.sol";
-import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {CALLTYPE_DELEGATECALL, CALLTYPE_SINGLE} from "src/types/Constants.sol";
+import {validatorToIdentifier, permissionToIdentifier, getType} from "src/lib/Utils.sol";
+import {
+    CALLTYPE_DELEGATECALL,
+    CALLTYPE_SINGLE,
+    VALIDATION_TYPE_VALIDATOR,
+    VALIDATION_TYPE_PERMISSION,
+    HOOK_MODULE_NOT_INSTALLED
+} from "src/types/Constants.sol";
+import {Unauthorized} from "src/types/Error.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
 import {MockExecutor} from "../mock/MockExecutor.sol";
@@ -18,6 +25,8 @@ import {MockHook} from "../mock/MockHook.sol";
 import {MockFallback} from "../mock/MockFallback.sol";
 import {MockPolicy} from "../mock/MockPolicy.sol";
 import {MockSigner} from "../mock/MockSigner.sol";
+import {IERC7579Account} from "src/interfaces/IERC7579Account.sol";
+import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 
 contract KernelInvariantHandler is Test {
     Kernel public immutable kernel;
@@ -42,12 +51,26 @@ contract KernelInvariantHandler is Test {
     address public signerInstalled;
     bytes4 public permissionId;
 
+    // Ghost variables for nonce tracking
+    uint192[] public exercisedNonceKeys;
+    mapping(uint192 => bool) public nonceKeyExercised;
+    mapping(uint192 => uint64) public ghostNonce;
+    uint64 public ghostValidNonceFrom;
+
+    // Ghost variables for executor hook enforcement
+    uint256 public uninstalledExecutorCallCount;
+    uint256 public uninstalledExecutorRevertCount;
+
+    // Ghost variable for root tracking
+    ValidationId public ghostRoot;
+
     constructor(Kernel kernel_, IEntryPoint ep_, MockValidator rootValidator_) {
         kernel = kernel_;
         ep = ep_;
         rootValidator = rootValidator_;
 
         validatorInstalled[address(rootValidator_)] = true;
+        ghostRoot = validatorToIdentifier(rootValidator_);
 
         for (uint256 i = 0; i < 3; i++) {
             validators.push(new MockValidator());
@@ -77,7 +100,9 @@ contract KernelInvariantHandler is Test {
 
     function uninstallValidator(uint256 index) external {
         MockValidator validator = validators[index % validators.length];
-        if (address(validator) == address(rootValidator)) {
+        // Cannot uninstall the current root validator
+        ValidationId vId = validatorToIdentifier(validator);
+        if (ValidationId.unwrap(vId) == ValidationId.unwrap(ghostRoot)) {
             return;
         }
         vm.startPrank(address(ep));
@@ -150,6 +175,10 @@ contract KernelInvariantHandler is Test {
         return policyStack.length;
     }
 
+    function exercisedNonceKeysCount() external view returns (uint256) {
+        return exercisedNonceKeys.length;
+    }
+
     function installSelector(uint256 selectorIndex, uint256 targetIndex, bool delegatecall) external {
         bytes4 selector = selectors[selectorIndex % selectors.length];
         MockFallback target = fallbacks[targetIndex % fallbacks.length];
@@ -218,6 +247,98 @@ contract KernelInvariantHandler is Test {
         vm.stopPrank();
         signerInstalled = address(0);
     }
+
+    // --- 3.4: Nonce handler actions ---
+
+    function setNonce(uint192 key, uint64 seq) external {
+        // Bound key to a small range to increase collisions / reuse
+        key = uint192(bound(uint256(key), 0, 9));
+        // seq must be > current nonce for this key
+        uint64 currentSeq = uint64(kernel.nonce(key));
+        if (seq <= currentSeq) {
+            seq = currentSeq + 1;
+        }
+        // Cap to avoid overflow
+        if (seq > type(uint64).max - 1) {
+            return;
+        }
+        vm.startPrank(address(ep));
+        kernel.setNonce(key, seq);
+        vm.stopPrank();
+
+        // Track ghost state
+        if (!nonceKeyExercised[key]) {
+            nonceKeyExercised[key] = true;
+            exercisedNonceKeys.push(key);
+        }
+        ghostNonce[key] = seq;
+    }
+
+    function setValidNonceFrom(uint64 seq) external {
+        uint64 currentValidFrom = kernel.validNonceFrom();
+        if (seq <= currentValidFrom) {
+            seq = currentValidFrom + 1;
+        }
+        if (seq > type(uint64).max - 1) {
+            return;
+        }
+        vm.startPrank(address(ep));
+        kernel.setValidNonceFrom(seq);
+        vm.stopPrank();
+
+        ghostValidNonceFrom = seq;
+    }
+
+    // --- 3.5: Root-always-installed handler action ---
+
+    function setRoot(uint256 validatorIndex) external {
+        // Only set root to an installed validator
+        MockValidator validator = validators[validatorIndex % validators.length];
+        if (!validatorInstalled[address(validator)]) {
+            return;
+        }
+        ValidationId vId = validatorToIdentifier(validator);
+        vm.startPrank(address(ep));
+        kernel.setRoot(vId);
+        vm.stopPrank();
+        ghostRoot = vId;
+    }
+
+    // --- 3.6: Executor hook enforcement handler actions ---
+
+    function executeFromInstalledExecutor(uint256 index) external {
+        MockExecutor executor = executors[index % executors.length];
+        if (!executorInstalled[address(executor)]) {
+            return;
+        }
+        // Execute a no-op single call (call to kernel.accountId() which is a view)
+        bytes32 mode = bytes32(
+            abi.encodePacked(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_TRY, bytes4(0), bytes4(0), bytes22(0))
+        );
+        bytes memory executionData = abi.encodePacked(address(kernel), uint256(0), abi.encodeCall(Kernel.accountId, ()));
+        vm.prank(address(executor));
+        kernel.executeFromExecutor(mode, executionData);
+    }
+
+    function executeFromUninstalledExecutor(uint256 index) external {
+        MockExecutor executor = executors[index % executors.length];
+        if (executorInstalled[address(executor)]) {
+            return;
+        }
+        uninstalledExecutorCallCount++;
+
+        bytes32 mode = bytes32(
+            abi.encodePacked(LibERC7579.CALLTYPE_SINGLE, LibERC7579.EXECTYPE_TRY, bytes4(0), bytes4(0), bytes22(0))
+        );
+        bytes memory executionData = abi.encodePacked(address(kernel), uint256(0), abi.encodeCall(Kernel.accountId, ()));
+        vm.prank(address(executor));
+        try kernel.executeFromExecutor(mode, executionData) {
+        // Should never succeed
+        }
+        catch {
+            uninstalledExecutorRevertCount++;
+        }
+    }
 }
 
 contract KernelInvariant is StdInvariant, Test {
@@ -242,9 +363,9 @@ contract KernelInvariant is StdInvariant, Test {
         targetContract(address(handler));
     }
 
-    function invariant_root_is_installed() external {
-        assertEq(ValidationId.unwrap(kernel.root()), ValidationId.unwrap(validatorToIdentifier(rootValidator)));
-        assertTrue(kernel.isModuleInstalled(1, address(rootValidator), hex""));
+    function invariant_root_is_installed() external view {
+        ValidationId expectedRoot = handler.ghostRoot();
+        assertEq(ValidationId.unwrap(kernel.root()), ValidationId.unwrap(expectedRoot), "root != expected ghost root");
     }
 
     function invariant_validator_install_state_matches_handler() external {
@@ -326,5 +447,39 @@ contract KernelInvariant is StdInvariant, Test {
         if (signer != address(0)) {
             assertTrue(kernel.isModuleInstalled(6, signer, abi.encodePacked(handler.permissionId())));
         }
+    }
+
+    // --- 3.4: Nonce invariant ---
+    // For all exercised nonce keys, kernel.nonce(key) >= kernel.validNonceFrom()
+    function invariant_nonce_gte_validNonceFrom() external view {
+        uint64 validFrom = kernel.validNonceFrom();
+        uint256 keyCount = handler.exercisedNonceKeysCount();
+        for (uint256 i = 0; i < keyCount; i++) {
+            uint192 key = handler.exercisedNonceKeys(i);
+            uint256 fullNonce = kernel.nonce(key);
+            // The sequence portion is the lower 64 bits
+            uint64 seq = uint64(fullNonce);
+            assertGe(seq, validFrom, "nonce seq < validNonceFrom");
+        }
+    }
+
+    // --- 3.5: Root-always-installed invariant ---
+    // If root != bytes21(0), then validationInfo(root).hook > address(0)
+    function invariant_root_always_installed() external view {
+        ValidationId rootId = kernel.root();
+        if (ValidationId.unwrap(rootId) != bytes21(0)) {
+            ValidationInfo memory vInfo = kernel.validationInfo(rootId);
+            assertTrue(vInfo.hook > address(0), "root validation hook is zero (not installed)");
+        }
+    }
+
+    // --- 3.6: Executor hook enforcement invariant ---
+    // Uninstalled executors always revert when calling executeFromExecutor
+    function invariant_uninstalled_executor_always_reverts() external view {
+        assertEq(
+            handler.uninstalledExecutorCallCount(),
+            handler.uninstalledExecutorRevertCount(),
+            "uninstalled executor call did not revert"
+        );
     }
 }
