@@ -143,7 +143,6 @@ abstract contract ValidationManager {
         if (installingPermission == ValidationId.wrap(bytes21(0))) {
             require(vId != ValidationId.wrap(bytes21(0)), InvalidPermissionInstall());
             installingPermission = vId;
-            // _initializeValidation(vId, _internalData[4:]);
         } else {
             require(installingPermission == vId, InvalidPermissionInstall());
         }
@@ -292,13 +291,10 @@ abstract contract ValidationManager {
         PackedUserOperation memory op,
         bytes calldata userOpSignature
     ) internal returns (uint256 validationData) {
-        // NOTE: removed permission for now, adding back after testing is done
         IValidator validator = getValidator(vId);
         op.signature = userOpSignature;
-        //return validator.validateUserOp(op, opHash);
         (bool success, bytes memory ret) =
             address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
-        //validationData = success ? abi.decode(ret, (uint256)) : 1;
         // forge-lint: disable-next-line(unsafe-typecast)
         validationData = (success && ret.length >= 32) ? uint256(bytes32(ret)) : SIG_VALIDATION_FAILED_UINT;
     }

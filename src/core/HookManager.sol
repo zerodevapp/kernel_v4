@@ -40,8 +40,6 @@ abstract contract HookManager {
     }
 
     function _postHook(IHook _hook, bytes memory context) internal {
-        // bool success,
-        // bytes memory result
         if (address(_hook) != HOOK_MODULE_INSTALLED_NO_HOOK && address(_hook) != HOOK_MODULE_NOT_INSTALLED) {
             _hook.postCheck(context);
         }
