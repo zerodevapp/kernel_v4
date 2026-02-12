@@ -5,5 +5,7 @@ Staker_deployWithFactory
     ├── it should call the factory deploy function with the provided data
     ├── when the factory deployment succeeds
     │   └── it should return the deployed account address
-    └── when the factory deployment reverts
-        └── it should revert with DeployFailed error
+    ├── when the factory deployment reverts
+    │   └── it should revert with DeployFailed error
+    └── when ETH value is sent with the call
+        └── it should forward the ETH value to the factory

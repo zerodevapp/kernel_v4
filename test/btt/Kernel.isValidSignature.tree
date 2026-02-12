@@ -60,5 +60,12 @@ Kernel_isValidSignature
     │       │   └── it should return ERC1271_MAGICVALUE
     │       └── when any policy or signer fails
     │           └── it should return ERC1271_INVALID
-    └── given the validation type is unsupported
-        └── it should revert with InvalidValidationType error
+    ├── given the validation type is unsupported
+    │   └── it should revert with InvalidValidationType error
+    ├── given the signature is wrapped with ERC6492 sentinel
+    │   └── it should unwrap and validate the inner signature
+    └── given the signature format is replayable TypedDataSign
+        ├── when the root validator returns valid for replayable
+        │   └── it should return ERC1271_MAGICVALUE
+        └── when the root validator returns invalid for replayable
+            └── it should return ERC1271_INVALID

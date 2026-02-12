@@ -8,6 +8,8 @@ import {BTTModifiers} from "./BTTModifiers.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
 import {MockValidator, MockEmptyReturnValidator} from "../mock/MockValidator.sol";
 import {MockHook} from "../mock/MockHook.sol";
+import {MockPolicy} from "../mock/MockPolicy.sol";
+import {MockSigner} from "../mock/MockSigner.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {PermissionId} from "src/types/Types.sol";
 import {
@@ -179,6 +181,31 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
 
         assertEq(validationData, 0, "Root validation should succeed");
+    }
+
+    function test_GivenTheRootIsSetToAPermissionType()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsROOT
+    {
+        // it should use permission validation for root
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install a permission and set it as root
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.setRoot(permissionToIdentifier(permissionId));
+
+        // Now create a userOp using ROOT validation type (type=0x00)
+        // The root is a permission, so _checkValidation should resolve root to permission type
+        PackedUserOperation memory op = _createUserOpWithRootValidation();
+        op.signature = _permissionSignUserOp(op, true, false);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 0, "Root set to permission should use permission validation");
     }
 
     function test_WhenTheSignatureIsValid() external whenTheCallerIsTheEntryPointOrSelf givenTheValidationTypeIsROOT {
@@ -782,6 +809,67 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
 
         assertEq(validationData, 1, "Failed policy should return SIG_VALIDATION_FAILED");
+    }
+
+    function test_GivenMultiplePoliciesAreInstalled()
+        external
+        whenTheCallerIsTheEntryPointOrSelf
+        givenTheValidationTypeIsPERMISSION
+        givenThePermissionIsInstalled
+    {
+        // it should iterate all policies in the loop
+        vm.stopPrank();
+        vm.startPrank(address(ep));
+
+        // Install a permission with 2 policies + 1 signer
+        MockPolicy policy2 = new MockPolicy();
+        PermissionId multiPermId = PermissionId.wrap(bytes4(keccak256("multiPolicy")));
+
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(multiPermId)));
+        kernel.installModule(5, address(policy2), abi.encode(hex"deadbeef", abi.encodePacked(multiPermId)));
+        kernel.installModule(
+            6,
+            address(signer),
+            abi.encode(hex"deadbeef", abi.encodePacked(multiPermId, address(0), Kernel.execute.selector))
+        );
+
+        PackedUserOperation memory op = PackedUserOperation({
+            sender: address(kernel),
+            nonce: encodeNonce(false, false, false, bytes1(0x02), PermissionId.unwrap(multiPermId)),
+            initCode: hex"",
+            callData: abi.encodePacked(
+                Kernel.executeUserOp.selector,
+                abi.encodeWithSelector(
+                    Kernel.execute.selector,
+                    bytes32(0),
+                    abi.encodePacked(address(callee), uint256(0), MockCallee.foo.selector)
+                )
+            ),
+            accountGasLimits: bytes32(abi.encodePacked(uint128(1000000), uint128(1000000))),
+            preVerificationGas: 0,
+            gasFees: bytes32(abi.encodePacked(uint128(1), uint128(1))),
+            paymasterAndData: hex"",
+            signature: hex""
+        });
+
+        // Create 3 signatures: policy1, policy2, signer
+        bytes[] memory signatures = new bytes[](3);
+        signatures[0] = hex"dead";
+        signatures[1] = hex"cafe";
+        signatures[2] = hex"beef";
+
+        // Set up both policies and signer to pass
+        bytes32 paddedPermId = bytes32(PermissionId.unwrap(multiPermId));
+        policy.sudoSetValidSig(address(kernel), paddedPermId, hex"dead");
+        policy2.sudoSetValidSig(address(kernel), paddedPermId, hex"cafe");
+        signer.sudoSetValidSig(address(kernel), paddedPermId, hex"beef");
+
+        op.signature = abi.encode(signatures);
+        bytes32 userOpHash = ep.getUserOpHash(op);
+
+        uint256 validationData = kernel.validateUserOp(op, userOpHash, 0);
+
+        assertEq(validationData, 0, "Multiple policies should all be iterated and pass");
     }
 
     function test_GivenTheValidationModeIsReplayable() external {

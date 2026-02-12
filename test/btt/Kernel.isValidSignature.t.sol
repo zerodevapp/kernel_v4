@@ -616,6 +616,62 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         vm.expectRevert(InvalidValidationType.selector);
         kernel.isValidSignature(messageHash, abi.encodePacked(bytes1(0), bytes1(0xee), permissionId, sig));
     }
+
+    function test_GivenTheSignatureIsWrappedWithERC6492Sentinel() external whenHashIsNotERC7739_MAGIC_HASH {
+        // it should unwrap and validate the inner signature
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory innerSig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "", _rootSignHash, false, true);
+
+        bytes memory fullInnerSig = abi.encodePacked(bytes1(0), bytes1(0), innerSig);
+
+        // Wrap with ERC6492 sentinel: abi.encode(address, bytes, bytes) ++ sentinel
+        // The sentinel is 0x6492...6492
+        bytes32 sentinel = 0x6492649264926492649264926492649264926492649264926492649264926492;
+        bytes memory wrappedSig = abi.encodePacked(
+            abi.encode(
+                address(0xdead), // factory address (unused for already-deployed)
+                hex"", // factory calldata (unused)
+                fullInnerSig // actual signature
+            ),
+            sentinel
+        );
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), wrappedSig);
+        assertEq(ret, ERC1271_MAGICVALUE, "ERC6492 wrapped signature should validate after unwrapping");
+    }
+
+    modifier givenTheSignatureFormatIsReplayableTypedDataSign() {
+        _;
+    }
+
+    function test_WhenTheRootValidatorReturnsValidForReplayable()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsReplayableTypedDataSign
+    {
+        // it should return ERC1271_MAGICVALUE
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271SignatureReplayable(messageHash, "C(bytes32 stuff)", _rootSignHash, true);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_MAGICVALUE, "Valid replayable TypedDataSign should return MAGICVALUE");
+    }
+
+    function test_WhenTheRootValidatorReturnsInvalidForReplayable()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsReplayableTypedDataSign
+    {
+        // it should return ERC1271_INVALID
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271SignatureReplayable(messageHash, "C(bytes32 stuff)", _rootSignHash, false);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_INVALID, "Invalid replayable TypedDataSign should return INVALID");
+    }
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
@@ -1050,5 +1106,60 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     function _contentsName(bytes memory contentsType) internal pure returns (bytes memory) {
         string memory ct = string(contentsType);
         return bytes(LibString.slice(ct, 0, LibString.indexOf(ct, "(", 0)));
+    }
+
+    /// @dev Creates a replayable TypedDataSign signature (without chainId in the struct)
+    function _erc1271SignatureReplayable(
+        bytes32 hash,
+        bytes memory contentsType,
+        function(bytes32, bool) returns (bytes memory) signFn,
+        bool success
+    ) internal returns (bytes32 contentsHash, bytes memory sig) {
+        contentsHash = keccak256(abi.encode(hash, contentsType));
+        bytes memory contentsName = _contentsName(contentsType);
+        bytes32 actualHash = _toErc1271HashReplayable(address(kernel), contentsHash, contentsType, contentsName);
+        sig = signFn(actualHash, success);
+        bytes memory contentsDescription = abi.encodePacked(contentsType);
+        sig =
+            abi.encodePacked(sig, _DOMAIN_SEP_B, contentsHash, contentsDescription, uint16(contentsDescription.length));
+    }
+
+    /// @dev Computes the replayable EIP-712 hash (without chainId)
+    function _toErc1271HashReplayable(
+        address account,
+        bytes32 contents,
+        bytes memory contentsType,
+        bytes memory contentsName
+    ) internal view returns (bytes32) {
+        bytes32 parentStructHash = keccak256(
+            abi.encodePacked(
+                abi.encode(_typedDataSignTypeHashReplayable(contentsType, contentsName), contents),
+                _accountDomainStructFieldsReplayable(account)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", _DOMAIN_SEP_B, parentStructHash));
+    }
+
+    /// @dev Account domain struct fields without chainId for replayable mode
+    function _accountDomainStructFieldsReplayable(address account) internal view returns (bytes memory) {
+        (, string memory name, string memory version,, address verifyingContract, bytes32 salt,) =
+            Kernel(payable(account)).eip712Domain();
+        return abi.encode(keccak256(bytes(name)), keccak256(bytes(version)), verifyingContract, salt);
+    }
+
+    /// @dev TypedDataSign type hash without chainId for replayable mode
+    function _typedDataSignTypeHashReplayable(bytes memory contentsType, bytes memory contentsName)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked(
+                "TypedDataSign(",
+                contentsName,
+                " contents,string name,string version,address verifyingContract,bytes32 salt)",
+                contentsType
+            )
+        );
     }
 }

@@ -1,0 +1,17 @@
+KernelImmutableECDSA_Test
+├── when verifyFallbackSignature receives a valid signature from the immutable signer
+│   └── it should return validation success
+├── when verifyFallbackSignature receives a signature from a different signer
+│   └── it should return validation failed
+├── when verifyFallbackSignature receives a malformed signature
+│   └── it should return validation failed
+├── when fallbackValidatorAvailable is checked
+│   └── it should return true
+├── when _initialize is called with empty packages
+│   └── it should not revert and not set root
+├── when _initialize is called with packages
+│   └── it should install packages without requiring root
+├── when initialize is called for the first time
+│   └── it should succeed and initialize
+└── when initialize is called a second time
+    └── it should revert with InvalidInitialization

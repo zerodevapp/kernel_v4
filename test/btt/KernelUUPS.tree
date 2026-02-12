@@ -1,0 +1,11 @@
+KernelUUPS_Test
+├── when authorizeUpgrade is called by EntryPoint
+│   └── it should not revert
+├── when authorizeUpgrade is called by self
+│   └── it should not revert
+├── when authorizeUpgrade is called by unauthorized caller
+│   └── it should revert with Unauthorized
+├── when initialize is called for the first time with valid packages
+│   └── it should initialize the kernel and install root
+└── when initialize is called a second time
+    └── it should revert with InvalidInitialization
