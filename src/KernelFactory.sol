@@ -28,13 +28,12 @@ contract KernelFactory {
     /// @return The deployed Kernel account.
     function deploy(Install[] calldata initialPackages, uint256 nonce) external payable returns (Kernel) {
         bytes32 salt = _calculateSalt(initialPackages, nonce);
-        (bool deployed, address account) = LibClone.createDeterministicERC1967(msg.value, address(UUPS), salt);
+        (bool alreadyDeployed, address account) = LibClone.createDeterministicERC1967(msg.value, address(UUPS), salt);
         Kernel k = Kernel(payable(account));
-        if (deployed) {
-            return k;
+        if (!alreadyDeployed) {
+            k.initialize(initialPackages);
+            emit KernelDeployed(account);
         }
-        k.initialize(initialPackages);
-        emit KernelDeployed(account);
         return k;
     }
 
@@ -61,10 +60,10 @@ contract KernelFactory {
     {
         require(signer != address(0), InvalidSigner());
         bytes32 salt = _calculateSalt(initialPackages, nonce);
-        (bool deployed, address account) =
+        (bool alreadyDeployed, address account) =
             LibClone.createDeterministicERC1967(msg.value, address(IMMUTABLE_ECDSA), abi.encodePacked(signer), salt);
         Kernel k = Kernel(payable(account));
-        if (!deployed) {
+        if (!alreadyDeployed) {
             k.initialize(initialPackages);
             emit KernelDeployed(account);
         }

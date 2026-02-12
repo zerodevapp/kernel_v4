@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
-
 struct Execution {
     address target;
     uint256 value;
