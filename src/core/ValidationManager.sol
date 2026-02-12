@@ -360,6 +360,7 @@ abstract contract ValidationManager {
     }
 
     /// @notice Validates a userOp using an installed IValidator module.
+    /// @dev Uses a direct interface call so that validator revert reasons propagate to the caller.
     function _validateUserOpValidator(
         ValidationId vId,
         bytes32 opHash,
@@ -368,10 +369,7 @@ abstract contract ValidationManager {
     ) internal returns (uint256 validationData) {
         IValidator validator = getValidator(vId);
         op.signature = userOpSignature;
-        (bool success, bytes memory ret) =
-            address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
-        // forge-lint: disable-next-line(unsafe-typecast)
-        validationData = (success && ret.length >= 32) ? uint256(bytes32(ret)) : SIG_VALIDATION_FAILED_UINT;
+        validationData = validator.validateUserOp(op, opHash);
     }
 
     /// @notice Validates a userOp using a permission (policies + signer).
