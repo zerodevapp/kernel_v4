@@ -3,14 +3,21 @@ pragma solidity ^0.8.0;
 
 import {IHook} from "../interfaces/IERC7579Modules.sol";
 import {CallType} from "../types/Types.sol";
-import {SELECTOR_MANAGER_STORAGE_SLOT, CALLTYPE_DELEGATECALL} from "../types/Constants.sol";
-import {ModuleInstallFailed} from "../types/Error.sol";
+import {
+    SELECTOR_MANAGER_STORAGE_SLOT,
+    CALLTYPE_DELEGATECALL,
+    HOOK_MODULE_NOT_INSTALLED,
+    HOOK_MODULE_INSTALLED_NO_HOOK
+} from "../types/Constants.sol";
+import {ModuleInstallFailed, NotInstalled} from "../types/Error.sol";
 import {SelectorConfig, SelectorStorage} from "../types/Structs.sol";
 
 /// @title SelectorManager
 /// @author Zerodev
 /// @notice Manages fallback module routing by function selector, including call type and hook configuration.
 abstract contract SelectorManager {
+    function _hookEnabled(IHook _hook) internal view virtual returns (bool);
+
     /// @notice Returns the fallback selector configuration for a given selector.
     /// @param selector The 4-byte function selector.
     /// @return The SelectorConfig (hook, target, callType).
@@ -40,6 +47,10 @@ abstract contract SelectorManager {
         require(callType == CALLTYPE_DELEGATECALL || _installSuccess, ModuleInstallFailed());
         bytes4 selector = bytes4(_internalData[0:4]);
         address hook = address(bytes20(_internalData[5:25]));
+        // address(0) = entryPoint-only (no hook), address(1) = anyone (no hook), else = real hook
+        if (hook != HOOK_MODULE_NOT_INSTALLED && hook != HOOK_MODULE_INSTALLED_NO_HOOK) {
+            require(_hookEnabled(IHook(hook)), NotInstalled());
+        }
         SelectorConfig storage $ = _selectorConfig(selector);
         $.target = _module;
         $.callType = callType;
