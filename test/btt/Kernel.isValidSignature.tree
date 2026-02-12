@@ -64,6 +64,18 @@ Kernel_isValidSignature
     │   └── it should revert with InvalidValidationType error
     ├── given the signature is wrapped with ERC6492 sentinel
     │   └── it should unwrap and validate the inner signature
+    ├── given the signature format is TypedDataSign with explicit contentsName
+    │   ├── when the root validator returns valid
+    │   │   └── it should return ERC1271_MAGICVALUE
+    │   └── when the root validator returns invalid
+    │       └── it should return ERC1271_INVALID
+    ├── given the signature format is replayable TypedDataSign with explicit contentsName
+    │   ├── when the root validator returns valid
+    │   │   └── it should return ERC1271_MAGICVALUE
+    │   └── when the root validator returns invalid
+    │       └── it should return ERC1271_INVALID
+    ├── given the root validation is not set
+    │   └── it should return ERC1271_INVALID via base fallback signature
     └── given the signature format is replayable TypedDataSign
         ├── when the root validator returns valid for replayable
         │   └── it should return ERC1271_MAGICVALUE

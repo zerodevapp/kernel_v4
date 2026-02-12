@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {LibString} from "solady/utils/LibString.sol";
+import {LibClone} from "solady/utils/LibClone.sol";
 import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {BTTModifiers} from "./BTTModifiers.sol";
 import {Install} from "src/types/Structs.sol";
@@ -28,6 +29,8 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
     // Note: _validationType and _isTypedDataSign are inherited from BTTModifiers
     bytes32 internal _testHash;
     bool internal _enableMode;
+    bool internal _isExplicitContentsName;
+    bool internal _isReplayableSignature;
 
     function test_WhenHashEqualsERC7739_MAGIC_HASH() external {
         // it should return ERC7739 support indicator
@@ -641,7 +644,89 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         assertEq(ret, ERC1271_MAGICVALUE, "ERC6492 wrapped signature should validate after unwrapping");
     }
 
+    modifier givenTheSignatureFormatIsTypedDataSignWithExplicitContentsName() {
+        _isExplicitContentsName = true;
+        _;
+    }
+
+    function test_WhenTheRootValidatorReturnsValid_GivenTheSignatureFormatIsTypedDataSignWithExplicitContentsName()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsTypedDataSignWithExplicitContentsName
+    {
+        // it should return ERC1271_MAGICVALUE
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "MyContents", _rootSignHash, true, true);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_MAGICVALUE, "Valid explicit contentsName should return MAGICVALUE");
+    }
+
+    function test_WhenTheRootValidatorReturnsInvalid_GivenTheSignatureFormatIsTypedDataSignWithExplicitContentsName()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsTypedDataSignWithExplicitContentsName
+    {
+        // it should return ERC1271_INVALID
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271Signature(messageHash, "C(bytes32 stuff)", "MyContents", _rootSignHash, true, false);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_INVALID, "Invalid explicit contentsName should return INVALID");
+    }
+
+    modifier givenTheSignatureFormatIsReplayableTypedDataSignWithExplicitContentsName() {
+        _isExplicitContentsName = true;
+        _isReplayableSignature = true;
+        _;
+    }
+
+    function test_WhenTheRootValidatorReturnsValid_GivenTheSignatureFormatIsReplayableTypedDataSignWithExplicitContentsName()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsReplayableTypedDataSignWithExplicitContentsName
+    {
+        // it should return ERC1271_MAGICVALUE
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271SignatureReplayableExplicit(messageHash, "C(bytes32 stuff)", "MyContents", _rootSignHash, true);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_MAGICVALUE, "Valid replayable explicit contentsName should return MAGICVALUE");
+    }
+
+    function test_WhenTheRootValidatorReturnsInvalid_GivenTheSignatureFormatIsReplayableTypedDataSignWithExplicitContentsName()
+        external
+        whenHashIsNotERC7739_MAGIC_HASH
+        givenTheSignatureFormatIsReplayableTypedDataSignWithExplicitContentsName
+    {
+        // it should return ERC1271_INVALID
+        bytes32 messageHash = keccak256("Hello world");
+        (bytes32 contentsHash, bytes memory sig) =
+            _erc1271SignatureReplayableExplicit(messageHash, "C(bytes32 stuff)", "MyContents", _rootSignHash, false);
+
+        bytes4 ret = kernel.isValidSignature(_toContentsHash(contentsHash), abi.encodePacked(bytes1(0), bytes1(0), sig));
+        assertEq(ret, ERC1271_INVALID, "Invalid replayable explicit contentsName should return INVALID");
+    }
+
+    function test_GivenTheRootValidationIsNotSet() external whenHashIsNotERC7739_MAGIC_HASH {
+        // it should return ERC1271_INVALID via base fallback signature
+        // Deploy an uninitialized kernel proxy (no root set, so root == bytes21(0))
+        address uninitProxy = LibClone.deployERC1967(address(factory.UUPS()));
+        Kernel uninit = Kernel(payable(uninitProxy));
+
+        bytes32 messageHash = keccak256("Hello world");
+        // Signature won't match TypedDataSign reconstruction, falls to PersonalSign.
+        // PersonalSign wraps hash and calls _erc1271IsValidSignatureNowCalldata.
+        // ROOT type with root=0 triggers _verifyFallbackSignature -> returns false.
+        bytes4 ret = uninit.isValidSignature(messageHash, abi.encodePacked(bytes1(0), bytes1(0), bytes32(0)));
+        assertEq(ret, ERC1271_INVALID, "Uninitialized kernel should return INVALID via fallback");
+    }
+
     modifier givenTheSignatureFormatIsReplayableTypedDataSign() {
+        _isReplayableSignature = true;
         _;
     }
 
@@ -1120,6 +1205,22 @@ abstract contract Kernel_isValidSignature is BTTModifiers {
         bytes32 actualHash = _toErc1271HashReplayable(address(kernel), contentsHash, contentsType, contentsName);
         sig = signFn(actualHash, success);
         bytes memory contentsDescription = abi.encodePacked(contentsType);
+        sig =
+            abi.encodePacked(sig, _DOMAIN_SEP_B, contentsHash, contentsDescription, uint16(contentsDescription.length));
+    }
+
+    /// @dev Creates a replayable TypedDataSign signature with explicit contentsName
+    function _erc1271SignatureReplayableExplicit(
+        bytes32 hash,
+        bytes memory contentsType,
+        bytes memory contentsName,
+        function(bytes32, bool) returns (bytes memory) signFn,
+        bool success
+    ) internal returns (bytes32 contentsHash, bytes memory sig) {
+        contentsHash = keccak256(abi.encode(hash, contentsType));
+        bytes32 actualHash = _toErc1271HashReplayable(address(kernel), contentsHash, contentsType, contentsName);
+        sig = signFn(actualHash, success);
+        bytes memory contentsDescription = abi.encodePacked(contentsType, contentsName);
         sig =
             abi.encodePacked(sig, _DOMAIN_SEP_B, contentsHash, contentsDescription, uint16(contentsDescription.length));
     }

@@ -303,7 +303,7 @@ abstract contract Kernel_validateUserOp is BTTModifiers {
         bytes32 userOpHash = ep.getUserOpHash(op);
 
         // Direct interface call reverts on empty return data (ABI decode failure)
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         kernel.validateUserOp(op, userOpHash, 0);
     }
 

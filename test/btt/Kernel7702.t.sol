@@ -13,6 +13,7 @@ import {Install} from "src/types/Structs.sol";
 import {MockValidator} from "../mock/MockValidator.sol";
 import {MockExecutor} from "../mock/MockExecutor.sol";
 import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
+import {InvalidValidationType} from "src/types/Error.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 
 /// @title Kernel7702 BTT Tests
@@ -150,7 +151,7 @@ contract Kernel7702_Test is Test {
         (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
 
-        vm.expectRevert();
+        vm.expectRevert(InvalidValidationType.selector);
         kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
     }
 
