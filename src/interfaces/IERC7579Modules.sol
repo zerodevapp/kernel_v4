@@ -2,7 +2,6 @@
 pragma solidity ^0.8.21;
 
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {AlreadyInitialized, InvalidTargetAddress, NotInitialized} from "../types/Error.sol";
 
 interface IModule {
     /**

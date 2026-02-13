@@ -5,7 +5,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {KernelUUPS} from "./KernelUUPS.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
-import {Install} from "./core/ModuleManager.sol";
+import {Install} from "./types/Structs.sol";
 
 /// @title KernelImmutableECDSA
 /// @author taek <leekt216@gmail.com>

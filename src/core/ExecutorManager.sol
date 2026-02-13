@@ -8,7 +8,7 @@ import {
 } from "../types/Constants.sol";
 import {IExecutor, IHook} from "../interfaces/IERC7579Modules.sol";
 import {ExecutorStorage, ExecutorConfig} from "../types/Structs.sol";
-import {NotExecutor, NotInstalled} from "../types/Error.sol";
+import {NotInstalled} from "../types/Error.sol";
 
 /// @title ExecutorManager
 /// @author taek <leekt216@gmail.com>
