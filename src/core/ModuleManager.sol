@@ -61,8 +61,11 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
         _postHook(hook, hookData);
     }
 
-    /// @dev Override this modifier to integrate an ERC-7484 module registry.
-    modifier installModuleHook(uint256 moduleType, address module) virtual {
+    /// @dev Override this function to integrate an ERC-7484 module registry check.
+    function _installModuleCheck(uint256 moduleType, address module) internal virtual {}
+
+    modifier installModuleHook(uint256 moduleType, address module) {
+        _installModuleCheck(moduleType, module);
         _;
     }
 
