@@ -250,12 +250,11 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
 
         bytes4 selector = bytes4(msg.data[0:4]);
         SelectorConfig storage $ = _selectorConfig(selector);
-        // if the selector is not initialized, revert
-        // if the selector is installed but hook is not set, only entrypoint can call it
-        if ($.target == address(0) || ($.hook == IHook(HOOK_MODULE_NOT_INSTALLED) && msg.sender != address(ENTRYPOINT)))
-        {
-            revert InvalidSelector();
-        }
+        // target must be initialized, and if hook is not set only entrypoint can call it
+        require(
+            $.target != address(0) && ($.hook != IHook(HOOK_MODULE_NOT_INSTALLED) || msg.sender == address(ENTRYPOINT)),
+            InvalidSelector()
+        );
         bytes memory hookData = _preHook($.hook, msg.data);
 
         bool success;

@@ -88,7 +88,7 @@ library Lib4337 {
         // Block number format: both validAfter and validUntil have highest bit set
         bool preUsesBlock = _usesBlockNumberFormat(validAfter1, validUntil1);
         bool resUsesBlock = _usesBlockNumberFormat(validAfter2, validUntil2);
-        if (preUsesBlock != resUsesBlock) revert ValidityFormatMismatch();
+        require(preUsesBlock == resUsesBlock, ValidityFormatMismatch());
 
         // Convert validUntil=0 to max (no expiry)
         if (validUntil1 == 0) validUntil1 = type(uint48).max;

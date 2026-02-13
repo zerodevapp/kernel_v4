@@ -394,9 +394,7 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, HookManag
                     break;
                 }
             }
-            if (packages.length == i) {
-                revert InvalidValidator();
-            }
+            require(i < packages.length, InvalidValidator());
             return IStatelessValidatorWithSender(address(validator))
                 .validateSignatureWithDataWithSender(msg.sender, hash, signature, packages[i].moduleData);
         } else if (vType == VALIDATION_TYPE_PERMISSION) {

@@ -30,9 +30,7 @@ contract Staker is Ownable, EIP712 {
     /// @param createData The calldata to forward to the factory's deploy function.
     /// @return The address of the deployed account.
     function deployWithFactory(address factory, bytes calldata createData) external payable returns (address) {
-        if (!approved[factory]) {
-            revert NotApprovedFactory();
-        }
+        require(approved[factory], NotApprovedFactory());
         (bool success, bytes memory ret) = factory.call{value: msg.value}(createData);
         require(success, DeployFailed());
         return abi.decode(ret, (address));
