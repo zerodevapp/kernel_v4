@@ -14,6 +14,7 @@ bytecode_hash = "none"
 isolate = true
 extra_output = ["storageLayout"]
 fs_permissions = [{ access = "read", path = "releases" }]
+ignored_error_codes = [4591]
 ignored_warnings_from = ["test/", "tool/test/", "dependencies"]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
