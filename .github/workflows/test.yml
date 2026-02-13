@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+    branches: [master]
   workflow_dispatch:
 
 env:
@@ -14,7 +15,7 @@ jobs:
     strategy:
       fail-fast: true
 
-    name: Foundry project
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,22 +26,21 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Show Forge version
-        run: |
-          forge --version
+        run: forge --version
+
+      - name: Install Soldeer dependencies
+        run: forge soldeer install
 
       - name: Run Forge fmt
-        run: |
-          forge fmt --check
+        run: forge fmt --check
         id: fmt
 
       - name: Run Forge build
-        run: |
-          forge build --sizes --skip MockKernel
+        run: forge build --sizes --skip MockKernel
         id: build
 
       - name: Run Forge tests
-        run: |
-          forge test -vvv
+        run: forge test -vvv
         id: test
 
   tools:
@@ -54,17 +54,20 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install Soldeer dependencies
+        run: forge soldeer install
+
       - name: Install bulloak
-        run: |
-          cargo install bulloak
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install bulloak binary
+        run: cargo binstall bulloak -y --force
 
       - name: Run Forge build
-        run: |
-          forge build --skip MockKernel
+        run: forge build --skip MockKernel
 
       - name: Run all checks
-        run: |
-          python3 tool/run.py --strict
+        run: python3 tool/run.py --strict
 
   coverage:
     name: Coverage Report
@@ -77,11 +80,14 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install Soldeer dependencies
+        run: forge soldeer install
+
       - name: Run Full Test Coverage
         run: |
           echo "## Full Test Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          forge coverage --no-match-coverage "test/**" 2>&1 | tee coverage-full.txt
+          forge coverage --no-match-coverage "(script|test|Foo|Bar|validator|sdk|signer)" 2>&1 | tee coverage-full.txt
           cat coverage-full.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -89,6 +95,68 @@ jobs:
         run: |
           echo "## BTT Test Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          forge coverage --match-path "test/btt/*.t.sol" --no-match-coverage "test/**" 2>&1 | tee coverage-btt.txt
+          forge coverage --match-path "test/btt/*.t.sol" --no-match-coverage "(script|test|Foo|Bar|validator|sdk|signer)" 2>&1 | tee coverage-btt.txt
           cat coverage-btt.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+  gas-snapshot:
+    name: Gas Snapshot Diff
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Soldeer dependencies
+        run: forge soldeer install
+
+      - name: Generate gas snapshot
+        run: forge snapshot
+
+      - name: Compare gas snapshot
+        run: |
+          if [ -f .gas-snapshot ]; then
+            forge snapshot --diff .gas-snapshot > gas-diff.txt 2>&1 || true
+          else
+            echo "No committed .gas-snapshot found — skipping diff." > gas-diff.txt
+          fi
+
+      - name: Comment PR with gas diff
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diff = fs.readFileSync('gas-diff.txt', 'utf8').trim();
+            if (!diff) return;
+
+            const marker = '<!-- gas-snapshot-diff -->';
+            const body = `${marker}\n## Gas Snapshot Diff\n\`\`\`\n${diff.slice(0, 60000)}\n\`\`\`\n\n*Informational only — gas changes do not block merging.*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body,
+              });
+            }
