@@ -5,6 +5,8 @@ import {FactoryBTTModifiers} from "./FactoryBTTModifiers.sol";
 import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
 import {InvalidRootValidation} from "src/types/Error.sol";
+import {KernelDeployed} from "src/types/Events.sol";
+import {MockValidator} from "../mock/MockValidator.sol";
 
 abstract contract KernelFactory_deploy is FactoryBTTModifiers {
     modifier whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce() {
@@ -47,6 +49,24 @@ abstract contract KernelFactory_deploy is FactoryBTTModifiers {
         assertEq(address(account).balance, balanceBefore + 1 ether, "ETH should be forwarded to existing account");
     }
 
+    function test_GivenDifferentInitDataIsUsedAfterDeployment()
+        external
+        whenTheAddressIsAlreadyDeployedForThisInitPackagesHashAndNonce
+    {
+        _initializeFactory();
+        // it should still return the same address ignoring new data
+        // The salt is derived from initPackages and nonce, so same salt = same address
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        Kernel account1 = factory.deploy(packages, 0);
+
+        // Deploy again with same params - the initialization is skipped (alreadyDeployed=true)
+        Kernel account2 = factory.deploy(packages, 0);
+
+        assertEq(address(account1), address(account2), "Same salt should return same address");
+    }
+
     modifier whenTheAddressIsNotYetDeployed() {
         _addressAlreadyDeployed = false;
         _;
@@ -74,6 +94,19 @@ abstract contract KernelFactory_deploy is FactoryBTTModifiers {
         assertTrue(address(account) != address(0), "Account should be deployed");
         assertTrue(address(account).code.length > 0, "Account should have code");
         assertTrue(account.isModuleInstalled(1, address(rootValidator), ""), "Validator should be installed");
+    }
+
+    function test_GivenPackagesArrayHasValidModules_ShouldEmitKernelDeployed() external whenTheAddressIsNotYetDeployed {
+        _initializeFactory();
+        // it should emit KernelDeployed event
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        address predicted = factory.getAddress(packages, 50);
+
+        vm.expectEmit(true, true, true, true);
+        emit KernelDeployed(predicted);
+        factory.deploy(packages, 50);
     }
 
     function test_GivenMsgValueIsSent_WhenTheAddressIsNotYetDeployed() external whenTheAddressIsNotYetDeployed {

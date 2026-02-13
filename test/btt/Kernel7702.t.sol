@@ -14,7 +14,10 @@ import {MockValidator} from "../mock/MockValidator.sol";
 import {MockExecutor} from "../mock/MockExecutor.sol";
 import {ERC1271_MAGICVALUE, ERC1271_INVALID} from "src/types/Constants.sol";
 import {InvalidValidationType} from "src/types/Error.sol";
+import {Received} from "src/types/Events.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
+import {IValidator} from "src/interfaces/IERC7579Modules.sol";
+import {validatorToIdentifier} from "src/lib/Utils.sol";
 
 /// @title Kernel7702 BTT Tests
 /// @notice Tests for Kernel7702 variant following Branching Tree Technique
@@ -89,13 +92,18 @@ contract Kernel7702_Test is Test {
         kernel.initialize(empty);
     }
 
+    function test_WhenInitializeIsCalledWithEmptyPackages() external {
+        // it should not revert
+        Install[] memory empty = new Install[](0);
+        kernel.initialize(empty);
+    }
+
     /*//////////////////////////////////////////////////////////////
                     _verifyFallbackSignature TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_WhenVerifyFallbackSignatureReceivesAValidECDSASignature() external {
         // it should return validation success
-        // Test via validateUserOp with root = bytes21(0) (the fallback path)
         PackedUserOperation memory op = _buildUserOp();
         bytes32 opHash = ep.getUserOpHash(op);
         op.signature = _signHash(ownerKey, opHash);
@@ -129,13 +137,55 @@ contract Kernel7702_Test is Test {
         assertEq(validationData, 1, "Malformed signature should return failure");
     }
 
+    function test_WhenVerifyFallbackSignatureReceivesAZeroLengthSignature() external {
+        // it should return validation failed
+        PackedUserOperation memory op = _buildUserOp();
+        bytes32 opHash = ep.getUserOpHash(op);
+        op.signature = hex""; // zero length
+
+        vm.prank(address(ep));
+        uint256 validationData = kernel.validateUserOp(op, opHash, 0);
+        assertEq(validationData, 1, "Zero-length signature should return failure");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                _fallbackValidatorAvailable TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_WhenFallbackValidatorAvailableIsChecked() external {
+        // it should return true
+        // Prove _fallbackValidatorAvailable returns true by showing that
+        // validateUserOp with root=bytes21(0) works (uses fallback path)
+        PackedUserOperation memory op = _buildUserOp();
+        bytes32 opHash = ep.getUserOpHash(op);
+        op.signature = _signHash(ownerKey, opHash);
+
+        vm.prank(address(ep));
+        uint256 validationData = kernel.validateUserOp(op, opHash, 0);
+        assertEq(validationData, 0, "Fallback validator should be available");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                _erc1271RawAllowed TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_WhenErc1271RawAllowedIsChecked() external {
+        // it should return true allowing raw signatures
+        // Kernel7702 has _erc1271RawAllowed() = true. Prove it by showing
+        // that a raw ECDSA signature (without ERC-7739 wrapping) is accepted
+        bytes32 hash = keccak256("test raw allowed");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+
+        bytes4 result = kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
+        assertEq(result, ERC1271_MAGICVALUE, "Raw ECDSA should be valid when _erc1271RawAllowed is true");
+    }
+
     /*//////////////////////////////////////////////////////////////
                     isValidSignature RAW PATH TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_WhenIsValidSignatureReceivesAValidRawECDSASignature() external {
         // it should return ERC1271_MAGICVALUE
-        // Kernel7702 has _erc1271RawAllowed() = true, so raw ECDSA bypasses nested EIP-712
         bytes32 hash = keccak256("test message");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
 
@@ -145,8 +195,6 @@ contract Kernel7702_Test is Test {
 
     function test_WhenIsValidSignatureReceivesAnInvalidRawECDSASignature() external {
         // it should revert because fallthrough parses invalid validation type
-        // When raw signature verification fails, the code falls through to validation mode parsing
-        // which reverts because a raw 65-byte sig doesn't have valid validation type bytes
         bytes32 hash = keccak256("test_invalid_signature");
         (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
@@ -192,6 +240,57 @@ contract Kernel7702_Test is Test {
         vm.prank(address(ep));
         uint256 validationData = kernel.validateUserOp(op, opHash, 0);
         assertEq(validationData, 1, "Root zero with malformed sig should return 1");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                validateUserOp WITH missingAccountFunds TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_WhenValidateUserOpIsCalledWithMissingAccountFundsNonzero() external {
+        // it should send funds to the entry point
+        PackedUserOperation memory op = _buildUserOp();
+        bytes32 opHash = ep.getUserOpHash(op);
+        op.signature = _signHash(ownerKey, opHash);
+
+        uint256 epBalanceBefore = address(ep).balance;
+        uint256 missingFunds = 0.01 ether;
+
+        vm.prank(address(ep));
+        kernel.validateUserOp(op, opHash, missingFunds);
+
+        assertEq(address(ep).balance, epBalanceBefore + missingFunds, "Entry point should receive missingAccountFunds");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                installModule VIA DIRECT CALL TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_WhenAValidatorIsInstalledViaDirectInstallModule() external {
+        // it should allow validation with the installed validator
+        // Even though initialize is a no-op, modules can be installed directly
+        vm.prank(address(ep));
+        kernel.installModule(1, address(newValidator), abi.encode(hex"", hex""));
+
+        assertTrue(
+            kernel.isModuleInstalled(1, address(newValidator), ""),
+            "Validator should be installed via direct installModule"
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    RECEIVE ETH TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_WhenTheEOAReceivesETH() external {
+        // it should emit Received event
+        address sender = makeAddr("sender");
+        vm.deal(sender, 1 ether);
+
+        vm.prank(sender);
+        vm.expectEmit(true, true, true, true, address(kernel));
+        emit Received(sender, 0.5 ether);
+        (bool success,) = address(kernel).call{value: 0.5 ether}("");
+        assertTrue(success, "ETH transfer should succeed");
     }
 
     /*//////////////////////////////////////////////////////////////

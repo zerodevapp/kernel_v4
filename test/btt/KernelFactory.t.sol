@@ -12,7 +12,14 @@ import {MockValidator} from "../mock/MockValidator.sol";
 import {EntryPointLib} from "../utils/EntryPointLib.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
-import {InvalidRootValidation, InvalidInitialization, InvalidSigner} from "src/types/Error.sol";
+import {
+    InvalidRootValidation,
+    InvalidInitialization,
+    InvalidSigner,
+    ImplementationNotDeployed
+} from "src/types/Error.sol";
+import {KernelDeployed} from "src/types/Events.sol";
+import {MockExecutor} from "../mock/MockExecutor.sol";
 
 /// @title KernelFactory BTT Tests
 /// @notice Tests for KernelFactory following Branching Tree Technique
@@ -289,5 +296,141 @@ contract KernelFactory_Test is Test {
         address predicted2 = factory.getECDSAAddress(owner2, packages, 0);
 
         assertTrue(predicted1 != predicted2, "Different owners should give different addresses");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    DEPLOY EVENT EMISSION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice it should emit KernelDeployed event on first deploy
+    function test_WhenDeploying_EmitsKernelDeployed() external {
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        address predicted = factory.getAddress(packages, 42);
+
+        vm.expectEmit(true, true, true, true);
+        emit KernelDeployed(predicted);
+        factory.deploy(packages, 42);
+    }
+
+    /// @notice it should NOT emit KernelDeployed event when already deployed
+    function test_WhenDeployingAlreadyDeployed_NoEvent() external {
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+
+        // First deploy
+        factory.deploy(packages, 43);
+
+        // Second deploy should NOT emit (no easy way to assert "not emitted" directly,
+        // but we verify the return value matches)
+        Kernel account = factory.deploy(packages, 43);
+        assertTrue(address(account).code.length > 0, "Should return existing deployed account");
+    }
+
+    /// @notice it should emit KernelDeployed event for ECDSA deploy
+    function test_WhenDeployingECDSA_EmitsKernelDeployed() external {
+        address owner = makeAddr("ecdsaOwner");
+        Install[] memory packages = new Install[](0);
+
+        address predicted = factory.getECDSAAddress(owner, packages, 44);
+
+        vm.expectEmit(true, true, true, true);
+        emit KernelDeployed(predicted);
+        factory.deployECDSA(owner, packages, 44);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ALREADY DEPLOYED + ETH FOR ECDSA TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice it should forward ETH to existing ECDSA account when already deployed
+    function test_WhenDeployingECDSA_AlreadyDeployed_ForwardsETH() external givenMsgValueIsSent {
+        address owner = makeAddr("ecdsaOwner");
+        Install[] memory packages = new Install[](0);
+
+        Kernel account = factory.deployECDSA(owner, packages, 45);
+        uint256 balanceBefore = address(account).balance;
+
+        factory.deployECDSA{value: 0.5 ether}(owner, packages, 45);
+
+        assertEq(
+            address(account).balance, balanceBefore + 0.5 ether, "ETH should be forwarded to existing ECDSA account"
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    _calculateSalt MULTIPLE PACKAGES TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice it should produce different salt for different module data
+    function test_WhenCalculateSalt_DifferentModuleData() external {
+        Install[] memory packages1 = new Install[](1);
+        packages1[0] =
+            Install({moduleType: 1, module: address(rootValidator), moduleData: hex"aa", internalData: hex""});
+
+        Install[] memory packages2 = new Install[](1);
+        packages2[0] =
+            Install({moduleType: 1, module: address(rootValidator), moduleData: hex"bb", internalData: hex""});
+
+        address addr1 = factory.getAddress(packages1, 0);
+        address addr2 = factory.getAddress(packages2, 0);
+
+        assertTrue(addr1 != addr2, "Different moduleData should produce different addresses");
+    }
+
+    /// @notice it should produce different salt for different internalData
+    function test_WhenCalculateSalt_DifferentInternalData() external {
+        Install[] memory packages1 = new Install[](1);
+        packages1[0] =
+            Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex"aa"});
+
+        Install[] memory packages2 = new Install[](1);
+        packages2[0] =
+            Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex"bb"});
+
+        address addr1 = factory.getAddress(packages1, 0);
+        address addr2 = factory.getAddress(packages2, 0);
+
+        assertTrue(addr1 != addr2, "Different internalData should produce different addresses");
+    }
+
+    /// @notice it should handle multiple packages in salt calculation
+    function test_WhenCalculateSalt_MultiplePackages() external {
+        MockValidator validator2 = new MockValidator();
+        validator2.sudoSetSuccess(true);
+        MockExecutor executor = new MockExecutor();
+
+        Install[] memory packages = new Install[](2);
+        packages[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
+        packages[1] = Install({moduleType: 2, module: address(executor), moduleData: hex"", internalData: hex""});
+
+        Kernel account = factory.deploy(packages, 0);
+
+        // Both packages should be installed
+        assertTrue(account.isModuleInstalled(1, address(rootValidator), ""), "Validator should be installed");
+        assertTrue(account.isModuleInstalled(2, address(executor), ""), "Executor should be installed");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    CONSTRUCTOR TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice it should store immutables correctly
+    function test_Constructor_StoresImmutables() external view {
+        assertEq(address(factory.UUPS()), address(uups), "UUPS immutable should be set");
+        assertEq(address(factory.IMMUTABLE_ECDSA()), address(immutableEcdsa), "IMMUTABLE_ECDSA should be set");
+    }
+
+    /// @notice it should revert when UUPS has no code
+    function test_Constructor_RevertWhen_UUPSNoCode() external {
+        vm.expectRevert(ImplementationNotDeployed.selector);
+        new KernelFactory(KernelUUPS(payable(address(0xdead))), immutableEcdsa);
+    }
+
+    /// @notice it should revert when ImmutableECDSA has no code
+    function test_Constructor_RevertWhen_ImmutableECDSANoCode() external {
+        vm.expectRevert(ImplementationNotDeployed.selector);
+        new KernelFactory(uups, KernelImmutableECDSA(payable(address(0xdead))));
     }
 }

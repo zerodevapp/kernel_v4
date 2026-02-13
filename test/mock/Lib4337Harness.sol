@@ -19,4 +19,8 @@ contract Lib4337Harness {
     function intersectValidationData(uint256 a, uint256 b) external pure returns (uint256) {
         return Lib4337.intersectValidationData(a, b);
     }
+
+    function usesBlockNumberFormat(uint48 validAfter, uint48 validUntil) external pure returns (bool) {
+        return Lib4337._usesBlockNumberFormat(validAfter, validUntil);
+    }
 }
