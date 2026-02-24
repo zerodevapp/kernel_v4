@@ -11,11 +11,17 @@ solc_version = '0.8.30'
 
 isolate = true
 extra_output = ["storageLayout"]
+fs_permissions = [{ access = "read", path = "releases" }]
+ignored_warnings_from = ["test/", "tool/test/", "dependencies"]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 [invariant]
 runs = 1000
 depth = 1000
+
+[profile.ci.invariant]
+runs = 10
+depth = 10
 
 [dependencies]
 solady = "0.1.26"
@@ -25,5 +31,10 @@ a16z-halmos-cheatcodes = "6da4e692c357ba6d641a2e677a28298cac9f76ab"
 forge-std = "1.11.0"
 
 
+[profile.release-check]
+test = "tool/test"
+
 [lint]
-exclude_lints = ["unwrapped-modifier-logic"]
+exclude_lints = ["unwrapped-modifier-logic", "unchecked-call"]
+ignore = ["test"]
+lint_on_build = false
