@@ -114,8 +114,10 @@ abstract contract ValidationManager {
     function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
         ValidationStorage storage $ = _validationStorage();
         require($.vInfo[vId].hook == HOOK_MODULE_NOT_INSTALLED, OccupiedValidationId());
-        // if _internalData is empty, skip the initialization but increment nonce
-        // to ensure _allowedSelector returns false for any selector (no selectors allowed)
+        // if _internalData is empty, skip the initialization but bump the nonce so any
+        // `allowed[vId][sel]` entries from a prior incarnation of this vId (after
+        // uninstall+reinstall) become stale -- giving empty-internalData installs the
+        // same default-deny semantics as the non-empty path (where _grantAccess bumps).
         if (_internalData.length == 0) {
             $.vInfo[vId].hook = HOOK_MODULE_INSTALLED_NO_HOOK;
             ++$.vInfo[vId].nonce;
@@ -129,7 +131,8 @@ abstract contract ValidationManager {
         );
         $.vInfo[vId].hook = hook == HOOK_MODULE_NOT_INSTALLED ? HOOK_MODULE_INSTALLED_NO_HOOK : hook;
         _internalData = _internalData[20:];
-        // then the rest is the allowed selectors
+        // _grantAccess bumps nonce by 1 and writes `allowed[vId][sel] = nonce` for each
+        // selector, so non-empty installs also end with nonce = previous + 1.
         _grantAccess(vId, _internalData);
     }
 
