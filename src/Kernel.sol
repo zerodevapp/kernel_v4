@@ -325,6 +325,8 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         _onlyEntryPointOrSelf();
         require(pkg.length > 0, InvalidInitialization());
         ValidationId vId = _validationStorage().root;
+        // Install the new packages first so the new root is guaranteed to be installed
+        // by the time `_setRoot` runs its installed-status check.
         _install(pkg);
         _setRoot(pkg[0]);
         if (removeCurrent) {

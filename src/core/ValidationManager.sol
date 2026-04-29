@@ -450,6 +450,8 @@ abstract contract ValidationManager {
             InvalidValidationType()
         );
         ValidationStorage storage $ = _validationStorage();
+        // Require the validation to actually be installed before promoting it to root.
+        // The fallback path (vId == bytes21(0)) is exempt since it has no install step.
         if (ValidationId.unwrap(vId) != bytes21(0)) {
             require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
         }
