@@ -142,6 +142,10 @@ abstract contract ValidationManager {
     /// @param _installSuccess Whether the module's onInstall call succeeded.
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
         require(_installSuccess, ModuleInstallFailed());
+        // Defense-in-depth: require the validator to have code at install time so a
+        // codeless address (whose `staticcall` returns success with empty returndata)
+        // cannot be installed as a validator and then later authorise arbitrary signatures.
+        require(_validator.code.length > 0, ModuleInstallFailed());
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
         _initializeValidation(vId, _internalData);
     }
@@ -372,7 +376,12 @@ abstract contract ValidationManager {
     ) internal returns (uint256 validationData) {
         IValidator validator = getValidator(vId);
         op.signature = userOpSignature;
-        validationData = validator.validateUserOp(op, opHash);
+        (bool success, bytes memory ret) =
+            address(validator).call(abi.encodeCall(IValidator.validateUserOp, (op, opHash)));
+        // Require a properly-encoded `uint256` (32 bytes) return. A codeless / non-conforming
+        // validator returns success with empty returndata, which would otherwise decode to 0
+        // (SIG_VALIDATION_SUCCESS) and authorise any signature.
+        validationData = (success && ret.length == 32) ? abi.decode(ret, (uint256)) : 1;
     }
 
     /// @notice Validates a userOp using a permission (policies + signer).
