@@ -157,7 +157,18 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
         }
 
-        // check if the call data is allowed by the validationId
+        // Bypass selector + hook handling when:
+        //   - vType == ROOT: ROOT is the unconditional last-resort access path. It is
+        //     intentionally exempt from selector allow-listing and from validation hooks
+        //     so that a misconfigured / compromised hook on a scoped validation cannot
+        //     lock the user out of their own account. Users who want hook-monitored
+        //     access should reach for it via a non-root validator or permission.
+        //   - non-ROOT with leading allow-listed selector AND no hook installed
+        //     (HOOK_MODULE_INSTALLED_NO_HOOK sentinel): cheap fast-path that skips the
+        //     executeUserOp wrapper because there is nothing for a hook to wrap.
+        // Any other case must route through executeUserOp with an allow-listed inner
+        // selector, and the validation-scoped hook is attached so executeUserOp's
+        // _preHook/_postHook fire around the inner delegatecall.
         if (
             vType == VALIDATION_TYPE_ROOT
                 || (_allowedSelector(vId, bytes4(userOp.callData[0:4]))
