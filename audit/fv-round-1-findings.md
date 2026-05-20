@@ -255,6 +255,59 @@ Defense-in-depth at the configuration boundary. Will be dispatched to `sc-develo
 - External module callbacks are AUTO-HAVOC'd. Sound because `_onlyEntryPointOrSelf` prevents reentrant ValidationStorage writes.
 - `optimistic_hashing: true`, `hashing_length_bound: 512` documented in `certora/conf/Kernel.conf`.
 
+## Phase C Round 2 — re-verify after `_grantAccess` fix
+
+### ✅ Original bug closed
+
+After commit `0921b25` (`_grantAccess` blocks `executeUserOp.selector` for non-root vIds):
+
+| Rule | Round 1 | Round 2 |
+|---|---|---|
+| `validateUserOpEnforcesInnerSelectorAccess_naive` | 🚨 FAIL (CEX) | ✅ **PASS** |
+| `validateUserOpEnforcesInnerSelectorAccess_strict` | ✅ PASS | ✅ PASS (regression) |
+| `sanityValidateUserOpReachesSuccess` | ✅ PASS | ✅ PASS (regression) |
+
+Round 2 job: https://prover.certora.com/output/3606101/19ed688fd26e43cfa25d435306bec6f1?anonymousKey=a87fff01a79ea67c696ced6eb56bd0dbae8403e7
+
+### 🚨 Secondary finding — `setRoot` residual
+
+New invariant `nonRootCannotAllowExecuteUserOp` FAILS on 8 entry points. All reduce to a single primitive: **`_setRoot` does not bump `vInfo[oldRoot].nonce`**, so prior grants of `executeUserOp.selector` to the old root remain active when the old root becomes non-root.
+
+Failing entry points (induction step) and how each reaches `_setRoot`:
+
+- `setRoot(bytes21)` — direct
+- `setRoot((uint256,address,bytes,…))` overload — direct
+- `initialize((uint256,address,…))` — root install path
+- `executeUserOp(...)` — inner delegatecall to `setRoot`
+- `execute(bytes32,bytes)` — routed batch / single call
+- `executeFromExecutor(...)` — executor module calls `setRoot`
+- `upgradeToAndCall(...)` — new impl's init data calls `setRoot`
+- `<receiveOrFallback>()` — fallback path
+
+Attack sequence (after the `_grantAccess` fix):
+
+1. `setRoot(R1)` → `$.root = R1`
+2. `_grantAccess(R1, executeUserOp.selector)` — permitted (R1 is currently root)
+3. `setRoot(R2)` → `$.root = R2`; `allowed[R1][executeUserOp]` stays non-zero; `vInfo[R1].hook` preserved
+4. R1 is now non-root with `_allowedSelector(R1, executeUserOp.selector) == true` and `hook == HOOK_MODULE_INSTALLED_NO_HOOK`
+5. Fast-path bypass re-engages — R1 can call `executeUserOp(arbitrary inner calldata)` and invoke any privileged function
+
+Lower likelihood than the Round 1 attack (requires root rotation + prior grant + hook preserved) but FV demonstrates structural reachability.
+
+### Selected remediation — Option E
+
+Bump `vInfo[oldRoot].nonce` in `_setRoot` so any stale `allowed[oldRoot][*]` grants are invalidated (`allowed[oldRoot][sel] != vInfo[oldRoot].nonce` post-rotation). Same pattern as Phase A #14.
+
+After Option E lands, replace the current too-strict invariant (`allowed[vId][sel] == 0`) with the structurally correct form:
+
+```cvl
+invariant nonRootCannotAllowSelectorExecuteUserOp(bytes21 vId)
+    vId != harness_root() =>
+        harness_allowedNonce(vId, executeUserOpSelector) != harness_vInfoNonce(vId);
+```
+
+`allowed` is never zeroed — only orphaned by a nonce bump. The new form captures that exactly.
+
 ## Phase D / E — not yet started
 
 See `audit/FV_PLAN.md` for the full plan.

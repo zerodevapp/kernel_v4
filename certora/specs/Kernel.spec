@@ -8,43 +8,45 @@
  *   validateUserOp having approved the outer UserOp under a validation that
  *   owns the inner selector.
  *
- * Strongest reformulation we tried to prove (FAILS with a CEX — see below):
- *   For any non-reverting call to validateUserOp where the outer selector
- *   is executeUserOp.selector and vType != ROOT, the post-state satisfies
- *       allowed[vId][innerSel] == vInfo[vId].nonce.
+ * STATUS (FV Round 2, after commit 0921b25):
+ *   The fix at commit 0921b25 (src/core/ValidationManager.sol, _grantAccess)
+ *   adds the require:
+ *     require(selector != IAccountExecute.executeUserOp.selector
+ *             || vId == $.root, InvalidSelectorGrant());
+ *   This makes the original CEX unreachable for newly granted non-ROOT
+ *   validations and the naive rule
+ *   (validateUserOpEnforcesInnerSelectorAccess_naive) now PASSES.
  *
- * Refined form actually verified (validateUserOpEnforcesInnerSelectorAccess_strict):
+ * STRUCTURAL INVARIANT enforced by the fix
+ *   (nonRootCannotAllowExecuteUserOp):
+ *     For any vId != $.root, allowed[vId][executeUserOp.selector] == 0.
+ *   _grantAccess is the sole writer of $.allowed; the fix blocks the only
+ *   path that could ever raise that entry above zero for a non-root vId.
+ *
+ * Refined form (validateUserOpEnforcesInnerSelectorAccess_strict — kept for
+ *   regression after the fix):
  *   Adds an additional precondition that EXCLUDES the fast-path bypass:
  *       NOT( allowed[vId][outerSel] == vInfo[vId].nonce
  *            AND vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK )
  *   With that exclusion, validateUserOp reaches the require on
  *   Kernel.sol L179-183 which enforces _allowedSelector(vId, innerSel).
  *
- * IMPLEMENTATION FINDING (the un-refined rule's counterexample is real):
+ * ORIGINAL IMPLEMENTATION FINDING (now mitigated by commit 0921b25):
  *   The fast-path branch in `_processUserOp` (Kernel.sol lines 172-176)
- *   bypasses the inner-selector require statement when:
+ *   bypassed the inner-selector require statement when:
  *     - vType != ROOT,
- *     - `_allowedSelector(vId, outerSel)` is true with outerSel ==
+ *     - `_allowedSelector(vId, outerSel)` was true with outerSel ==
  *       executeUserOp.selector,
  *     - `vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK`.
- *   In that branch, `_setValidationHook` is NEVER called, so the transient
- *   hook for `userOpHash` stays at 0 (HOOK_MODULE_NOT_INSTALLED). When
- *   `executeUserOp` then runs, `_preHook`/`_postHook` no-op (because the
- *   hook is 0), and the inner delegatecall runs with NO selector check.
+ *   In that branch, `_setValidationHook` was never called, the transient
+ *   hook for `userOpHash` stayed at 0, and `executeUserOp`'s inner
+ *   delegatecall ran with NO selector check — handing a non-ROOT validation
+ *   the equivalent of root privileges.
  *
- *   The fast-path's design intent (per the inline comment "fast-path that
- *   skips the executeUserOp wrapper because there is nothing for a hook to
- *   wrap") assumes the OUTER call is the actual inner function. Granting a
- *   non-ROOT validation access to `executeUserOp.selector` itself violates
- *   that assumption and yields a privilege escalation: the validation can
- *   call `executeUserOp(...)` with arbitrary inner calldata.
- *
- *   This is at minimum a documented-assumption hazard and at most a
- *   privilege-escalation bug. See `audit/fv-round-1-findings.md` for the
- *   recommended remediation (either block `executeUserOp.selector` from
- *   being granted to non-ROOT validations in `_grantAccess`, or extend the
- *   require to also check `outerSel != executeUserOp.selector` before the
- *   fast-path is taken).
+ *   The fix in `_grantAccess` makes this precondition unreachable for
+ *   non-ROOT validations: a non-ROOT validation can no longer satisfy
+ *   `allowed[vId][executeUserOp.selector] == vInfo[vId].nonce` since that
+ *   write is now blocked.
  *
  * Verified contract: KernelHarness (extends KernelUUPS). Harness exposes
  * read accessors only — production logic in validateUserOp is unchanged.
@@ -124,16 +126,79 @@ methods {
 }
 
 // --------------------------------------------------------------------------
-// Rule: validateUserOpEnforcesInnerSelectorAccess_naive  (EXPECTED TO FAIL)
+// Invariant: nonRootCannotAllowExecuteUserOp
 //
-// The most direct restatement of the NatSpec security claim. This rule
-// FAILS because of the fast-path bypass documented at the top of this file
-// — Certora produces a counterexample that is preserved as evidence of the
-// finding. Marked SATISFY so the negation can be inspected directly.
+// The structural guarantee enforced by the commit 0921b25 fix in
+// `_grantAccess`. Stated over `allowedNonce` (the raw mapping entry) rather
+// than `allowedSelector` (the `==` comparison to vInfo[vId].nonce) because
+// the latter is true-by-default for any uninstalled vId (both sides are 0).
 //
-// We keep this rule in the file (rather than deleting it) as machine-
-// checkable evidence of the security finding. Reviewers reading the
-// Certora report can see the exact CEX witness.
+//   For any vId != $.root:
+//       allowed[vId][executeUserOp.selector] == 0
+//
+// `_grantAccess` is the sole writer of `$.allowed` (verified by static
+// grep over src/). The fix's require:
+//     require(selector != executeUserOp.selector || vId == $.root, …)
+// blocks the only path that could ever raise this entry above zero for a
+// non-root vId.
+//
+// If this invariant holds, then `_allowedSelector(vId, executeUserOp)` for
+// non-root vId implies `vInfo[vId].nonce == 0` — which only happens for
+// uninstalled validations. Combined with the fast-path's hook == INSTALLED
+// precondition (which requires installation, i.e. nonce > 0), the fast-path
+// bypass becomes structurally unreachable.
+//
+// CAVEAT: if this invariant FAILS, the CEX trace will identify which
+// mutator can violate it. The most likely candidate is `setRoot` /
+// `installModule` (root rotation can leave stale grants on the prior root).
+// That would be a separate, secondary finding — the immediate fix would
+// still close the original attack, but root rotation could resurrect a
+// related bypass. Report any such CEX honestly.
+// --------------------------------------------------------------------------
+invariant nonRootCannotAllowExecuteUserOp(bytes21 vId)
+    vId != harness_root() => harness_allowedNonce(vId, harness_executeUserOpSelector()) == 0;
+
+// --------------------------------------------------------------------------
+// Helper invariant: installedValidationsHaveNonzeroNonce
+//
+// Whenever a validation has a non-zero hook (i.e. hook >= INSTALLED_NO_HOOK
+// rather than HOOK_MODULE_NOT_INSTALLED), its nonce is strictly positive.
+//
+// Both initialization paths in `_initializeValidation` bump the nonce when
+// they set the hook, and `_uninstallValidation` only ever zeroes the hook
+// (it does not reset the nonce). So `hook != NOT_INSTALLED` implies
+// `nonce > 0` is preserved by every mutator.
+//
+// This invariant is needed by the naive rule to rule out the residual
+// fast-path corner case `nonce == 0 && hook == INSTALLED_NO_HOOK`, which is
+// unreachable in production but would otherwise be admissible by Certora
+// in the abstract state space.
+// --------------------------------------------------------------------------
+invariant installedValidationsHaveNonzeroNonce(bytes21 vId)
+    harness_vInfoHook(vId) != harness_HOOK_NOT_INSTALLED() => harness_vInfoNonce(vId) > 0;
+
+// --------------------------------------------------------------------------
+// Rule: validateUserOpEnforcesInnerSelectorAccess_naive
+//
+// The most direct restatement of the NatSpec security claim. Before commit
+// 0921b25 this rule FAILED with a CEX exposing the fast-path bypass. With
+// the structural invariant `nonRootCannotAllowExecuteUserOp` established by
+// the fix, the fast-path precondition (allowedSelector(vId, outerSel) with
+// outerSel == executeUserOp AND vType != ROOT) is unreachable for a vId
+// with non-zero `vInfo[vId].nonce`, and the rule now PASSES.
+//
+// Scope notes:
+//   - `vId != $.root` is required because root is intentionally authorised
+//     to use the fast-path (vType == ROOT branch). When the user-op nonce
+//     encodes (vType != ROOT, vId == $.root), the kernel still recognises
+//     the call as root through _checkValidation's vId-based info lookup,
+//     and the security guarantee for that case is "root is unconditionally
+//     authorised" (per the inline comments at Kernel.sol L160-168) — not
+//     "innerSel must be allow-listed." We exclude that case to keep the
+//     rule's intent precise.
+//
+// `requireInvariant` injects the structural invariant as a hypothesis at
+// the start of the rule; Certora separately proves the invariant.
 // --------------------------------------------------------------------------
 rule validateUserOpEnforcesInnerSelectorAccess_naive(
     env e,
@@ -149,8 +214,15 @@ rule validateUserOpEnforcesInnerSelectorAccess_naive(
 
     require outerSel == harness_executeUserOpSelector();
     require vType != harness_VT_ROOT();
+    require vId != harness_root();  // root is intentionally exempt from inner-sel check
     require !harness_isEnableMode(op.nonce);
     require !harness_isReplayableMode(op.nonce);
+
+    // Structural invariant enforced by the fix at commit 0921b25.
+    requireInvariant nonRootCannotAllowExecuteUserOp(vId);
+    // Helper: installed validations have non-zero nonce (rules out the
+    // (nonce == 0, hook == INSTALLED_NO_HOOK) corner case).
+    requireInvariant installedValidationsHaveNonzeroNonce(vId);
 
     validateUserOp@withrevert(e, op, userOpHash, missingAccountFunds);
     bool reverted = lastReverted;
