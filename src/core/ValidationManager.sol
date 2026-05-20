@@ -450,6 +450,13 @@ abstract contract ValidationManager {
 
     /// @notice Sets the root validation to the given ValidationId directly.
     /// @dev Validates that the id is a valid type and that the validation is installed.
+    ///      On rotation (oldRoot != newRoot, oldRoot non-zero) the old root's nonce is
+    ///      bumped to invalidate any `allowed[oldRoot][*]` selector grants accumulated
+    ///      while it was root. Without this, after rotation the old root becomes a
+    ///      non-root validation whose prior grants -- including potentially
+    ///      `executeUserOp.selector` -- remain active and re-enable the `_processUserOp`
+    ///      fast-path bypass that commit 0921b25 fixed on the grant side. This is the
+    ///      rotation-boundary defense-in-depth counterpart to that fix.
     /// @param vId The validation identifier to set as root.
     function _setRoot(ValidationId vId) internal {
         // Check for zero ValidationId first (before type check to get correct error)
@@ -465,6 +472,12 @@ abstract contract ValidationManager {
         // The fallback path (vId == bytes21(0)) is exempt since it has no install step.
         if (ValidationId.unwrap(vId) != bytes21(0)) {
             require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
+        }
+        // Invalidate stale grants on the previous root when rotating. The first install
+        // (oldRoot zero) and identity rotation (oldRoot == newRoot) are no-ops.
+        ValidationId oldRoot = $.root;
+        if (ValidationId.unwrap(oldRoot) != bytes21(0) && oldRoot != vId) {
+            ++$.vInfo[oldRoot].nonce;
         }
         $.root = vId;
     }
