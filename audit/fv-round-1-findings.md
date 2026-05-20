@@ -177,6 +177,84 @@ The Halmos tests we just authored act as **regression witnesses** — they would
 - **Each check excludes the boundary with an explicit, documented `vm.assume`** — not a silent weakening. Cross-references `NonceOverflowHalmos` inline.
 - **Alternative considered**: apply a one-line fix to `_checkNonce` (add `require(effective < type(uint64).max)`) to make the agreement unconditional. Deferred — current behaviour is provably safe via the cross-property argument, and changing source for a vacuous edge case requires sc-developer dispatch + reaudit.
 
-## Phase C / D / E — not yet started
+## Phase C — Certora
+
+### 🚨 #1 — `executeUserOp` ↔ `validateUserOp` linkage — **HIGH severity bug found**
+
+- **Status**: split — strict form PROVEN; naive form COUNTEREXAMPLE surfaces a real privilege-escalation bug.
+- **Files**:
+  - `certora/conf/Kernel.conf`
+  - `certora/specs/Kernel.spec` (3 rules)
+  - `certora/harnesses/KernelHarness.sol`
+- **Certora job reports**:
+  - All 3 rules: https://prover.certora.com/output/3606101/9bae8478ce9842bcae2d45f92487e40b?anonymousKey=0f69fd410a6d5eb1218d0931ebae1e5e8161b63d
+  - Strict-only PASS: https://prover.certora.com/output/3606101/fa191e6ffa3e43f6aac8860d357737f4?anonymousKey=d6261fb0d8c99d0dfba76de0a402448046b24332
+- **Wall time**: 7.7 min, prover 472s.
+
+#### Rule results
+
+| Rule | Status | Notes |
+|---|---|---|
+| `validateUserOpEnforcesInnerSelectorAccess_naive` | **FAIL** | CEX exposes the fast-path bypass |
+| `validateUserOpEnforcesInnerSelectorAccess_strict` | **PASS** | Holds with `!fastPath` precondition |
+| `sanityValidateUserOpReachesSuccess` (satisfy) | **PASS** | Rule setup is not vacuous |
+
+#### The bug
+
+`src/Kernel.sol:172-185` — `_processUserOp`'s fast-path:
+
+```solidity
+if (
+    vType == VALIDATION_TYPE_ROOT
+        || (_allowedSelector(vId, bytes4(userOp.callData[0:4]))
+            && $.vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK)
+) {
+    // No-op — fast path, NO inner-selector check, NO _setValidationHook
+} else { ... require + _setValidationHook ... }
+```
+
+When a non-ROOT validation `V` has `executeUserOp.selector` in its allowed list AND `hook == HOOK_MODULE_INSTALLED_NO_HOOK`:
+
+1. Fast-path is taken.
+2. Inner-selector `require` is skipped — no check on `userOp.callData[4:]`.
+3. `_setValidationHook` is NOT called → transient hook stays 0.
+4. `executeUserOp` then runs `_preHook`/`_postHook` as no-ops (hook is 0).
+5. Inner `delegatecall` to `address(this)` executes ANY selector — `installModule`, `setRoot`, `upgradeToAndCall`, etc.
+
+#### Severity
+
+**HIGH**. Exploitability gate is configuration — `_grantAccess` accepts any selector list, including `executeUserOp.selector`. An owner configuring a validation with what they think is "scoped access to executeUserOp" actually grants root-level dispatch.
+
+#### Concrete counterexample from Certora
+
+- `op.callData.length == 8`
+- `bytes4(op.callData[0:4]) == 0x8dd7712f` (`executeUserOp.selector`)
+- `bytes4(op.callData[4:8]) == 0x3751` (arbitrary unauthorised selector, symbolic)
+- `vId == 0xffffffffff00000000000000000000000000000001` (PERMISSION type)
+- `_allowedSelector(vId, executeUserOp.selector) == true`
+- `vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK`
+- `vMode` bits 0x08 / 0x40 both off — finding is independent of enable-mode and replayable-mode
+
+#### Fix path (selected: Option 1)
+
+Block `executeUserOp.selector` from being granted to non-ROOT vIds in `ValidationManager._grantAccess`:
+
+```solidity
+require(
+    selector != IKernel.executeUserOp.selector || vId == $.root,
+    InvalidSelectorGrant()
+);
+```
+
+Defense-in-depth at the configuration boundary. Will be dispatched to `sc-developer`.
+
+#### Caveats / narrowings (documented in spec header)
+
+- Strict rule excludes `vMode & 0x08` (enable mode) and `vMode & 0x40` (replayable) for Certora tractability. Both invoke unbounded-bytes hashing (`_verifyInstallSignatureRaw`, `Lib4337.chainAgnosticUserOpHash`). Fast-path bypass is independent of these modes.
+- Internal validators (`_validateUserOpValidator/Permission/Fallback`) and `Lib4337.intersectValidationData` are NONDET-summarised to fit in Certora's memory budget. Sound because the fast-path branch reaches the require BEFORE these are invoked.
+- External module callbacks are AUTO-HAVOC'd. Sound because `_onlyEntryPointOrSelf` prevents reentrant ValidationStorage writes.
+- `optimistic_hashing: true`, `hashing_length_bound: 512` documented in `certora/conf/Kernel.conf`.
+
+## Phase D / E — not yet started
 
 See `audit/FV_PLAN.md` for the full plan.
