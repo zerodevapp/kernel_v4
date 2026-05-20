@@ -162,8 +162,21 @@ The Halmos tests we just authored act as **regression witnesses** — they would
   - Non-empty path bound `_internalData.length=24` (20-byte hook + 4 selectors). Structural shape is general; selector count doesn't affect the nonce bump.
   - `_internalData.length == 20` edge case (hook only, zero selectors) verified by inspection — single bump via `_grantAccess` with empty selectors. Agent suggests a third check could cover symbolically.
 
-## Phase B / C / D / E — not yet started
+## Phase B — Halmos M-effort
 
-## Phase B / C / D / E — not yet started
+### ✅ #7 — `_checkNonce` ↔ `_checkAndIncrementNonce` agreement below saturation
+
+- **Status**: PROVEN (3/3 checks, 0.26s)
+- **File**: `test/halmos/NonceConsistencyHalmos.t.sol`
+- **Checks**:
+  - `check_RatchetBranchAgreement` — view/write agree on `nonceValidFrom > preSeq` branch
+  - `check_NonRatchetBranchAgreement` — view/write agree on `nonceValidFrom ≤ preSeq` branch
+  - `check_AgreementBelowOverflowSaturation` — general agreement, both branches combined
+- **Boundary finding**: at `effectivePre == type(uint64).max`, the view path accepts (`seq == effective`) while the write path reverts from the checked `nonce[key]++` overflow. This is the ONLY divergence across the entire `(key, preSeq, validFrom, seq)` state space.
+- **Why this is acceptable**: `NonceOverflowHalmos.check_NonceCannotOverflow` proves `nonce[key]` cannot reach `type(uint64).max` organically. The only way to land there is owner-induced via `_setValidNonceFrom(type(uint64).max)` — owner self-DOS, detectable on-chain.
+- **Each check excludes the boundary with an explicit, documented `vm.assume`** — not a silent weakening. Cross-references `NonceOverflowHalmos` inline.
+- **Alternative considered**: apply a one-line fix to `_checkNonce` (add `require(effective < type(uint64).max)`) to make the agreement unconditional. Deferred — current behaviour is provably safe via the cross-property argument, and changing source for a vacuous edge case requires sc-developer dispatch + reaudit.
+
+## Phase C / D / E — not yet started
 
 See `audit/FV_PLAN.md` for the full plan.
