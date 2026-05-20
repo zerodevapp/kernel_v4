@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
+import {IAccountExecute} from "account-abstraction/interfaces/IAccountExecute.sol";
 import {IValidator, IPolicy, ISigner, IHook} from "../interfaces/IERC7579Modules.sol";
 import {
     InvalidRootValidation,
@@ -9,6 +10,7 @@ import {
     OccupiedValidationId,
     InvalidPermissionUninstallOrder,
     InvalidPermissionId,
+    InvalidSelectorGrant,
     InvalidValidationType,
     CannotUninstallRoot,
     InvalidVid,
@@ -88,6 +90,14 @@ abstract contract ValidationManager {
     /// @dev grant access to selectors
     /// @param vId validationId
     /// @param selectors = abi.encodePacked(bytes4 selectors)
+    /// @dev Defense-in-depth: non-root validations are forbidden from being granted
+    ///      `IAccountExecute.executeUserOp.selector`. The `_processUserOp` fast-path bypasses
+    ///      the inner-selector check and the validation hook setup when the outer call's
+    ///      selector is itself in the allow-list AND no hook is installed -- so allowing a
+    ///      non-root validation to allow-list `executeUserOp` would let it invoke ANY
+    ///      kernel function via `executeUserOp`'s inner delegatecall with no selector check.
+    ///      Root is exempt because it is the unconditional last-resort access path and is
+    ///      already intentionally exempt from selector allow-listing.
     function _grantAccess(ValidationId vId, bytes calldata selectors) internal {
         require(selectors.length % 4 == 0, InvalidDataLength());
         ValidationStorage storage $ = _validationStorage();
@@ -95,6 +105,7 @@ abstract contract ValidationManager {
 
         while (selectors.length >= 4) {
             bytes4 selector = bytes4(selectors[0:4]);
+            require(selector != IAccountExecute.executeUserOp.selector || vId == $.root, InvalidSelectorGrant());
             $.allowed[vId][selector] = nonce;
             selectors = selectors[4:];
         }
