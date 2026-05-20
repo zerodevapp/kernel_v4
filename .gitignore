@@ -29,3 +29,8 @@ log/
 .envrc
 
 **/.DS_Store
+
+# Certora
+.certora_internal/
+.certora_recent_jobs.json
+.last_confs/
