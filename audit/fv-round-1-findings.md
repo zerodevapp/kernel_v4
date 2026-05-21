@@ -298,16 +298,32 @@ Lower likelihood than the Round 1 attack (requires root rotation + prior grant +
 
 Bump `vInfo[oldRoot].nonce` in `_setRoot` so any stale `allowed[oldRoot][*]` grants are invalidated (`allowed[oldRoot][sel] != vInfo[oldRoot].nonce` post-rotation). Same pattern as Phase A #14.
 
-After Option E lands, replace the current too-strict invariant (`allowed[vId][sel] == 0`) with the structurally correct form:
+### ✅ Phase C closed — Round 3 / 4 invariant abstraction limit
 
-```cvl
-invariant nonRootCannotAllowSelectorExecuteUserOp(bytes21 vId)
-    vId != harness_root() =>
-        harness_allowedNonce(vId, executeUserOpSelector) != harness_vInfoNonce(vId);
-```
+After `_setRoot` fix (`ce185f6`) we tried two stronger invariant forms:
 
-`allowed` is never zeroed — only orphaned by a nonce bump. The new form captures that exactly.
+| Round | Form | Outcome |
+|---|---|---|
+| 3 | `allowedNonce(vId, exec) != vInfoNonce(vId)` | FAIL — base case fails on uninstalled vIds (`0 != 0` is false). |
+| 4 | Bypass-impossible: `NOT (_allowedSelector AND hook == INSTALLED_NO_HOOK)` | FAIL — Certora's external-callback AUTO-HAVOC violates the invariant on every entry point with a delegatecall (`executeUserOp`, `execute`, `validateUserOp`, `installModule`, `setRoot`, `grantAccess`, `upgradeToAndCall`, `<receiveOrFallback>`, `initialize`). `_onlyEntryPointOrSelf` prevents this in production, but encoding precise CVL summaries for all ~10 callback sites is days of work and likely OOMs. |
 
-## Phase D / E — not yet started
+Round 4 job: https://prover.certora.com/output/3606101/e16f05be609a48b79c6bfa16f7c357f4?anonymousKey=39f0672f112513c790ec1d6d8ba351876073e395
+
+**Decision (2026-05-21)**: accept the invariant as unprovable under current summaries. Phase C closes with the audit story carried by:
+
+1. `validateUserOpEnforcesInnerSelectorAccess_naive` PASSES post-fix — original CEX unreachable.
+2. `validateUserOpEnforcesInnerSelectorAccess_strict` PASSES — precise property under `!fastPath`.
+3. Manual static-writer analysis: `_grantAccess` (with fix), `_setRoot` (with fix), `_uninstallValidation`, `_initializeValidation` are the only writers of relevant storage; each preserves the bypass-impossible property by inspection.
+
+Invariant retained in spec as documented intent + regression target.
+
+## Phase D — Certora deepening (queued)
+
+Properties to dispatch (from `audit/fv-gap-audit.md`):
+- **#4**: Permission validation totality — every policy in `vInfo[vId].policies` must accept AND the signer must return ERC-1271 magic. Unbounded `policies[]` array.
+- **#6**: `setRoot(packages, removeCurrent=true)` LIFO uninstall fully clears old root state.
+- **#11**: `_verifySignaturePermission` (view, ERC-1271) and `_validateUserOpPermission` (write, ERC-4337) return the same aggregate `validationData` for the same `(vId, policies, signer, hash, signatures)` tuple.
+
+## Phase E — not yet started
 
 See `audit/FV_PLAN.md` for the full plan.
