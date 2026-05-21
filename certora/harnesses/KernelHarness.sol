@@ -7,7 +7,7 @@ import {KernelUUPS} from "src/KernelUUPS.sol";
 import {ValidationId, ValidationType, ValidationMode, PermissionId} from "src/types/Types.sol";
 import {ValidationInfo, ValidationStorage} from "src/types/Structs.sol";
 import {IHook} from "src/interfaces/IERC7579Modules.sol";
-import {parseNonce, getType} from "src/lib/Utils.sol";
+import {parseNonce, getType, permissionToIdentifier} from "src/lib/Utils.sol";
 import {
     VALIDATION_TYPE_ROOT,
     VALIDATION_TYPE_VALIDATOR,
@@ -52,6 +52,36 @@ contract KernelHarness is KernelUUPS {
 
     function harness_root() external view returns (bytes21) {
         return ValidationId.unwrap(_vs().root);
+    }
+
+    // ------------------------------------------------------------------
+    // Permission-state accessors (used by SetRootLifo property).
+    // ------------------------------------------------------------------
+
+    /// @notice The number of policies installed under `vId`'s permission entry.
+    function harness_vInfoPoliciesLength(bytes21 vId) external view returns (uint256) {
+        return _vs().vInfo[ValidationId.wrap(vId)].policies.length;
+    }
+
+    /// @notice The signer module installed for `vId` (only meaningful for permission vIds).
+    function harness_vInfoSigner(bytes21 vId) external view returns (address) {
+        return _vs().vInfo[ValidationId.wrap(vId)].signer;
+    }
+
+    /// @notice Returns the policy address stored at index `i` for `vId`'s permission entry.
+    /// @dev Reverts (out of bounds) if `i >= policies.length`.
+    function harness_vInfoPolicyAt(bytes21 vId, uint256 i) external view returns (address) {
+        return _vs().vInfo[ValidationId.wrap(vId)].policies[i];
+    }
+
+    /// @notice Returns the ValidationType (first byte) of a ValidationId.
+    function harness_getType(bytes21 vId) external pure returns (bytes1) {
+        return ValidationType.unwrap(getType(ValidationId.wrap(vId)));
+    }
+
+    /// @notice Encodes a 4-byte PermissionId into the corresponding permission-type ValidationId.
+    function harness_permissionToVid(bytes4 permissionId) external pure returns (bytes21) {
+        return ValidationId.unwrap(permissionToIdentifier(PermissionId.wrap(permissionId)));
     }
 
     // ------------------------------------------------------------------
@@ -137,6 +167,58 @@ contract KernelHarness is KernelUUPS {
 
     function harness_callDataLength(PackedUserOperation calldata op) external pure returns (uint256) {
         return op.callData.length;
+    }
+
+    // ------------------------------------------------------------------
+    // Wrappers exposing the view (ERC-1271) and write (ERC-4337) permission
+    // paths. Used by certora/specs/PermissionEquivalence.spec to compare the
+    // two aggregate `validationData` results for the same inputs.
+    //
+    // Both functions read the same ValidationInfo (vInfo[vId]) and the same
+    // PermissionId-derived `paddedVId`, iterate `vInfo[vId].policies` in the
+    // same order, and intersect via Lib4337.intersectValidationData. The
+    // STRUCTURAL difference is which external interface methods they invoke:
+    //
+    //   view path :  IPolicy.checkSignaturePolicy(paddedVId, requester, hash, sig)
+    //                ISigner.checkSignature(paddedVId, requester, hash, sig)    -> bytes4
+    //   write path:  IPolicy.checkUserOpPolicy(paddedVId, op)                   -> uint256
+    //                ISigner.checkUserOpSignature(paddedVId, op, opHash)        -> uint256
+    //
+    // The audit property is "kernel-side framing is identical." The spec
+    // CVL-summarises the four module entry points to a shared ghost so that,
+    // under the assumption each module is deterministic with respect to its
+    // inputs, the two paths must produce the same aggregate -- unless the
+    // kernel itself diverges. Any divergence is a HIGH-severity finding.
+    function harness_verifySignaturePermission(bytes21 vId, address requester, bytes32 hash, bytes calldata signature)
+        external
+        view
+        returns (uint256)
+    {
+        ValidationStorage storage $ = _vs();
+        ValidationId v = ValidationId.wrap(vId);
+        return _verifySignaturePermission(v, $.vInfo[v], requester, hash, signature);
+    }
+
+    function harness_validateUserOpPermission(
+        bytes21 vId,
+        bytes32 opHash,
+        PackedUserOperation memory op,
+        bytes calldata userOpSignature
+    ) external returns (uint256) {
+        return _validateUserOpPermission(ValidationId.wrap(vId), opHash, op, userOpSignature);
+    }
+
+    // Length of the policies array for a vId (used as a loop bound in CVL).
+    function harness_policiesLength(bytes21 vId) external view returns (uint256) {
+        return _vs().vInfo[ValidationId.wrap(vId)].policies.length;
+    }
+
+    function harness_policyAt(bytes21 vId, uint256 i) external view returns (address) {
+        return _vs().vInfo[ValidationId.wrap(vId)].policies[i];
+    }
+
+    function harness_signer(bytes21 vId) external view returns (address) {
+        return _vs().vInfo[ValidationId.wrap(vId)].signer;
     }
 
     // ------------------------------------------------------------------
