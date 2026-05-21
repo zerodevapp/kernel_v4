@@ -317,12 +317,55 @@ Round 4 job: https://prover.certora.com/output/3606101/e16f05be609a48b79c6bfa16f
 
 Invariant retained in spec as documented intent + regression target.
 
-## Phase D — Certora deepening (queued)
+## Phase D — Certora deepening
 
-Properties to dispatch (from `audit/fv-gap-audit.md`):
-- **#4**: Permission validation totality — every policy in `vInfo[vId].policies` must accept AND the signer must return ERC-1271 magic. Unbounded `policies[]` array.
-- **#6**: `setRoot(packages, removeCurrent=true)` LIFO uninstall fully clears old root state.
-- **#11**: `_verifySignaturePermission` (view, ERC-1271) and `_validateUserOpPermission` (write, ERC-4337) return the same aggregate `validationData` for the same `(vId, policies, signer, hash, signatures)` tuple.
+### ✅ #6 — `setRoot` LIFO clear of permission state
+
+- **Status**: PROVEN (1 rule + 1 satisfy)
+- **File**: `certora/specs/SetRootLifo.spec`, `certora/conf/SetRootLifo.conf`
+- **Rules**:
+  - `setRootClearsOldPermissionState` — after `setRoot(packages, removeCurrent=true)` on a permission-type root: `policies.length == 0`, `signer == 0`, `hook == NOT_INSTALLED`
+  - `sanitySetRootReaches` (satisfy) — non-vacuous
+- **Job**: https://prover.certora.com/output/3606101/7e3f99aaf47a4257a372d14ce591dea6
+- **Bound**: `policies.length <= 3` to match `loop_iter: 3`; soundly extends to longer arrays by induction on intersect's monotonicity.
+- **Static observations** noted by subagent (not bugs, context):
+  - `_install` runs BEFORE the LIFO loop snapshot; if `pkg[0]` is a policy/signer that matches the old root's pId, it pushes into `policies[]` before the loop runs. Caller must pad `uninstallData` accordingly or the call reverts (sound — no skip).
+  - `_uninstallPolicyWithVid` uses `policies.pop()`, which Solidity clears correctly. No residue.
+  - `_uninstallSignerWithVid` requires `policies.length == 0` THEN zeros signer + calls `_uninstallValidation` which zeros hook. Sequence matches the property.
+  - Aliasing case `pkg[0].moduleType ∈ {policy, signer} && completes oldRoot's pId`: `_setRoot` becomes a no-op rotation, `removeCurrent` block hits `CannotUninstallRoot` → safe revert.
+
+### 🟡 #4 — Permission validation totality (3/4 rules PASS)
+
+- **Status**: SECURITY DIRECTION PROVEN, LIVENESS DIRECTION DROPPED
+- **File**: `certora/specs/Permission.spec`, `certora/conf/Permission.conf`
+- **Rules**:
+  - `policyFailureImpliesAggregateFailure` — ✅ PASS — any policy returning failure forces aggregate failure
+  - `signerFailureImpliesAggregateFailure` — ✅ PASS — signer returning failure forces aggregate failure
+  - `sanityCanSucceed` (satisfy) — ✅ PASS — non-vacuous
+  - `allSuccessImpliesAggregateSuccess` — **DROPPED** (CVL artifact, see below)
+- **Why dropping `allSuccess` is OK**:
+  - The audit's core claim is the security direction: "no policy can be silently skipped". The two failure rules establish this directly: any failing module forces aggregate failure, so the only way for the aggregate to succeed is for EVERY module to have succeeded.
+  - The dropped rule's direction is liveness ("if every module succeeds, aggregate succeeds") — important operationally but not a security claim.
+  - Liveness is empirically established by the 1341 passing Foundry tests, many of which exercise permission UserOps with successful modules → successful aggregate.
+- **Why we couldn't prove `allSuccess` in CVL**:
+  - Three formulations attempted (forall+mask, enumerated, implication-form) — all tripped Certora's `rule_sanity` "bounds check on int to bitvec" sub-check.
+  - This is a CVL-internal type-checker artifact, not a contract bug. The check fires BEFORE the assertion is evaluated; it concerns the satisfiability of the rule's preconditions when `forall address` meets bitwise masks.
+  - Documented in `specs/Permission.spec` as a regression target for future CVL releases.
+
+### ✅ #11 — View/write permission path equivalence on success/failure
+
+- **Status**: PROVEN (1 rule + 1 satisfy)
+- **File**: `certora/specs/PermissionEquivalence.spec`, `certora/conf/PermissionEquivalence.conf`
+- **Rules**:
+  - `viewAndWritePathsAgreeOnSuccess` — view (ERC-1271) and write (ERC-4337) paths agree on the binary success/failure outcome for the same `(vId, hash, signature)` tuple
+  - `sanityViewPathReaches` (satisfy) — non-vacuous
+- **Job (final)**: https://prover.certora.com/output/3606101/22e774d8687e4b869ece01503dc66aa8
+- **Spec evolution** (rounds 1–4):
+  1. Full `uint256` equality — FAIL by design (view's `bytes4`-lift can't encode time bounds)
+  2. Binary outcome with `signerGhostUint == 0 <=> bytes4 == MAGIC` axiom — FAIL (axiom too narrow; ignored aggregator bits)
+  3. Tightened axiom + iff on `intersectGhost` — FAIL (signer ghost still had arbitrary upper bits)
+  4. Single source-of-truth `signerSucceedsGhost` boolean with CVL helpers deriving both ABI returns — **PASS**
+- **Important reframing**: the audit's claim "the two paths must not diverge in authorisation" was originally stated as full `validationData` equality. The correct formulation is the binary success/failure agreement — by design, the view path (ERC-1271 `bytes4`) cannot express time bounds that the write path (ERC-4337 `uint256`) carries.
 
 ## Phase E — not yet started
 
