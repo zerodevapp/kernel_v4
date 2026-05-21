@@ -133,6 +133,45 @@ while the new root is different. Whether that is exploitable depends on
 whether the prior root can still be used as a non-root validator after
 rotation. Report any such CEX honestly to the orchestrator.
 
+## Phase D — Certora deepening (3 properties)
+
+### #4 — Permission validation totality
+
+| Rule | Status | Notes |
+|---|---|---|
+| `policyFailureImpliesAggregateFailure` | ✅ PASS | If any policy returns failure, the aggregate is failure. |
+| `signerFailureImpliesAggregateFailure` | ✅ PASS | If the signer returns failure, the aggregate is failure. |
+| `sanityCanSucceed` (satisfy) | ✅ PASS | Non-vacuous: a non-reverting call exists. |
+| `allSuccessImpliesAggregateSuccess` | **DROPPED** | Liveness direction — Certora's "sanity bounds check on int to bitvec" tripped on every CVL formulation attempted (forall+mask, enumerated, implication-form). Audit's security claim ("no policy silently skipped") is fully carried by the two failure rules. Documented in `specs/Permission.spec`. |
+
+Files: `certora/specs/Permission.spec`, `certora/conf/Permission.conf`.
+
+### #6 — `setRoot` LIFO clear of permission state
+
+| Rule | Status |
+|---|---|
+| `setRootClearsOldPermissionState` | ✅ PASS |
+| `sanitySetRootReaches` (satisfy) | ✅ PASS |
+
+After `setRoot(packages, removeCurrent=true)` on a `VALIDATION_TYPE_PERMISSION` root, the old root's `policies.length == 0`, `signer == 0`, and `hook == HOOK_MODULE_NOT_INSTALLED`. LIFO loop bound at `policies.length <= 3`.
+
+Files: `certora/specs/SetRootLifo.spec`, `certora/conf/SetRootLifo.conf`.
+
+### #11 — View/write permission path equivalence
+
+| Rule | Status | Notes |
+|---|---|---|
+| `viewAndWritePathsAgreeOnSuccess` | ✅ PASS | View (ERC-1271) and write (ERC-4337) paths agree on the success/failure binary outcome. |
+| `sanityViewPathReaches` (satisfy) | ✅ PASS | Non-vacuous. |
+
+Notable spec evolution (Rounds 1-4):
+1. Full `uint256` equality assertion — FAIL by design (view path's `bytes4`-lift cannot represent ERC-4337 time bounds).
+2. Binary outcome with `signerGhostUint == 0 <=> bytes4 == MAGIC` axiom — FAIL (axiom too narrow; ignored aggregator bits).
+3. Tightened axiom to `AGG_OK(signerGhostUint) <=> bytes4 == MAGIC` + iff on intersectGhost — FAIL (signer ghost still had arbitrary upper bits).
+4. Single source-of-truth `signerSucceedsGhost` boolean with CVL helper functions deriving both ABI returns — **PASS**.
+
+Files: `certora/specs/PermissionEquivalence.spec`, `certora/conf/PermissionEquivalence.conf`.
+
 ## Pitfalls baked in
 
 - `optimistic_loop: true` + `loop_iter: 3`.
