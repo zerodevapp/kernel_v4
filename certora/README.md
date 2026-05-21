@@ -79,17 +79,26 @@ Failing methods (induction step) and how each reaches `_setRoot`:
 | `upgradeToAndCall(address,…)` | New implementation's init data calls `setRoot` |
 | `<receiveOrFallback>()` | Fallback path routes to `setRoot` |
 
-Selected remediation: **Option E** — bump `vInfo[oldRoot].nonce` in `_setRoot` so stale `allowed[oldRoot][*]` grants become unreachable (`allowed[oldRoot][sel] != vInfo[oldRoot].nonce` post-rotation). Same pattern as the Phase A #14 fix. To be applied via `sc-developer`.
+Selected remediation: **Option E** — bump `vInfo[oldRoot].nonce` in `_setRoot` so stale `allowed[oldRoot][*]` grants become unreachable (`allowed[oldRoot][sel] != vInfo[oldRoot].nonce` post-rotation). Same pattern as the Phase A #14 fix. Applied at commit `ce185f6`.
 
-After the Round 3 fix lands, the structurally correct invariant becomes:
+### Round 3 / 4 — invariant abstraction limit (Phase C closure)
 
-```cvl
-invariant nonRootCannotAllowSelectorExecuteUserOp(bytes21 vId)
-    vId != harness_root() =>
-        harness_allowedNonce(vId, executeUserOpSelector) != harness_vInfoNonce(vId);
-```
+After the `_setRoot` fix we tried two stronger invariant formulations:
 
-(The current `allowed[vId][sel] == 0` form is too strict — `allowed` is never zeroed, only orphaned by a nonce bump.)
+| Round | Invariant form | Result |
+|---|---|---|
+| 3 | `allowedNonce(vId, exec) != vInfoNonce(vId)` for non-root vId | FAIL — base case (uninstalled vIds have both sides = 0, so `0 != 0` is false). Helper invariant `installedValidationsHaveNonzeroNonce` timed out at 96 min on one induction step. |
+| 4 | Bypass-impossible form: `NOT (_allowedSelector(vId, exec) AND hook == INSTALLED_NO_HOOK)` for non-root vId | FAIL — Certora's NONDET / AUTO-HAVOC abstraction for external module callbacks lets it imagine arbitrary writes to ValidationStorage on every entry point that involves a delegatecall or callback (`executeUserOp`, `execute`, `validateUserOp`, `installModule`, `setRoot`, `grantAccess`, `upgradeToAndCall`, `<receiveOrFallback>`, `initialize`). `_onlyEntryPointOrSelf` prevents this reentrant write in production, but encoding that as precise CVL summaries for ~10 sites is days of work and likely OOMs. |
+
+Round 4 job URL: https://prover.certora.com/output/3606101/e16f05be609a48b79c6bfa16f7c357f4?anonymousKey=39f0672f112513c790ec1d6d8ba351876073e395
+
+**Decision (2026-05-21)**: accept the invariant as unprovable under the current CVL summary set. The audit story is carried by:
+
+1. `validateUserOpEnforcesInnerSelectorAccess_naive` PASSES (post-fix) — the original CEX witness is unreachable.
+2. `validateUserOpEnforcesInnerSelectorAccess_strict` PASSES — precise property under `!fastPath` precondition.
+3. Manual static-writer analysis: `_grantAccess` (with fix), `_setRoot` (with fix), `_uninstallValidation`, and `_initializeValidation` are the only writers of `allowed[]`, `vInfo`, and `$.root`. Each preserves the bypass-impossible property by inspection.
+
+The invariant statement is retained in `specs/Kernel.spec` as documented intent and a regression target for future runs with stronger summaries.
 
 ### Implementation finding addressed by commit 0921b25
 

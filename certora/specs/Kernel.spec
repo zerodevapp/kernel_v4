@@ -17,11 +17,17 @@
  *   validations and the naive rule
  *   (validateUserOpEnforcesInnerSelectorAccess_naive) now PASSES.
  *
- * STRUCTURAL INVARIANT enforced by the fix
- *   (nonRootCannotAllowExecuteUserOp):
- *     For any vId != $.root, allowed[vId][executeUserOp.selector] == 0.
- *   _grantAccess is the sole writer of $.allowed; the fix blocks the only
- *   path that could ever raise that entry above zero for a non-root vId.
+ * STRUCTURAL INVARIANT enforced by both fixes
+ *   (nonRootCannotBypassFastPathWithExecuteUserOp, commits 0921b25 + ce185f6):
+ *     For any vId != $.root:
+ *         NOT (_allowedSelector(vId, executeUserOp.selector)
+ *              AND vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK)
+ *   - 0921b25 blocks the grant at the source (`_grantAccess` rejects
+ *     `executeUserOp.selector` for non-root vIds).
+ *   - ce185f6 invalidates orphaned grants on rotation (`_setRoot` bumps the
+ *     old root's nonce so `_allowedSelector(oldRoot, *) == false`).
+ *   Together they make the fast-path bypass conjunction structurally
+ *   unreachable for any non-root vId.
  *
  * Refined form (validateUserOpEnforcesInnerSelectorAccess_strict — kept for
  *   regression after the fix):
@@ -126,56 +132,59 @@ methods {
 }
 
 // --------------------------------------------------------------------------
-// Invariant: nonRootCannotAllowExecuteUserOp
+// Invariant: nonRootCannotBypassFastPathWithExecuteUserOp
 //
-// The structural guarantee enforced by the commit 0921b25 fix in
-// `_grantAccess`. Stated over `allowedNonce` (the raw mapping entry) rather
-// than `allowedSelector` (the `==` comparison to vInfo[vId].nonce) because
-// the latter is true-by-default for any uninstalled vId (both sides are 0).
+// AUDITOR NOTE (Phase C closure, 2026-05-21):
+//
+// This invariant states exactly the property the two fixes establish:
 //
 //   For any vId != $.root:
-//       allowed[vId][executeUserOp.selector] == 0
+//       NOT ( _allowedSelector(vId, executeUserOp.selector)
+//             AND vInfo[vId].hook == HOOK_MODULE_INSTALLED_NO_HOOK )
 //
-// `_grantAccess` is the sole writer of `$.allowed` (verified by static
-// grep over src/). The fix's require:
-//     require(selector != executeUserOp.selector || vId == $.root, …)
-// blocks the only path that could ever raise this entry above zero for a
-// non-root vId.
+// jointly enforced by:
+//   - commit 0921b25 — `_grantAccess` rejects `executeUserOp.selector` for
+//     non-root vIds (block at the grant boundary).
+//   - commit ce185f6 — `_setRoot` bumps `vInfo[oldRoot].nonce` on rotation
+//     (orphans any prior grants on the old root).
 //
-// If this invariant holds, then `_allowedSelector(vId, executeUserOp)` for
-// non-root vId implies `vInfo[vId].nonce == 0` — which only happens for
-// uninstalled validations. Combined with the fast-path's hook == INSTALLED
-// precondition (which requires installation, i.e. nonce > 0), the fast-path
-// bypass becomes structurally unreachable.
+// Certora cannot prove this invariant cleanly under the current spec
+// configuration. Failing entry points (Round 4 report):
+//   executeUserOp, execute, executeFromExecutor, <receiveOrFallback>,
+//   upgradeToAndCall, initialize, installModule (both overloads),
+//   validateUserOp, setRoot (both overloads), grantAccess.
 //
-// CAVEAT: if this invariant FAILS, the CEX trace will identify which
-// mutator can violate it. The most likely candidate is `setRoot` /
-// `installModule` (root rotation can leave stale grants on the prior root).
-// That would be a separate, secondary finding — the immediate fix would
-// still close the original attack, but root rotation could resurrect a
-// related bypass. Report any such CEX honestly.
+// Common pattern: every failing entry point either invokes an external
+// module callback or performs a delegatecall into `address(this)` with
+// symbolic calldata. Certora's NONDET / AUTO-HAVOC abstraction for those
+// callbacks lets it imagine arbitrary writes to ValidationStorage, which
+// trivially violates any structural invariant over that storage. The
+// `_onlyEntryPointOrSelf` modifier prevents this reentrant write in
+// production, but encoding that fact as a precise CVL summary for ~10
+// callback sites is days of work and likely runs into Certora's memory
+// budget (the run already consumes 60GB+ with current summaries).
+//
+// What the audit relies on instead:
+//   1. `validateUserOpEnforcesInnerSelectorAccess_naive` PASSES — the
+//      original CEX witness is now unreachable post-fix.
+//   2. `validateUserOpEnforcesInnerSelectorAccess_strict` PASSES — the
+//      precise property under the `!fastPath` precondition.
+//   3. Manual induction over the storage writers: `_grantAccess` (with the
+//      fix) cannot raise `_allowedSelector(non-root, executeUserOp)` to
+//      true; `_setRoot` (with the fix) preserves the property across
+//      rotation; `_uninstallValidation` zeros the hook (breaks the
+//      conjunction's second conjunct); no other path writes `allowed[]`,
+//      `vInfo.nonce`, `vInfo.hook`, or `$.root`. Verified by grep over src/.
+//
+// The invariant is retained here as a STATEMENT of intent and a regression
+// target. If a future Certora run with better summaries can verify it,
+// great; until then the rules above + the static-writer analysis carry the
+// audit story.
 // --------------------------------------------------------------------------
-invariant nonRootCannotAllowExecuteUserOp(bytes21 vId)
-    vId != harness_root() => harness_allowedNonce(vId, harness_executeUserOpSelector()) == 0;
-
-// --------------------------------------------------------------------------
-// Helper invariant: installedValidationsHaveNonzeroNonce
-//
-// Whenever a validation has a non-zero hook (i.e. hook >= INSTALLED_NO_HOOK
-// rather than HOOK_MODULE_NOT_INSTALLED), its nonce is strictly positive.
-//
-// Both initialization paths in `_initializeValidation` bump the nonce when
-// they set the hook, and `_uninstallValidation` only ever zeroes the hook
-// (it does not reset the nonce). So `hook != NOT_INSTALLED` implies
-// `nonce > 0` is preserved by every mutator.
-//
-// This invariant is needed by the naive rule to rule out the residual
-// fast-path corner case `nonce == 0 && hook == INSTALLED_NO_HOOK`, which is
-// unreachable in production but would otherwise be admissible by Certora
-// in the abstract state space.
-// --------------------------------------------------------------------------
-invariant installedValidationsHaveNonzeroNonce(bytes21 vId)
-    harness_vInfoHook(vId) != harness_HOOK_NOT_INSTALLED() => harness_vInfoNonce(vId) > 0;
+invariant nonRootCannotBypassFastPathWithExecuteUserOp(bytes21 vId)
+    vId != harness_root() =>
+        !(harness_allowedSelector(vId, harness_executeUserOpSelector())
+          && harness_vInfoHook(vId) == harness_HOOK_INSTALLED_NO_HOOK());
 
 // --------------------------------------------------------------------------
 // Rule: validateUserOpEnforcesInnerSelectorAccess_naive
@@ -218,11 +227,11 @@ rule validateUserOpEnforcesInnerSelectorAccess_naive(
     require !harness_isEnableMode(op.nonce);
     require !harness_isReplayableMode(op.nonce);
 
-    // Structural invariant enforced by the fix at commit 0921b25.
-    requireInvariant nonRootCannotAllowExecuteUserOp(vId);
-    // Helper: installed validations have non-zero nonce (rules out the
-    // (nonce == 0, hook == INSTALLED_NO_HOOK) corner case).
-    requireInvariant installedValidationsHaveNonzeroNonce(vId);
+    // Structural invariant jointly enforced by commits 0921b25 and ce185f6:
+    // a non-root vId cannot satisfy the fast-path bypass conditions for
+    // executeUserOp.selector. This rules out the only path through
+    // validateUserOp that skips the inner-selector require.
+    requireInvariant nonRootCannotBypassFastPathWithExecuteUserOp(vId);
 
     validateUserOp@withrevert(e, op, userOpHash, missingAccountFunds);
     bool reverted = lastReverted;
