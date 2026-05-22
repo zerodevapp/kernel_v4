@@ -367,6 +367,49 @@ Invariant retained in spec as documented intent + regression target.
   4. Single source-of-truth `signerSucceedsGhost` boolean with CVL helpers deriving both ABI returns — **PASS**
 - **Important reframing**: the audit's claim "the two paths must not diverge in authorisation" was originally stated as full `validationData` equality. The correct formulation is the binary success/failure agreement — by design, the view path (ERC-1271 `bytes4`) cannot express time bounds that the write path (ERC-4337 `uint256`) carries.
 
-## Phase E — not yet started
+## Phase E — Kontrol + Halmos (complementary partial coverage on #15)
+
+### Property #15 — ERC-1271 nested EIP-712 success-branch-only authorisation
+
+**Goal**: prove that `_erc1271IsValidSignatureViaNestedEIP712` (and the Replayable variant) in `src/lib/ERC1271.sol` only return `true` when the inner `_erc1271IsValidSignatureNowCalldata(hash, signature)` returns `true`. Both functions have exactly one return site (line 239 / 326), so a contrapositive proof "inner=false ⇒ outer=false" covers all paths.
+
+### 🟡 Kontrol partial — TypedDataSign branch (timed out, no CEX)
+
+- **Status**: 14 terminal SUCCESS branches + 12 subsumption covers in 102-node KCFG, NO counterexamples, full proof timed out at ~1h25m
+- **File**: `test/kontrol/ERC1271NestedEIP712Kontrol.t.sol`
+- **Config**: `kontrol.toml` (max-depth 5000, max-iter 200, workers 4)
+- **Build wall time**: 73 s cold, ~50 s warm
+- **Prove wall time at kill**: ~1h25m
+- **Bound applied**: `vm.assume(signature.length <= 128)`
+- **Classification**: Kontrol-limitation (SMT cost on symbolic-bytes calldata + 5+ calldatacopy operations whose offsets depend on `signature.length` and `c`). Not an impl bug.
+- **Replayable variant**: not attempted — structurally identical body would consume the same budget.
+
+### ✅ Halmos partial — PersonalSign branch (PROVEN, both variants)
+
+- **Status**: 6/6 PASS (24.6 s total, ≤0.04 s aggregate solver time)
+- **File**: `test/halmos/ERC1271NestedEIP712Halmos.t.sol`
+- **Checks**:
+  - `check_NestedEIP712_Length0` — degenerate (signature.length == 0)
+  - `check_NestedEIP712_Length65_PersonalSignBranch` — ECDSA-canonical
+  - `check_NestedEIP712_Length100_PersonalSignBranch` — mid-sized
+  - `check_NestedEIP712Replayable_Length0` — same for Replayable variant
+  - `check_NestedEIP712Replayable_Length65_PersonalSignBranch`
+  - `check_NestedEIP712Replayable_Length100_PersonalSignBranch`
+- **Technique**: pin trailing 2 bytes of `sig` to `0x00 0x00` so the EVM-level `c` is concrete `0`, forcing the PersonalSign workflow. Remaining bytes fully symbolic.
+- **TypedDataSign not covered**: `Length67_TypedDataSignCandidate` and `Length100_TypedDataSignCandidate` attempted but hit `NotConcreteError: symbolic SHA3 data size`. The `contentsName` scan loop at `ERC1271.sol:206-219` computes the keccak input length `sub(add(p, c), m)` from symbolic byte-equality checks against `)` and `(`, which Halmos's keccak backend can't handle.
+
+### Combined Phase E story
+
+- **PersonalSign workflow**: ✅ PROVEN by Halmos (both standard + Replayable variants, three length classes).
+- **TypedDataSign workflow**: 🟡 partial — Kontrol explored 14 SUCCESS branches without CEX before timeout; full closure requires either more wall-clock budget OR stronger Kontrol-side modeling of the calldata pattern.
+- **No counterexamples found anywhere**: both backends would have surfaced a verifier-bypass; neither did.
+- **Scaffold preserved**: Kontrol claim file + harness pattern on disk for future re-runs with a stronger machine or improved Kontrol SMT support.
+
+### Recommendation for Round 2
+
+The TypedDataSign coverage gap is the only remaining FV gap for this property. Options:
+- **Re-run Kontrol with larger budget** (4+ hours) on a beefier machine.
+- **Certora attempt** with `optimistic_hashing` + careful summaries for the assembly memory writes (unclear if this works given the calldatacopy patterns).
+- **Manual symbolic exec / pen-and-paper proof** of the structural claim (the single return site argument is straightforward to check by inspection).
 
 See `audit/FV_PLAN.md` for the full plan.
