@@ -34,3 +34,6 @@ log/
 .certora_internal/
 .certora_recent_jobs.json
 .last_confs/
+
+# Kontrol
+.kontrol/
