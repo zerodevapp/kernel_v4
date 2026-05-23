@@ -222,6 +222,42 @@ contract KernelHarness is KernelUUPS {
     }
 
     // ------------------------------------------------------------------
+    // Writer-local invariant wrappers (Phase C Round 2)
+    //
+    // These expose the four ValidationStorage writers as external functions so
+    // CVL rules can call exactly one writer at a time. The wrappers preserve
+    // production semantics 1:1 -- they only adapt the parameter type
+    // (bytes21 / ValidationId / Install) at the boundary.
+    //
+    // The four writers (verified by static grep over src/ on 2026-05-21):
+    //   1. _grantAccess(vId, selectors)                  -- ValidationManager.sol:101
+    //   2. _setRoot(vId)                                 -- ValidationManager.sol:461
+    //   3. _uninstallValidation(_vId)                    -- ValidationManager.sol:210
+    //   4. _initializeValidation(vId, _internalData)     -- ValidationManager.sol:125
+    //
+    // No other path writes $.allowed, $.vInfo[*].nonce, $.vInfo[*].hook, or
+    // $.root. Public entry points (installModule, executeUserOp, etc.) reach
+    // these writers via internal call chains, but the writers themselves are
+    // the only place where the relevant storage slots are mutated.
+    // ------------------------------------------------------------------
+
+    function harness_grantAccess(bytes21 vId, bytes calldata selectors) external {
+        _grantAccess(ValidationId.wrap(vId), selectors);
+    }
+
+    function harness_setRootById(bytes21 vId) external {
+        _setRoot(ValidationId.wrap(vId));
+    }
+
+    function harness_uninstallValidation(bytes21 vId) external {
+        _uninstallValidation(ValidationId.wrap(vId));
+    }
+
+    function harness_initializeValidation(bytes21 vId, bytes calldata internalData) external {
+        _initializeValidation(ValidationId.wrap(vId), internalData);
+    }
+
+    // ------------------------------------------------------------------
     function _vs() internal pure returns (ValidationStorage storage $) {
         bytes32 slot = VALIDATION_MANAGER_STORAGE_SLOT;
         assembly {
