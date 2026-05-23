@@ -13,11 +13,11 @@
 
 ## Phase 1 — Close known gaps from Round 1
 
-| # | Property | Round 1 status | Round 2 approach |
-|---|----------|----------------|------------------|
-| 15 | `_erc1271IsValidSignatureViaNestedEIP712` TypedDataSign branch | Kontrol partial (14 SUCCESS, 0 CEX, timeout); Halmos PROVEN on PersonalSign | **Kontrol with larger budget** on a beefier machine. Tighter symbolic-bytes bound (`signature.length <= 96` instead of 128), `--max-iterations 500`, `--workers 8`. Fallback: Certora with hashing summaries or a manual single-return-site CFG proof. |
-| Phase C invariant | `nonRootCannotBypassFastPathWithExecuteUserOp` | Unprovable under current CVL summaries (NONDET callback havoc) | **Split into writer-local invariants** — one per storage writer (`_grantAccess`, `_setRoot`, `_uninstallValidation`, `_initializeValidation`). Each writer maintains a narrow local invariant; conjunction implies the global property. Sidesteps the cross-callback havoc problem. |
-| Phase D #4 liveness | `allSuccessImpliesAggregateSuccess` | Dropped (Certora `rule_sanity` bitvec gotcha) | **Defer to a future Certora release** OR use a tighter bounded form with explicit `mathint` typing. Security direction already proven; this is liveness. Low priority. |
+| # | Property | Round 1 status | Round 2 status |
+|---|----------|----------------|----------------|
+| 15 | `_erc1271IsValidSignatureViaNestedEIP712` TypedDataSign branch | Kontrol partial (14 SUCCESS, 0 CEX, timeout); Halmos PROVEN on PersonalSign | ✅ **CLOSED** — Kontrol Round 2: 524 nodes, 90 SUCCESS, 0 CEX, hit 500-iter limit. Manual CFG proof closes the gap at `audit/manual-proofs/property-15-erc1271-nested-eip712.md` (commit `a16ff4b`). |
+| Phase C invariant | `nonRootCannotBypassFastPathWithExecuteUserOp` | Unprovable under current CVL summaries (NONDET callback havoc) | ✅ **CLOSED** — Writer-local decomposition into 4 rules in `certora/specs/PhaseCWriterLocal.spec` (commit `56d03a2`). All 4 rules + 4 sanity checks PASS. Job: https://prover.certora.com/output/3606101/37e8675776484e4998f16f528d2dd29a |
+| Phase D #4 liveness | `allSuccessImpliesAggregateSuccess` | Dropped (Certora `rule_sanity` bitvec gotcha) | Deferred to a future Certora release. Security direction proven; this is liveness. Low priority. |
 
 ---
 
