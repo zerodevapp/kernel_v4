@@ -172,6 +172,24 @@ Notable spec evolution (Rounds 1-4):
 
 Files: `certora/specs/PermissionEquivalence.spec`, `certora/conf/PermissionEquivalence.conf`.
 
+## Round 2 — Phase C invariant closure (writer-local decomposition)
+
+The Round 1 global invariant `nonRootCannotBypassFastPathWithExecuteUserOp` in `specs/Kernel.spec` is replaced for verification purposes by **four writer-local rules** in `specs/PhaseCWriterLocal.spec`:
+
+| Rule | Status |
+|---|---|
+| `grantAccessPreservesNonBypass` | ✅ PASS |
+| `setRootPreservesNonBypass` | ✅ PASS |
+| `uninstallValidationPreservesNonBypass` | ✅ PASS |
+| `initializeValidationPreservesNonBypass` | ✅ PASS |
+| 4 corresponding `sanity*` rules | ✅ PASS (all 4) |
+
+Job: https://prover.certora.com/output/3606101/37e8675776484e4998f16f528d2dd29a
+
+**Implication chain** (documented in `specs/PhaseCWriterLocal.spec` docstring; not formally proven in CVL but verified by grep over `src/`): the four functions are the ONLY paths that write `$.allowed`, `$.vInfo[*].nonce`, `$.vInfo[*].hook`, or `$.root`. Genesis state trivially satisfies the bypass-impossible property. Each writer preserves it. Therefore by structural induction, every reachable state satisfies it. The conjunction of the 4 local rules + static-writer-completeness ⇒ the original global property.
+
+The original `Kernel.spec` invariant remains as documented intent + regression target for future Certora releases with stronger summaries.
+
 ## Pitfalls baked in
 
 - `optimistic_loop: true` + `loop_iter: 3`.
