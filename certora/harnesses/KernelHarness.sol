@@ -6,13 +6,18 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {ValidationId, ValidationType, ValidationMode, PermissionId} from "src/types/Types.sol";
 import {ValidationInfo, ValidationStorage} from "src/types/Structs.sol";
-import {IHook} from "src/interfaces/IERC7579Modules.sol";
+import {IHook, IExecutor} from "src/interfaces/IERC7579Modules.sol";
+import {CallType} from "src/types/Types.sol";
+import {ExecutorStorage, SelectorStorage, HookStorage} from "src/types/Structs.sol";
 import {parseNonce, getType, permissionToIdentifier} from "src/lib/Utils.sol";
 import {
     VALIDATION_TYPE_ROOT,
     VALIDATION_TYPE_VALIDATOR,
     VALIDATION_TYPE_PERMISSION,
     VALIDATION_MANAGER_STORAGE_SLOT,
+    EXECUTOR_MANAGER_STORAGE_SLOT,
+    SELECTOR_MANAGER_STORAGE_SLOT,
+    HOOK_MANAGER_STORAGE_SLOT,
     HOOK_MODULE_NOT_INSTALLED,
     HOOK_MODULE_INSTALLED_NO_HOOK
 } from "src/types/Constants.sol";
@@ -258,8 +263,172 @@ contract KernelHarness is KernelUUPS {
     }
 
     // ------------------------------------------------------------------
+    // Module-storage accessors (Phase 2 — ExecutorManager / SelectorManager /
+    // HookManager). Mirror the production storage layout reads so CVL can
+    // observe the per-slot post-state of each module writer.
+    // ------------------------------------------------------------------
+
+    function harness_executorHook(address executor) external view returns (address) {
+        return address(_es().executorConfig[IExecutor(executor)].hook);
+    }
+
+    function harness_selectorTarget(bytes4 selector) external view returns (address) {
+        return _ss().selectorConfig[selector].target;
+    }
+
+    function harness_selectorHook(bytes4 selector) external view returns (address) {
+        return address(_ss().selectorConfig[selector].hook);
+    }
+
+    function harness_selectorCallType(bytes4 selector) external view returns (bytes1) {
+        return CallType.unwrap(_ss().selectorConfig[selector].callType);
+    }
+
+    function harness_hookEnabled(address hook) external view returns (bool) {
+        return _hs().enabled[hook];
+    }
+
+    /// @notice Returns `bytes4(_internalData[0:4])` -- the selector key
+    /// that `_installSelector` / `_uninstallSelector` derive from
+    /// internalData. Pure projection; reverts if length < 4.
+    function harness_internalDataSelector(bytes calldata internalData) external pure returns (bytes4) {
+        return bytes4(internalData[0:4]);
+    }
+
+    // ------------------------------------------------------------------
+    // Writer wrappers for the six module writers covered by
+    // certora/specs/ModuleWriters.spec. Each wrapper preserves production
+    // semantics 1:1; the wrapper exists only so CVL rules can call exactly
+    // one writer at a time with arbitrary symbolic inputs.
+    //
+    // The writers (verified by static grep over src/core/ on 2026-05-24):
+    //   1. _installExecutor(_executor, _internalData, _installSuccess)   -- ExecutorManager.sol:41
+    //   2. _uninstallExecutor(_executor, _, _)                           -- ExecutorManager.sol:54
+    //   3. _installSelector(_module, _internalData, _installSuccess)     -- SelectorManager.sol:45
+    //   4. _uninstallSelector(_, _internalData, _)                       -- SelectorManager.sol:62
+    //   5. _installHook(_hook, _internalData, _installSuccess)           -- HookManager.sol:36
+    //   6. _uninstallHook(_hook, _, _)                                   -- HookManager.sol:45
+    //
+    // No other code path writes ExecutorStorage, SelectorStorage, or
+    // HookStorage in src/. Verified by grep on 2026-05-24.
+    // ------------------------------------------------------------------
+
+    function harness_installExecutor(address executor, bytes calldata internalData, bool installSuccess) external {
+        _installExecutor(executor, internalData, installSuccess);
+    }
+
+    function harness_uninstallExecutor(address executor, bytes calldata internalData, bool installSuccess) external {
+        _uninstallExecutor(executor, internalData, installSuccess);
+    }
+
+    function harness_installSelector(address module, bytes calldata internalData, bool installSuccess) external {
+        _installSelector(module, internalData, installSuccess);
+    }
+
+    function harness_uninstallSelector(address module, bytes calldata internalData, bool installSuccess) external {
+        _uninstallSelector(module, internalData, installSuccess);
+    }
+
+    function harness_installHook(address hook, bytes calldata internalData, bool installSuccess) external {
+        _installHook(hook, internalData, installSuccess);
+    }
+
+    function harness_uninstallHook(address hook, bytes calldata internalData, bool installSuccess) external {
+        _uninstallHook(hook, internalData, installSuccess);
+    }
+
+    // ------------------------------------------------------------------
+    // `_checkValidation` routing probes (FV Round 2, Phase 2)
+    //
+    // `_checkValidation(vType, vId)` returns `(ValidationId v, function-ptr
+    // validateUserOp)`. CVL cannot directly inspect an internal Solidity
+    // function pointer, AND direct `==` equality on internal function pointers
+    // emits Solidity warning 3075 ("comparison can yield unexpected results in
+    // the legacy pipeline with the optimizer enabled"). Foundry config uses
+    // `via_ir = false` + `optimizer = true`, so `==` is unsound here.
+    //
+    // Approach used: a single wrapper INVOKES the returned function pointer
+    // with dummy arguments. Combined with per-function CVL summaries that
+    // return DISTINCT sentinel values, the wrapper's return value identifies
+    // which validateUserOp* was routed without any function-pointer equality.
+    //
+    //   Summary mapping (in CheckValidation.spec):
+    //     _validateUserOpValidator   => returns 7      (ROUTE_VALIDATOR)
+    //     _validateUserOpPermission  => returns 11     (ROUTE_PERMISSION)
+    //     _validateUserOpFallback    => returns 13     (ROUTE_FALLBACK)
+    //
+    //   The wrapper returns whatever the routed function returns; the CVL
+    //   rules assert the expected sentinel against the actual return.
+    //
+    // The wrapper resolves `_checkValidation` (which may revert on
+    // uninstalled-validator paths — matching production behaviour), then
+    // invokes the returned function pointer. The function pointer call is the
+    // ONLY observation channel for the routing decision.
+    //
+    // `harness_checkValidationResolvedV` returns the resolved `v` (the first
+    // tuple element) separately, so rules can also assert recursion-target
+    // identity (e.g. ROOT branch resolves `v = $.root`).
+    //
+    // `harness_fallbackAvailable` exposes the virtual predicate that
+    // `_setRoot` enforces but `_checkValidation` itself does NOT re-check.
+    //
+    // VALIDATION_TYPE_FALLBACK (0x00) and VALIDATION_TYPE_ROOT (0x00) ALIAS to
+    // the same byte value. Both enter the same first-branch in
+    // `_checkValidation`. So routing to `_validateUserOpFallback` is reachable
+    // only via the ROOT branch with `$.root == 0`.
+    // ------------------------------------------------------------------
+
+    function harness_checkValidationResolvedV(bytes1 vType, bytes21 vId) external view returns (bytes21) {
+        (ValidationId v,) = _checkValidation(ValidationType.wrap(vType), ValidationId.wrap(vId));
+        return ValidationId.unwrap(v);
+    }
+
+    /// @notice Invokes `_checkValidation` and then calls the returned function
+    ///         pointer with dummy arguments. With the spec's per-function
+    ///         summaries returning distinct sentinels, the return value
+    ///         identifies the routed function.
+    function harness_invokeCheckValidationRoute(bytes1 vType, bytes21 vId) external returns (uint256) {
+        (
+            ValidationId v,
+            function(ValidationId, bytes32, PackedUserOperation memory, bytes calldata) internal returns (uint256) f
+        ) = _checkValidation(ValidationType.wrap(vType), ValidationId.wrap(vId));
+        PackedUserOperation memory op;
+        return f(v, bytes32(0), op, msg.data[0:0]);
+    }
+
+    function harness_fallbackAvailable() external pure returns (bool) {
+        return _fallbackValidatorAvailable();
+    }
+
+    function harness_VT_FALLBACK() external pure returns (bytes1) {
+        // VALIDATION_TYPE_FALLBACK and VALIDATION_TYPE_ROOT alias to 0x00.
+        return bytes1(0x00);
+    }
+
+    // ------------------------------------------------------------------
     function _vs() internal pure returns (ValidationStorage storage $) {
         bytes32 slot = VALIDATION_MANAGER_STORAGE_SLOT;
+        assembly {
+            $.slot := slot
+        }
+    }
+
+    function _es() internal pure returns (ExecutorStorage storage $) {
+        bytes32 slot = EXECUTOR_MANAGER_STORAGE_SLOT;
+        assembly {
+            $.slot := slot
+        }
+    }
+
+    function _ss() internal pure returns (SelectorStorage storage $) {
+        bytes32 slot = SELECTOR_MANAGER_STORAGE_SLOT;
+        assembly {
+            $.slot := slot
+        }
+    }
+
+    function _hs() internal pure returns (HookStorage storage $) {
+        bytes32 slot = HOOK_MANAGER_STORAGE_SLOT;
         assembly {
             $.slot := slot
         }
