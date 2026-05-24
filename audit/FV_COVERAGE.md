@@ -2,8 +2,8 @@
 
 > **Live status table** mapping every public/external function plus security-relevant internal helper to its formal-verification obligation, backend, and proof state.
 
-**Last updated**: 2026-05-23 (Round 2 Phase C closure)
-**Branch**: `audit/fv-round-1` (PR #55, 30 commits)
+**Last updated**: 2026-05-24 (Round 2 Phase 2 closure — 6 dispatches landed)
+**Branch**: `audit/fv-round-1` (PR #55, 37 commits)
 **Companion docs**:
 - [`audit/FV_PLAN.md`](./FV_PLAN.md) — Round 1 multi-phase plan
 - [`audit/FV_PLAN_ROUND_2.md`](./FV_PLAN_ROUND_2.md) — Round 2 strategy
@@ -42,7 +42,7 @@
 | external | `initialize(packages)` (declared abstract) | AC, TR | — | 🔵 OOS | Implemented by subclasses (`KernelUUPS.initialize`, `KernelImmutableECDSA._initialize`). |
 | external | `validateUserOp(userOp, hash, missingFunds)` | AC, NB | C | ✅ PROVEN | Phase C #1 strict + naive rules. Spec: `certora/specs/Kernel.spec`. |
 | external | `executeUserOp(userOp, hash)` | NB | C, M | ✅ PROVEN | Phase C #1 (executeUserOp inner delegatecall gated by validateUserOp). |
-| external | `execute(mode, executionData)` | AC | C (transitively via Phase C #1) | 🟡 PARTIAL | Routing through `_execute`; AC via `_onlyEntryPointOrSelf`. Direct unit/AC proof missing. |
+| external | `execute(mode, executionData)` | AC | H (via Phase 2 `_executeCall`/`_executeDelegateCall`) | 🟡 PARTIAL | Routing through `_execute`; AC via `_onlyEntryPointOrSelf`. Inner calls now proven by Phase 2 (`test/halmos/ExecuteCallHalmos.t.sol`). Direct top-level AC proof still missing. |
 | external | `setNonce(key, seq)` | AC, TR | C (Phase C writer-local) | ✅ PROVEN | `setRootPreservesNonBypass` + `_checkAndIncrementNonce` chain. Phase A #13 covers nonce no-overflow. |
 | external | `setValidNonceFrom(seq)` | AC, TR | C (Phase C writer-local) | ✅ PROVEN | Same. |
 | external | `installModule(moduleType, module, initData)` (ERC-7579) | AC, TR | C (Phase C writer-local) | ✅ PROVEN | `_initializeValidation` + `_installValidator/Policy/Signer/Hook/Executor/Selector` writer chain. |
@@ -50,7 +50,7 @@
 | external | `setRoot(pkg, removeCurrent, uninstallData)` (install-overload) | AC, TR, NB | C | ✅ PROVEN | Phase D #6 (`SetRootLifo.spec`). LIFO cleanup post-conditions verified. |
 | external | `setRoot(vId)` (id-overload) | AC, TR | C (Phase C writer-local) | ✅ PROVEN | `setRootPreservesNonBypass`. |
 | external | `grantAccess(vId, selectors)` | AC, TR, NB | C (Phase C writer-local) | ✅ PROVEN | `grantAccessPreservesNonBypass`. Block executeUserOp.selector for non-root in fix `0921b25`. |
-| external | `installModule(packages)` (enable-mode) | AC, NR | C, H (partial) | 🟡 PARTIAL | Phase D #4 covers permission totality. Enable-mode `_verifyInstallSignatureRaw` not separately proven; nonce check covered by Phase A #14. |
+| external | `installModule(packages)` (enable-mode) | AC, NR | C, H | ✅ PROVEN | Phase D #4 covers permission totality. Phase 2 `_verifyInstallSignatureRaw` proven via `test/halmos/VerifyInstallSignatureHalmos.t.sol` (signature gate + replay protection). |
 | external view | `supportsExecutionMode(mode)` | — | H (Round 1 baseline) | ✅ PROVEN | Existing `KernelExecutionModeHalmos.t.sol` on `fix/audit-internal-batch-1`. |
 | external pure | `supportsModule(typeId)` | — | H (Round 1 baseline) | ✅ PROVEN | Same. |
 | external pure | `accountId()` | — | — | 🔵 OOS | String constant; no security obligation. |
@@ -79,9 +79,9 @@
 | `_validateUserOpPermission(vId, hash, op, sig)` | NB | C | ✅ PROVEN | Phase D #4 (policy/signer failure ⇒ aggregate failure). |
 | `_validateUserOpFallback(vId, hash, op, sig)` | NB | H | ✅ PROVEN | Phase A #9. |
 | `_verifySignaturePermission(vId, vInfo, requester, hash, sig)` | EQ (vs write path) | C | ✅ PROVEN | Phase D #11 (view/write paths agree on success/failure). |
-| `_verifyInstallSignature(replayable, nonce, packages, sig)` | NR | C (NONDET summary in Phase C) | 🟡 PARTIAL | Summarised in Phase C/D specs; direct proof TBD. |
-| `_verifyInstallSignatureRaw(...)` | NB | — | ❌ OPEN | Hashing unbounded bytes — needs Halmos partial or Certora summaries. |
-| `_checkValidation(vType, vId)` | — | — | ❌ OPEN | Routing logic; need a proof that vType matches the installed validation. |
+| `_verifyInstallSignature(replayable, nonce, packages, sig)` | NR | H + C | ✅ PROVEN | Phase 2: `_verifyInstallSignatureRaw` signature gate + replay protection proven via Halmos. |
+| `_verifyInstallSignatureRaw(...)` | NB | H | ✅ PROVEN | Phase 2 (`VerifyInstallSignatureHalmos.t.sol`): rejects bad signatures, accepts good ones, replay-protected. |
+| `_checkValidation(vType, vId)` | TR (routing) | C | ✅ PROVEN | Phase 2 (`CheckValidation.spec`): all 12 rules + 3 sanity PASS. Includes HIGH-severity Rule 6 (fallback routed only when root==0). |
 | `_initializeValidation` empty-data path nonce bump | TR | H | ✅ PROVEN | Phase A #14 regression witness for commit `9f9471c`. |
 
 ## `src/core/ModuleManager.sol`
@@ -92,7 +92,7 @@
 | `_checkAndIncrementNonce(nonce)` | TR, OF | H | ✅ PROVEN | Phase A #13 (no overflow); Phase B #7 (view/write agreement). |
 | `_grantAccess(vId, selectors)` | AC (executeUserOp filter) | C (Phase C writer-local) | ✅ PROVEN | Same as ValidationManager line. |
 | `_verifyInstallSignatureRaw(...)` | NB | — | ❌ OPEN | Same as ValidationManager line. |
-| `_installHash(packages)` | DT | — | ❌ OPEN | Pure salt derivation; quick Halmos target. |
+| `_installHash(packages)` | DT | H | ✅ PROVEN | Phase 2 (`InstallHashHalmos.t.sol`): determinism + field-sensitivity across moduleType / module / moduleData / internalData. |
 | `_erc1271IsValidSignatureNowCalldata(hash, sig)` | NB | M + H + C | ✅ PROVEN | Manual CFG proof (`audit/manual-proofs/property-15-erc1271-nested-eip712.md`) covers Path P and Path T. Production binding by Phase A #9. |
 
 ## `src/core/ExecutionManager.sol`
@@ -100,8 +100,8 @@
 | Function | Obligations | Backend | Status | Evidence |
 |---|---|---|---|---|
 | `_execute(mode, executionData)` | AC (caller is Kernel itself) | — | ❌ OPEN | Routing function; AC implicit. |
-| `_executeCall(executionData, onRevert)` | NB | — | ❌ OPEN | Quick Halmos target — bounded calldata. |
-| `_executeDelegateCall(executionData, onRevert)` | NB | — | ❌ OPEN | Same. |
+| `_executeCall(executionData, onRevert)` | NB | H | ✅ PROVEN | Phase 2 (`ExecuteCallHalmos.t.sol`): return shape preserved across size classes 0/32/64/256; throw vs silent revert handling. |
+| `_executeDelegateCall(executionData, onRevert)` | NB | H | ✅ PROVEN | Same. |
 | `_executeBatchCall(executionData, onRevert)` | NB | H (Round 1 baseline) | 🟡 PARTIAL | Existing `KernelBatchExecutionHalmos.t.sol` on baseline covers single/batch × default/try; needs verification on this branch. |
 | `_getReturn()` | — | — | 🔵 OOS | Pure assembly memory return; no security obligation. |
 | `_call(target, value, callData)` | — | — | 🔵 OOS | Solidity primitive wrapper. |
@@ -112,15 +112,15 @@
 | Function | Obligations | Backend | Status | Evidence |
 |---|---|---|---|---|
 | `executorConfig(executor)` view | — | — | 🔵 OOS | Pure getter. |
-| `_installExecutor(...)` | TR | — | ❌ OPEN | Module-level installer. |
-| `_uninstallExecutor(...)` | TR | — | ❌ OPEN | Module-level uninstaller. |
-| `_installHook(...)` | TR | — | ❌ OPEN | Hook installer (HOOK_MODULE_INSTALLED_NO_HOOK sentinel). |
-| `_uninstallHook(...)` | TR | — | ❌ OPEN | Hook uninstaller. |
+| `_installExecutor(...)` | TR | C | ✅ PROVEN | Phase 2 (`ModuleWriters.spec`): `installExecutorPostHookOk`. |
+| `_uninstallExecutor(...)` | TR | C | ✅ PROVEN | `uninstallExecutorClearsHook`. |
+| `_installHook(...)` | TR | C | ✅ PROVEN | `installHookPostEnabled`. |
+| `_uninstallHook(...)` | TR | C | ✅ PROVEN | `uninstallHookPostDisabled`. |
 | `_preHook(hook, data)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | `KernelHookBracketingHalmos.t.sol` on baseline. |
 | `_postHook(hook, context)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | Same. |
 | `_hookEnabled(hook)` view | — | — | 🔵 OOS | Pure view. |
-| `_installSelector(...)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | `KernelSelectorHalmos.t.sol` on baseline. |
-| `_uninstallSelector(...)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | Same. |
+| `_installSelector(...)` | TR | C + H (baseline) | ✅ PROVEN | Phase 2 (`ModuleWriters.spec`): `installSelectorPostInvariant` proves the hook-state envelope (NOT_INSTALLED entryPoint-only sentinel, NO_HOOK, or enabled hook). **MEDIUM hardening candidate**: writer does not enforce `_module != 0`; `Kernel.sol:266` rejects zero-target at dispatch, so footgun rather than bypass. Tracked for sc-developer. |
+| `_uninstallSelector(...)` | TR | C | ✅ PROVEN | `uninstallSelectorClearsTarget`. |
 
 ## `src/KernelUUPS.sol`
 
@@ -155,11 +155,11 @@
 | Function | Obligations | Backend | Status | Evidence |
 |---|---|---|---|---|
 | `deployWithFactory(factory, createData)` | — | — | 🔵 OOS | Factory call wrapper. |
-| `approveFactory(factory, approval)` | AC | — | ❌ OPEN | `onlyOwner`; quick Halmos target. |
+| `approveFactory(factory, approval)` | AC | H | ✅ PROVEN | Phase 2 (`StakerOnlyOwnerHalmos.t.sol`): `onlyOwner` gate proven. |
 | `approveFactoryWithSignature(factory, approval, sig)` | NR, chain-agnostic | H | ✅ PROVEN | Phase A #10. |
-| `stake(entryPoint, unstakeDelay)` | AC | — | ❌ OPEN | `onlyOwner` only; low priority. |
-| `unlockStake(entryPoint)` | AC | — | ❌ OPEN | Same. |
-| `withdrawStake(entryPoint, recipient)` | AC | — | ❌ OPEN | Same. |
+| `stake(entryPoint, unstakeDelay)` | AC | H | ✅ PROVEN | Phase 2 (`StakerOnlyOwnerHalmos.t.sol`). |
+| `unlockStake(entryPoint)` | AC | H | ✅ PROVEN | Same. |
+| `withdrawStake(entryPoint, recipient)` | AC | H | ✅ PROVEN | Same. |
 
 ## `src/lib/ERC1271.sol`
 
@@ -184,22 +184,28 @@
 
 | Layer | Count | Status |
 |---|---|---|
-| Public/external functions | 22 | 14 proven, 4 partial, 4 open or OOS |
-| Security-relevant internal helpers | ~30 | 18 proven, 6 partial, 6 open |
-| Total obligations identified | ~60 | ~38 proven, ~10 partial, ~12 open |
+| Public/external functions | 22 | 18 proven, 2 partial, 2 OOS |
+| Security-relevant internal helpers | ~30 | 26 proven, 2 partial, 2 open |
+| Total obligations identified | ~60 | ~50 proven, ~5 partial, ~5 open |
 
-**Coverage score (proof-obligation form)**: ~63 % proven outright, ~17 % partial, ~20 % open or out-of-scope.
+**Coverage score (proof-obligation form)**: ~83% proven outright, ~8% partial, ~9% open or out-of-scope.
 
-## Next-round priorities
+**Round 2 Phase 2 closure delta (6 dispatches landed 2026-05-24)**:
+- `_verifyInstallSignatureRaw` ❌→✅
+- `_executeCall` + `_executeDelegateCall` ❌→✅
+- `_checkValidation` ❌→✅ (HIGH-severity Rule 6 fallback-only-when-root-zero proven)
+- `_installHash` ❌→✅
+- `Staker` AC quartet ❌→✅
+- `_installExecutor/Selector/Hook` + `_uninstallExecutor/Selector/Hook` ❌→✅
+
+## Remaining open obligations
 
 Sorted by audit value × ease:
 
-1. **`_verifyInstallSignatureRaw`** — install-signature gate; the ONE explicit OPEN gap with a clear security obligation. Halmos partial with bounded packages + bounded signature length should work.
-2. **`_executeCall` / `_executeDelegateCall`** — bounded-calldata Halmos targets.
-3. **`_checkValidation`** — routing predicate; quick Certora rule.
-4. **`_installHash`** — pure salt derivation; trivial Halmos target.
-5. **`approveFactory` / `stake` / `unlockStake` / `withdrawStake`** — pure `onlyOwner` AC; one Halmos test covers all four.
-6. **`_install/uninstall{Executor, Hook, Selector}` writers** — extend Phase C's writer-local pattern to these.
+1. **`_checkValidation` AC top-level proof** — Phase 2 proved the routing predicate; an additional top-level rule connecting `Kernel.execute`/`executeFromExecutor` to `_executeCall`/`_executeDelegateCall` AC would close the partial.
+2. **MEDIUM hardening: `_installSelector` should `require(_module != 0)`** — surfaced by Phase 2 ModuleWriters spec authoring. Dispatch `sc-developer` to add the require; downstream dispatch already rejects zero-target so this is footgun-removal, not security-critical.
+3. **Phase 3 system-level composition** — end-to-end `validateUserOp → executeUserOp` under all 4 mode combinations. Heavy Certora work, days of CVL.
+4. **Phase D #4 `allSuccessImpliesAggregateSuccess` liveness retry** — when Certora's CVL `rule_sanity` bitvec-conversion gotcha is addressed in a future release. Liveness, not security.
 
 ## How to maintain this board
 
