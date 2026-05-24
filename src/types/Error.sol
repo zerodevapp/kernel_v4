@@ -114,3 +114,8 @@ error ValidityFormatMismatch();
 ///         non-root validation would let it invoke arbitrary kernel functions via the inner
 ///         delegatecall, bypassing the selector allow-list.
 error InvalidSelectorGrant();
+
+/// @notice Thrown when a fallback selector install is attempted with the zero address as target.
+///         Downstream dispatch rejects zero-target with `InvalidSelector`, so allowing the write
+///         would silently drop the caller's intent; this enforces the invariant at the install boundary.
+error InvalidSelectorTarget();
