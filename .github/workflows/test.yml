@@ -34,7 +34,18 @@ jobs:
 
       - name: Run Forge build
         run: |
-          forge build --sizes --skip MockKernel
+          # --skip excludes test-only harnesses from EIP-170 size enforcement.
+          # Harnesses inherit from production contracts and re-expose internals
+          # via wrapper functions, which makes them larger than the originals;
+          # they are never deployed in production, so size violations on them
+          # are not real release blockers. The two specific halmos test files
+          # below contain `KernelImmutableECDSAHarness` and `NonceHarness`,
+          # which exceed EIP-170 because of harness-only accessor code added
+          # in FV Round 1 Phase A (commits 9b2dc9e and 7ab9ed2).
+          forge build --sizes \
+            --skip MockKernel \
+            --skip FallbackSignatureHalmos \
+            --skip NonceOverflowHalmos
         id: build
 
       - name: Run Forge tests
