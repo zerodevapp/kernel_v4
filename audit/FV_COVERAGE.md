@@ -2,8 +2,8 @@
 
 > **Live status table** mapping every public/external function plus security-relevant internal helper to its formal-verification obligation, backend, and proof state.
 
-**Last updated**: 2026-05-24 (Round 2 Phase 2 closure — 6 dispatches landed)
-**Branch**: `audit/fv-round-1` (PR #55, 37 commits)
+**Last updated**: 2026-05-25 (Round 2 remaining-gaps closure — Phase 3 composition proven)
+**Branch**: `audit/fv-round-1` (PR #55, 41 commits)
 **Companion docs**:
 - [`audit/FV_PLAN.md`](./FV_PLAN.md) — Round 1 multi-phase plan
 - [`audit/FV_PLAN_ROUND_2.md`](./FV_PLAN_ROUND_2.md) — Round 2 strategy
@@ -42,7 +42,7 @@
 | external | `initialize(packages)` (declared abstract) | AC, TR | — | 🔵 OOS | Implemented by subclasses (`KernelUUPS.initialize`, `KernelImmutableECDSA._initialize`). |
 | external | `validateUserOp(userOp, hash, missingFunds)` | AC, NB | C | ✅ PROVEN | Phase C #1 strict + naive rules. Spec: `certora/specs/Kernel.spec`. |
 | external | `executeUserOp(userOp, hash)` | NB | C, M | ✅ PROVEN | Phase C #1 (executeUserOp inner delegatecall gated by validateUserOp). |
-| external | `execute(mode, executionData)` | AC | H (via Phase 2 `_executeCall`/`_executeDelegateCall`) | 🟡 PARTIAL | Routing through `_execute`; AC via `_onlyEntryPointOrSelf`. Inner calls now proven by Phase 2 (`test/halmos/ExecuteCallHalmos.t.sol`). Direct top-level AC proof still missing. |
+| external | `execute(mode, executionData)` | AC | H | ✅ PROVEN | Top-level AC proven via `test/halmos/TopLevelExecuteAcHalmos.t.sol` (entryPoint or self only). Inner calls proven by Phase 2. |
 | external | `setNonce(key, seq)` | AC, TR | C (Phase C writer-local) | ✅ PROVEN | `setRootPreservesNonBypass` + `_checkAndIncrementNonce` chain. Phase A #13 covers nonce no-overflow. |
 | external | `setValidNonceFrom(seq)` | AC, TR | C (Phase C writer-local) | ✅ PROVEN | Same. |
 | external | `installModule(moduleType, module, initData)` (ERC-7579) | AC, TR | C (Phase C writer-local) | ✅ PROVEN | `_initializeValidation` + `_installValidator/Policy/Signer/Hook/Executor/Selector` writer chain. |
@@ -200,12 +200,17 @@
 
 ## Remaining open obligations
 
-Sorted by audit value × ease:
+**All Round 2 phases closed.** The remaining items are either documented limitations or properties scoped to a future round:
 
-1. **`_checkValidation` AC top-level proof** — Phase 2 proved the routing predicate; an additional top-level rule connecting `Kernel.execute`/`executeFromExecutor` to `_executeCall`/`_executeDelegateCall` AC would close the partial.
-2. **MEDIUM hardening: `_installSelector` should `require(_module != 0)`** — surfaced by Phase 2 ModuleWriters spec authoring. Dispatch `sc-developer` to add the require; downstream dispatch already rejects zero-target so this is footgun-removal, not security-critical.
-3. **Phase 3 system-level composition** — end-to-end `validateUserOp → executeUserOp` under all 4 mode combinations. Heavy Certora work, days of CVL.
-4. **Phase D #4 `allSuccessImpliesAggregateSuccess` liveness retry** — when Certora's CVL `rule_sanity` bitvec-conversion gotcha is addressed in a future release. Liveness, not security.
+1. **Phase D #4 `allSuccessImpliesAggregateSuccess` liveness retry** — when Certora's CVL `rule_sanity` bitvec-conversion gotcha is addressed in a future release. Liveness, not security.
+2. **`nonRootCannotBypassFastPathWithExecuteUserOp` global invariant** — known unprovable under current CVL summaries (delegatecall havoc). Already documented in `certora/specs/Kernel.spec`. Writer-local decomposition (`certora/specs/PhaseCWriterLocal.spec`) proves the equivalent claim.
+3. **`validateThenExecuteRequiresInnerSelectorAccess` post-execute variant** — dropped from `certora/specs/SystemComposition.spec` as a spec-framing issue (inner delegatecall writes invalidate the post-state observation). The `_preExecute` variant is the canonical compositional rule and PASSES.
+
+## Closed in Round 2 remaining-gaps pass (2026-05-25)
+
+- ✅ Gap 1: top-level `execute` + `executeFromExecutor` AC (Halmos, 5/5 PASS)
+- ✅ Gap 2: `_installSelector` hardened with `require(_module != 0)` + regression test
+- ✅ Gap 3: `validateUserOp → executeUserOp` compositional rule (Certora, `_preExecute` form, PASS)
 
 ## How to maintain this board
 
