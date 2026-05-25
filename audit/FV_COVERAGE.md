@@ -91,7 +91,7 @@
 | `_checkNonce(nonce)` view | EQ (vs write path) | H | ✅ PROVEN | Phase B #7 (`NonceConsistencyHalmos.t.sol`) — below saturation. |
 | `_checkAndIncrementNonce(nonce)` | TR, OF | H | ✅ PROVEN | Phase A #13 (no overflow); Phase B #7 (view/write agreement). |
 | `_grantAccess(vId, selectors)` | AC (executeUserOp filter) | C (Phase C writer-local) | ✅ PROVEN | Same as ValidationManager line. |
-| `_verifyInstallSignatureRaw(...)` | NB | — | ❌ OPEN | Same as ValidationManager line. |
+| `_verifyInstallSignatureRaw(...)` | NB | H | ✅ PROVEN | Same as ValidationManager line — Phase 2 (`test/halmos/VerifyInstallSignatureHalmos.t.sol`): rejects bad signatures, accepts good ones, replay-protected. |
 | `_installHash(packages)` | DT | H | ✅ PROVEN | Phase 2 (`InstallHashHalmos.t.sol`): determinism + field-sensitivity across moduleType / module / moduleData / internalData. |
 | `_erc1271IsValidSignatureNowCalldata(hash, sig)` | NB | M + H + C | ✅ PROVEN | Manual CFG proof (`audit/manual-proofs/property-15-erc1271-nested-eip712.md`) covers Path P and Path T. Production binding by Phase A #9. |
 
@@ -99,7 +99,7 @@
 
 | Function | Obligations | Backend | Status | Evidence |
 |---|---|---|---|---|
-| `_execute(mode, executionData)` | AC (caller is Kernel itself) | — | ❌ OPEN | Routing function; AC implicit. |
+| `_execute(mode, executionData)` | AC (caller is Kernel itself) | H | ✅ PROVEN | AC top-level proven via `test/halmos/TopLevelExecuteAcHalmos.t.sol` (`Kernel.execute` reverts unless caller is entryPoint or self). |
 | `_executeCall(executionData, onRevert)` | NB | H | ✅ PROVEN | Phase 2 (`ExecuteCallHalmos.t.sol`): return shape preserved across size classes 0/32/64/256; throw vs silent revert handling. |
 | `_executeDelegateCall(executionData, onRevert)` | NB | H | ✅ PROVEN | Same. |
 | `_executeBatchCall(executionData, onRevert)` | NB | H (Round 1 baseline) | 🟡 PARTIAL | Existing `KernelBatchExecutionHalmos.t.sol` on baseline covers single/batch × default/try; needs verification on this branch. |
