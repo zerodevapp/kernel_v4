@@ -4,7 +4,13 @@ out = "out"
 libs = ["lib", "dependencies"]
 via_ir = false # false is cheaper but need this to lower the contract size
 optimizer = true
-optimizer_runs = 200
+# optimizer_runs lowered from 200 to 10 after FV Round 2 added defense-in-depth
+# requires to ValidationManager._grantAccess (0921b25), _setRoot (ce185f6), and
+# SelectorManager._installSelector (7b38cad). The cumulative bytecode cost
+# pushed KernelImmutableECDSA over EIP-170 (24,728 B at runs=200). The optimizer
+# saturates between runs=10 and runs=25; runs=10 keeps a ~20 B safety margin on
+# the largest contract. Higher runtime gas vs deployability — deployability wins.
+optimizer_runs = 10
 
 evm_version = 'prague'
 solc_version = '0.8.33'
