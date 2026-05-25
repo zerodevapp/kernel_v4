@@ -148,7 +148,7 @@
 | `deployECDSA(signer, initialPackages, nonce)` | DT, NR | H | ✅ PROVEN | Same. |
 | `getAddress(initialPackages, nonce)` view | DT | H | ✅ PROVEN | Same. |
 | `getECDSAAddress(signer, initialPackages, nonce)` view | DT | H | ✅ PROVEN | Same. |
-| `_initialize(...)` | TR | — | ❌ OPEN | Factory-level init. |
+| ~~`_initialize(...)`~~ | — | — | 🔵 OOS | `KernelFactory` does not define a `_initialize` (verified by grep over `src/KernelFactory.sol`). Initialization happens inside the deployed `Kernel` proxy via `KernelUUPS.initialize` / `KernelImmutableECDSA._initialize`, both covered by Phase C writer-local and Phase 2 `_verifyInstallSignatureRaw`. Row retained as historical clarification. |
 
 ## `src/Staker.sol`
 
@@ -175,7 +175,7 @@
 | Function | Obligations | Backend | Status | Evidence |
 |---|---|---|---|---|
 | `intersectValidationData(a, b)` | TR (aggregator preservation) | H | ✅ PROVEN | Phase A #2 (`Lib4337Halmos.t.sol`, 8/8 PASS). |
-| `chainAgnosticUserOpHash(sender, op)` | DT | — | ❌ OPEN | Quick Halmos target if needed; mostly used for replayable mode. |
+| `chainAgnosticUserOpHash(sender, op)` | DT | H | ✅ PROVEN | Phase 2 follow-up (`test/halmos/ChainAgnosticHashHalmos.t.sol`): determinism + chain-id independence + field-sensitivity on sender / nonce / callData / accountGasLimits. |
 | `parseNonce(nonce)` | DT | H | ✅ PROVEN | Phase A #8 (`ParseNonceHalmos.t.sol`). |
 
 ---
