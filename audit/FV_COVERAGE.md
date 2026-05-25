@@ -3,7 +3,7 @@
 > **Live status table** mapping every public/external function plus security-relevant internal helper to its formal-verification obligation, backend, and proof state.
 
 **Last updated**: 2026-05-25 (Round 2 remaining-gaps closure — Phase 3 composition proven)
-**Branch**: `audit/fv-round-1` (PR #55, 41 commits)
+**Branch**: `audit/fv-round-1` (PR #55, 46 commits)
 **Companion docs**:
 - [`audit/FV_PLAN.md`](./FV_PLAN.md) — Round 1 multi-phase plan
 - [`audit/FV_PLAN_ROUND_2.md`](./FV_PLAN_ROUND_2.md) — Round 2 strategy
@@ -119,7 +119,7 @@
 | `_preHook(hook, data)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | `KernelHookBracketingHalmos.t.sol` on baseline. |
 | `_postHook(hook, context)` | TR | H (Round 1 baseline) | 🟡 PARTIAL | Same. |
 | `_hookEnabled(hook)` view | — | — | 🔵 OOS | Pure view. |
-| `_installSelector(...)` | TR | C + H (baseline) | ✅ PROVEN | Phase 2 (`ModuleWriters.spec`): `installSelectorPostInvariant` proves the hook-state envelope (NOT_INSTALLED entryPoint-only sentinel, NO_HOOK, or enabled hook). **MEDIUM hardening candidate**: writer does not enforce `_module != 0`; `Kernel.sol:266` rejects zero-target at dispatch, so footgun rather than bypass. Tracked for sc-developer. |
+| `_installSelector(...)` | TR | C + H (baseline) | ✅ PROVEN | Phase 2 (`ModuleWriters.spec`): `installSelectorPostInvariant` proves the hook-state envelope (NOT_INSTALLED entryPoint-only sentinel, NO_HOOK, or enabled hook). Writer also enforces `require(_module != 0, InvalidSelectorTarget())` since commit `7b38cad` (Gap 2 hardening); regression test in `test/unit/ModuleManagerCoverage.t.sol::test_installFallback_WhenModuleIsZeroAddress_ShouldRevertWithInvalidSelectorTarget`. |
 | `_uninstallSelector(...)` | TR | C | ✅ PROVEN | `uninstallSelectorClearsTarget`. |
 
 ## `src/KernelUUPS.sol`
