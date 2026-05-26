@@ -3,7 +3,7 @@
 > **Live status table** mapping every public/external function plus security-relevant internal helper to its formal-verification obligation, backend, and proof state.
 
 **Last updated**: 2026-05-25 (Round 2 remaining-gaps closure — Phase 3 composition proven)
-**Branch**: `audit/fv-round-1` (PR #55, 46 commits)
+**Branch**: `audit/fv-round-1` (PR #55, 48 commits)
 **Companion docs**:
 - [`audit/FV_PLAN.md`](./FV_PLAN.md) — Round 1 multi-phase plan
 - [`audit/FV_PLAN_ROUND_2.md`](./FV_PLAN_ROUND_2.md) — Round 2 strategy
