@@ -37,3 +37,9 @@ log/
 
 # Kontrol
 .kontrol/
+
+# Claude Code local state
+.claude/
+
+# FV research scratch
+audit/formal-verification-research.html
