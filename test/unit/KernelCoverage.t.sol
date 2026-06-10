@@ -31,6 +31,7 @@ import {
     InvalidRootValidation,
     InvalidInitialization,
     InvalidDataLength,
+    InvalidSelectorGrant,
     InvalidNonce,
     InvalidValidationType,
     InvalidPermissionUninstallOrder,
@@ -771,6 +772,24 @@ contract KernelCoverageTest is Test {
         ValidationId vId = validatorToIdentifier(IValidator(address(rootValidator)));
         vm.prank(address(ep));
         kernel.grantAccess(vId, abi.encodePacked(Kernel.execute.selector));
+    }
+
+    /// @dev A non-root validation may never allow-list `executeUserOp` -- doing so would let it
+    ///      invoke arbitrary kernel functions via the inner delegatecall, bypassing the allow-list.
+    function test_grantAccess_WhenSelectorIsExecuteUserOp_ShouldRevertWithInvalidSelectorGrant() public {
+        ValidationId vId = validatorToIdentifier(IValidator(address(newValidator)));
+        vm.prank(address(ep));
+        vm.expectRevert(InvalidSelectorGrant.selector);
+        kernel.grantAccess(vId, abi.encodePacked(Kernel.executeUserOp.selector));
+    }
+
+    /// @dev Root is forbidden from allow-listing `executeUserOp` too -- it bypasses the allow-list
+    ///      entirely in `_processUserOp`, so the grant is meaningless rather than a special case.
+    function test_grantAccess_WhenRootGrantsExecuteUserOp_ShouldRevertWithInvalidSelectorGrant() public {
+        ValidationId rootVId = validatorToIdentifier(IValidator(address(rootValidator)));
+        vm.prank(address(ep));
+        vm.expectRevert(InvalidSelectorGrant.selector);
+        kernel.grantAccess(rootVId, abi.encodePacked(Kernel.executeUserOp.selector));
     }
 
     // =========================================================================
