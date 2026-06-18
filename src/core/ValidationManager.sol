@@ -90,14 +90,14 @@ abstract contract ValidationManager {
     /// @dev grant access to selectors
     /// @param vId validationId
     /// @param selectors = abi.encodePacked(bytes4 selectors)
-    /// @dev Defense-in-depth: non-root validations are forbidden from being granted
-    ///      `IAccountExecute.executeUserOp.selector`. The `_processUserOp` fast-path bypasses
-    ///      the inner-selector check and the validation hook setup when the outer call's
-    ///      selector is itself in the allow-list AND no hook is installed -- so allowing a
-    ///      non-root validation to allow-list `executeUserOp` would let it invoke ANY
-    ///      kernel function via `executeUserOp`'s inner delegatecall with no selector check.
-    ///      Root is exempt because it is the unconditional last-resort access path and is
-    ///      already intentionally exempt from selector allow-listing.
+    /// @dev Defense-in-depth: no validation may be granted `IAccountExecute.executeUserOp.selector`.
+    ///      The `_processUserOp` fast-path bypasses the inner-selector check and the validation hook
+    ///      setup when the outer call's selector is itself in the allow-list AND no hook is installed
+    ///      -- so allow-listing `executeUserOp` would let a validation invoke ANY kernel function via
+    ///      `executeUserOp`'s inner delegatecall with no selector check. Root is forbidden here too,
+    ///      not exempted: root already bypasses selector allow-listing entirely in `_processUserOp`,
+    ///      so it never consults this list and gains nothing from the grant -- forbidding it
+    ///      unconditionally is harmless and removes a confusing special case.
     function _grantAccess(ValidationId vId, bytes calldata selectors) internal {
         require(selectors.length % 4 == 0, InvalidDataLength());
         ValidationStorage storage $ = _validationStorage();
@@ -105,7 +105,7 @@ abstract contract ValidationManager {
 
         while (selectors.length >= 4) {
             bytes4 selector = bytes4(selectors[0:4]);
-            require(selector != IAccountExecute.executeUserOp.selector || vId == $.root, InvalidSelectorGrant());
+            require(selector != IAccountExecute.executeUserOp.selector, InvalidSelectorGrant());
             $.allowed[vId][selector] = nonce;
             selectors = selectors[4:];
         }

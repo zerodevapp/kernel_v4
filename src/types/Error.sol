@@ -109,10 +109,11 @@ error InvalidTargetAddress(address target);
 /// @notice Thrown when intersecting validation data with mismatched validity formats (timestamp vs block number).
 error ValidityFormatMismatch();
 
-/// @notice Thrown when a non-root validation attempts to grant access to a restricted selector
+/// @notice Thrown when any validation attempts to grant access to a restricted selector
 ///         (currently `IAccountExecute.executeUserOp.selector`). Granting `executeUserOp` to a
-///         non-root validation would let it invoke arbitrary kernel functions via the inner
-///         delegatecall, bypassing the selector allow-list.
+///         validation would let it invoke arbitrary kernel functions via the inner delegatecall,
+///         bypassing the selector allow-list. Root is forbidden too -- it bypasses the allow-list
+///         entirely, so the grant is meaningless rather than a special case worth allowing.
 error InvalidSelectorGrant();
 
 /// @notice Thrown when a fallback selector install is attempted with the zero address as target.
