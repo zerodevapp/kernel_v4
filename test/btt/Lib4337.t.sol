@@ -12,6 +12,8 @@ abstract contract Lib4337_Test is Test {
     uint256 internal _preValidationData;
     uint256 internal _validationRes;
     uint256 internal _currentTimestamp;
+    // Shared block-number-mode operand used by the block mode checkValidation tests.
+    uint256 internal _blockValidationData;
 
     /// @dev MODE_BIT from Lib4337 - highest bit of uint48
     uint48 internal constant MODE_BIT = 0x800000000000;
@@ -88,53 +90,132 @@ abstract contract Lib4337_Test is Test {
         _;
     }
 
-    function test_GivenValidAfterIsGreaterThanCurrentTimestamp() external whenCallingCheckValidation {
+    function test_GivenValidationDataIsExactlyZero() external whenCallingCheckValidation {
+        // Exact zero validation data is unconditional success.
+        bool isValid = harness.checkValidation(0);
+
+        assertTrue(isValid, "should return true when validation data is exactly zero");
+    }
+
+    function test_GivenResultIsTheFailureSentinel() external whenCallingCheckValidation {
+        // Time bounds satisfied, but result is the failure sentinel address(1).
+        uint256 validationData = packValidationData(0, 2000, address(1));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertFalse(isValid, "should return false when result is the failure sentinel");
+    }
+
+    function test_GivenResultIsAnAggregatorAddress() external whenCallingCheckValidation {
+        // Time bounds satisfied, but result is an aggregator address (> 1); checkValidation requires res == 0.
+        uint256 validationData = packValidationData(0, 2000, address(0xdeadbeef));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertFalse(isValid, "should return false when result is an aggregator address");
+    }
+
+    function test_GivenRawValidUntilIsZero() external whenCallingCheckValidation {
+        // Raw validUntil packed as 0 must parse to type(uint48).max (unbounded), so current (1000) is within range.
+        uint256 validationData = packValidationData(500, 0, address(0));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertTrue(isValid, "should treat raw zero validUntil as unbounded and return true");
+    }
+
+    modifier givenTimestampMode() {
+        // Timestamp mode: bounds carry no MODE_BIT, so comparisons run against block.timestamp warped to 1000.
+        _currentTimestamp = 1000;
+        vm.warp(_currentTimestamp);
+        _;
+    }
+
+    function test_GivenCurrentIsBelowValidAfter() external whenCallingCheckValidation givenTimestampMode {
+        // current (1000) < validAfter (2000): interval (validAfter, validUntil] not yet open.
         uint256 validationData = packValidationData(2000, 0, address(0));
 
         bool isValid = harness.checkValidation(validationData);
 
-        assertFalse(isValid, "should return false when validAfter is in the future");
+        assertFalse(isValid, "should return false when current is below validAfter");
     }
 
-    function test_GivenValidUntilIsLessThanCurrentTimestamp() external whenCallingCheckValidation {
-        vm.warp(5000);
-        uint256 validationData = packValidationData(0, 1000, address(0));
-
-        bool isValid = harness.checkValidation(validationData);
-
-        assertFalse(isValid, "should return false when validUntil is in the past");
-    }
-
-    function test_GivenResultAddressIsNotZero() external whenCallingCheckValidation {
-        uint256 validationData = packValidationData(0, 0, address(1));
-
-        bool isValid = harness.checkValidation(validationData);
-
-        assertFalse(isValid, "should return false when result is not address(0)");
-    }
-
-    function test_GivenTimeBoundsAreValidAndResultIsZero() external whenCallingCheckValidation {
-        uint256 validationData = packValidationData(500, 2000, address(0));
-
-        bool isValid = harness.checkValidation(validationData);
-
-        assertTrue(isValid, "should return true when time bounds are valid and result is zero");
-    }
-
-    function test_GivenValidationDataIsZero() external whenCallingCheckValidation {
-        // validationData = 0 means: validAfter=0, validUntil=0 (becomes max), result=address(0) => true
-        bool isValid = harness.checkValidation(0);
-
-        assertTrue(isValid, "should return true when validation data is zero (all defaults)");
-    }
-
-    function test_GivenValidAfterEqualsCurrentTimestamp() external whenCallingCheckValidation {
-        // Boundary: validAfter == block.timestamp should pass (not strictly greater than)
+    function test_GivenCurrentEqualsValidAfter() external whenCallingCheckValidation givenTimestampMode {
+        // Boundary: interval is (validAfter, validUntil] so current == validAfter is EXCLUDED (strict greater-than).
         uint256 validationData = packValidationData(uint48(_currentTimestamp), 0, address(0));
 
         bool isValid = harness.checkValidation(validationData);
 
-        assertTrue(isValid, "should return true when validAfter equals current timestamp");
+        assertFalse(isValid, "should return false when current equals validAfter (open lower bound)");
+    }
+
+    function test_GivenCurrentIsOneAboveValidAfter() external whenCallingCheckValidation givenTimestampMode {
+        // current (1000) == validAfter (999) + 1: first instant inside the open lower bound.
+        uint256 validationData = packValidationData(uint48(_currentTimestamp - 1), 0, address(0));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertTrue(isValid, "should return true when current is one above validAfter");
+    }
+
+    function test_GivenCurrentEqualsValidUntil() external whenCallingCheckValidation givenTimestampMode {
+        // Boundary: interval is (validAfter, validUntil] so current == validUntil is INCLUDED (closed upper bound).
+        uint256 validationData = packValidationData(0, uint48(_currentTimestamp), address(0));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertTrue(isValid, "should return true when current equals validUntil (closed upper bound)");
+    }
+
+    function test_GivenCurrentIsOneAboveValidUntil() external whenCallingCheckValidation givenTimestampMode {
+        // current (1000) == validUntil (999) + 1: one past the closed upper bound.
+        uint256 validationData = packValidationData(0, uint48(_currentTimestamp - 1), address(0));
+
+        bool isValid = harness.checkValidation(validationData);
+
+        assertFalse(isValid, "should return false when current is one above validUntil");
+    }
+
+    modifier givenBlockNumberMode() {
+        // Block number mode: both bounds carry MODE_BIT, masking to validAfter=500, validUntil=2000.
+        _blockValidationData = packValidationData(MODE_BIT | 500, MODE_BIT | 2000, address(0));
+        _;
+    }
+
+    function test_GivenBlockNumberEqualsValidAfter() external whenCallingCheckValidation givenBlockNumberMode {
+        // block.number == masked validAfter (500): open lower bound excludes equality.
+        vm.roll(500);
+
+        bool isValid = harness.checkValidation(_blockValidationData);
+
+        assertFalse(isValid, "should return false when block.number equals validAfter");
+    }
+
+    function test_GivenBlockNumberIsOneAboveValidAfter() external whenCallingCheckValidation givenBlockNumberMode {
+        // block.number == masked validAfter + 1 (501): first block inside the range.
+        vm.roll(501);
+
+        bool isValid = harness.checkValidation(_blockValidationData);
+
+        assertTrue(isValid, "should return true when block.number is one above validAfter");
+    }
+
+    function test_GivenBlockNumberEqualsValidUntil() external whenCallingCheckValidation givenBlockNumberMode {
+        // block.number == masked validUntil (2000): closed upper bound includes equality.
+        vm.roll(2000);
+
+        bool isValid = harness.checkValidation(_blockValidationData);
+
+        assertTrue(isValid, "should return true when block.number equals validUntil");
+    }
+
+    function test_GivenBlockNumberIsOneAboveValidUntil() external whenCallingCheckValidation givenBlockNumberMode {
+        // block.number == masked validUntil + 1 (2001): one past the closed upper bound.
+        vm.roll(2001);
+
+        bool isValid = harness.checkValidation(_blockValidationData);
+
+        assertFalse(isValid, "should return false when block.number is one above validUntil");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -322,8 +403,75 @@ abstract contract Lib4337_Test is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-            VALIDITY FORMAT MISMATCH TESTS (block number vs timestamp)
+        NORMALIZED-ORDERING + BLOCK/TIMESTAMP FORMAT TESTS
     //////////////////////////////////////////////////////////////*/
+
+    function test_GivenABlockOperandWithRawZeroValidUntilAndATimestampOperand()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        // preValidationData: validAfter has MODE_BIT, validUntil raw 0. After normalization validUntil becomes
+        // type(uint48).max (MODE_BIT set), so classification-after-normalization makes this a BLOCK operand.
+        // validationRes is a pure timestamp operand => genuine mismatch => must revert.
+        uint256 preValidationData = packValidationData(MODE_BIT | 100, 0, address(0));
+        uint256 validationRes = packValidationData(100, 2000, address(0));
+
+        vm.expectRevert(ValidityFormatMismatch.selector);
+        harness.intersectValidationData(preValidationData, validationRes);
+    }
+
+    function test_GivenAnUnboundedBlockRangeIntersectedWithABoundedBlockRange()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        // Unbounded block operand (validUntil raw 0 -> normalized to max) intersected with a bounded block operand.
+        // Both classify as block after normalization, so no revert; result takes max(validAfter) and min(validUntil).
+        uint256 unboundedBlock = packValidationData(MODE_BIT | 500, 0, address(0));
+        uint256 boundedBlock = packValidationData(MODE_BIT | 300, MODE_BIT | 2000, address(0));
+
+        uint256 result = harness.intersectValidationData(unboundedBlock, boundedBlock);
+
+        uint48 resultValidAfter = uint48(result >> 208);
+        uint48 resultValidUntil = uint48(result >> 160);
+        assertEq(resultValidAfter, MODE_BIT | 500, "should use larger validAfter (MODE_BIT|500)");
+        assertEq(resultValidUntil, MODE_BIT | 2000, "should use smaller validUntil (bounded MODE_BIT|2000)");
+    }
+
+    function test_GivenABoundedBlockRangeIntersectedWithAnUnboundedBlockRange()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        // Same as above but with argument order reversed; result must be identical.
+        uint256 boundedBlock = packValidationData(MODE_BIT | 300, MODE_BIT | 2000, address(0));
+        uint256 unboundedBlock = packValidationData(MODE_BIT | 500, 0, address(0));
+
+        uint256 result = harness.intersectValidationData(boundedBlock, unboundedBlock);
+
+        uint48 resultValidAfter = uint48(result >> 208);
+        uint48 resultValidUntil = uint48(result >> 160);
+        assertEq(resultValidAfter, MODE_BIT | 500, "should use larger validAfter (MODE_BIT|500)");
+        assertEq(resultValidUntil, MODE_BIT | 2000, "should use smaller validUntil (bounded MODE_BIT|2000)");
+    }
+
+    function test_GivenABoundExactlyEqualToMODE_BIT()
+        external
+        whenCallingIntersectValidationData
+        givenBothValuesAreNon_zero
+    {
+        // validAfter exactly equal to MODE_BIT (masked value 0) must still classify as block number format.
+        uint256 preValidationData = packValidationData(MODE_BIT, MODE_BIT | 2000, address(0));
+        uint256 validationRes = packValidationData(MODE_BIT | 300, MODE_BIT | 1000, address(0));
+
+        uint256 result = harness.intersectValidationData(preValidationData, validationRes);
+
+        uint48 resultValidAfter = uint48(result >> 208);
+        uint48 resultValidUntil = uint48(result >> 160);
+        assertEq(resultValidAfter, MODE_BIT | 300, "should use larger validAfter (MODE_BIT|300)");
+        assertEq(resultValidUntil, MODE_BIT | 1000, "should use smaller validUntil (MODE_BIT|1000)");
+    }
 
     function test_GivenPreValidationDataUsesBlockNumberFormatAndValidationResUsesTimestampFormat()
         external
@@ -394,6 +542,7 @@ abstract contract Lib4337_Test is Test {
     //////////////////////////////////////////////////////////////*/
 
     modifier whenCallingUsesBlockNumberFormat() {
+        // No shared setup needed; _usesBlockNumberFormat is a pure classifier exercised directly per test.
         _;
     }
 
@@ -404,6 +553,12 @@ abstract contract Lib4337_Test is Test {
 
         bool result = harness.usesBlockNumberFormat(validAfter, validUntil);
         assertTrue(result, "should return true when both have MODE_BIT");
+    }
+
+    function test_GivenBothBoundsEqualMODE_BITExactly() external whenCallingUsesBlockNumberFormat {
+        // Bounds exactly equal to MODE_BIT (masked value 0) still count as block number format (pins equality).
+        bool result = harness.usesBlockNumberFormat(MODE_BIT, MODE_BIT);
+        assertTrue(result, "should return true when both bounds equal MODE_BIT exactly");
     }
 
     function test_GivenOnlyValidAfterHasMODE_BITSet() external whenCallingUsesBlockNumberFormat {

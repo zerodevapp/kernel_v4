@@ -204,17 +204,19 @@ contract IntersectValidationDataTest is Test {
     }
 
     function test_MaxTimeBounds() public {
+        // RP-01: after normalizing raw validUntil=0 to type(uint48).max BEFORE format classification
+        // (canonical EntryPoint v0.9), `res` has validAfter=max and validUntil=max — both carry MODE_BIT,
+        // so it is a block-number-mode operand. `pre` has validAfter=0 (no MODE_BIT), so it is a
+        // timestamp-mode operand. That is a genuine format mismatch and must revert. The prior expectation
+        // (max/max/aggregator) reflected the old pre-normalization misclassification of `res` as timestamp.
         uint256 pre = createValidationData(0, type(uint48).max, BLS_AGGREGATOR);
         uint256 res = createValidationData(type(uint48).max, 0, address(0));
 
-        uint256 result = Lib4337._intersectValidationData(pre, res);
-
-        uint48 validAfter = uint48(result >> 208);
-        uint48 validUntil = uint48(result >> 160);
-
-        assertEq(validAfter, type(uint48).max);
-        assertEq(validUntil, type(uint48).max);
-        assertEq(uint160(result), uint160(BLS_AGGREGATOR));
+        try this.callIntersect(pre, res) {
+            fail("Should have reverted with ValidityFormatMismatch");
+        } catch (bytes memory reason) {
+            assertEq(bytes4(reason), bytes4(keccak256("ValidityFormatMismatch()")));
+        }
     }
 
     /**

@@ -9,18 +9,34 @@ Lib4337_Test
 │   └── given result is a non-zero address
 │       └── it should return the exact address
 ├── when calling checkValidation
-│   ├── given validAfter is greater than current timestamp
-│   │   └── it should return false
-│   ├── given validUntil is less than current timestamp
-│   │   └── it should return false
-│   ├── given result address is not zero
-│   │   └── it should return false
-│   ├── given time bounds are valid and result is zero
+│   ├── given validation data is exactly zero
 │   │   └── it should return true
-│   ├── given validation data is zero
-│   │   └── it should return true
-│   └── given validAfter equals current timestamp
-│       └── it should return true
+│   ├── given result is the failure sentinel
+│   │   └── it should return false
+│   ├── given result is an aggregator address
+│   │   └── it should return false
+│   ├── given raw validUntil is zero
+│   │   └── it should treat validUntil as unbounded and return true
+│   ├── given timestamp mode
+│   │   ├── given current is below validAfter
+│   │   │   └── it should return false
+│   │   ├── given current equals validAfter
+│   │   │   └── it should return false
+│   │   ├── given current is one above validAfter
+│   │   │   └── it should return true
+│   │   ├── given current equals validUntil
+│   │   │   └── it should return true
+│   │   └── given current is one above validUntil
+│   │       └── it should return false
+│   └── given block number mode
+│       ├── given block number equals validAfter
+│       │   └── it should return false
+│       ├── given block number is one above validAfter
+│       │   └── it should return true
+│       ├── given block number equals validUntil
+│       │   └── it should return true
+│       └── given block number is one above validUntil
+│           └── it should return false
 ├── when calling intersectValidationData
 │   ├── given preValidationData is zero
 │   │   └── it should return validationRes via short circuit
@@ -51,6 +67,14 @@ Lib4337_Test
 │   │   │   └── it should return that aggregator
 │   │   ├── given both have different aggregators
 │   │   │   └── it should return 1 as the result address
+│   │   ├── given a block operand with raw zero validUntil and a timestamp operand
+│   │   │   └── it should normalize before classification and revert with ValidityFormatMismatch
+│   │   ├── given an unbounded block range intersected with a bounded block range
+│   │   │   └── it should intersect without reverting using max and min
+│   │   ├── given a bounded block range intersected with an unbounded block range
+│   │   │   └── it should intersect without reverting using max and min
+│   │   ├── given a bound exactly equal to MODE_BIT
+│   │   │   └── it should classify as block number format and intersect
 │   │   ├── given preValidationData uses block number format and validationRes uses timestamp format
 │   │   │   └── it should revert with ValidityFormatMismatch
 │   │   ├── given preValidationData uses timestamp format and validationRes uses block number format
@@ -61,6 +85,8 @@ Lib4337_Test
 │       └── it should return zero
 └── when calling usesBlockNumberFormat
     ├── given both validAfter and validUntil have MODE_BIT set
+    │   └── it should return true
+    ├── given both bounds equal MODE_BIT exactly
     │   └── it should return true
     ├── given only validAfter has MODE_BIT set
     │   └── it should return false
