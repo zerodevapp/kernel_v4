@@ -32,11 +32,20 @@ library Lib4337 {
     }
 
     function checkValidation(uint256 validationData) internal view returns (bool) {
-        (uint48 vAfter, uint48 vUntil, address res) = Lib4337.parseValidationData(validationData);
-        if (vAfter > block.timestamp || vUntil < block.timestamp) {
-            return false;
+        if (validationData == 0) {
+            return true;
         }
-        return res == address(0);
+        (uint48 vAfter, uint48 vUntil, address res) = Lib4337.parseValidationData(validationData);
+        uint256 current;
+        if (_usesBlockNumberFormat(vAfter, vUntil)) {
+            vAfter &= MODE_BIT - 1;
+            vUntil &= MODE_BIT - 1;
+            current = block.number;
+        } else {
+            current = block.timestamp;
+        }
+        // Canonical EntryPoint v0.9 interval: (validAfter, validUntil].
+        return res == address(0) && current > vAfter && current <= vUntil;
     }
 
     /// @dev Variant of `_hashTypedData` that excludes the chain ID.
