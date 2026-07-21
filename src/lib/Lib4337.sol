@@ -32,11 +32,20 @@ library Lib4337 {
     }
 
     function checkValidation(uint256 validationData) internal view returns (bool) {
-        (uint48 vAfter, uint48 vUntil, address res) = Lib4337.parseValidationData(validationData);
-        if (vAfter > block.timestamp || vUntil < block.timestamp) {
-            return false;
+        if (validationData == 0) {
+            return true;
         }
-        return res == address(0);
+        (uint48 vAfter, uint48 vUntil, address res) = Lib4337.parseValidationData(validationData);
+        uint256 current;
+        if (_usesBlockNumberFormat(vAfter, vUntil)) {
+            vAfter &= MODE_BIT - 1;
+            vUntil &= MODE_BIT - 1;
+            current = block.number;
+        } else {
+            current = block.timestamp;
+        }
+        // Canonical EntryPoint v0.9 interval: (validAfter, validUntil].
+        return res == address(0) && current > vAfter && current <= vUntil;
     }
 
     /// @dev Variant of `_hashTypedData` that excludes the chain ID.
@@ -66,7 +75,8 @@ library Lib4337 {
 
     /// @dev Returns true if validation data uses block number format (both validAfter and validUntil have MODE_BIT set)
     function _usesBlockNumberFormat(uint48 validAfter, uint48 validUntil) internal pure returns (bool) {
-        return (validAfter & MODE_BIT != 0) && (validUntil & MODE_BIT != 0);
+        // MODE_BIT is the highest bit of uint48, so equality with MODE_BIT counts as set for both bounds.
+        return validAfter >= MODE_BIT && validUntil >= MODE_BIT;
     }
 
     function _intersectValidationData(uint256 preValidationData, uint256 validationRes)
@@ -84,15 +94,16 @@ library Lib4337 {
         uint48 validAfter1 = uint48(preValidationData >> 208);
         uint48 validAfter2 = uint48(validationRes >> 208);
 
+        // Convert validUntil=0 to max (no expiry) BEFORE format classification so that a
+        // block-number-mode operand with an unbounded validUntil is not misclassified as timestamp.
+        if (validUntil1 == 0) validUntil1 = type(uint48).max;
+        if (validUntil2 == 0) validUntil2 = type(uint48).max;
+
         // Check for validity format mismatch (EP v0.9: block number vs timestamp)
         // Block number format: both validAfter and validUntil have highest bit set
         bool preUsesBlock = _usesBlockNumberFormat(validAfter1, validUntil1);
         bool resUsesBlock = _usesBlockNumberFormat(validAfter2, validUntil2);
         require(preUsesBlock == resUsesBlock, ValidityFormatMismatch());
-
-        // Convert validUntil=0 to max (no expiry)
-        if (validUntil1 == 0) validUntil1 = type(uint48).max;
-        if (validUntil2 == 0) validUntil2 = type(uint48).max;
 
         resValidationData = uint256(validUntil1 > validUntil2 ? validUntil2 : validUntil1) << 160;
         resValidationData |= uint256(validAfter1 < validAfter2 ? validAfter2 : validAfter1) << 208;
