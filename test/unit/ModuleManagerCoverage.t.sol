@@ -147,7 +147,6 @@ contract ModuleManagerCoverageTest is Test {
         newValidator.sudoSetValidSig(hex"aabb");
 
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00), // mode: standard
             bytes1(0x01), // type: validator
             address(newValidator),
             hex"aabb"
@@ -164,7 +163,6 @@ contract ModuleManagerCoverageTest is Test {
         bytes32 testHash = keccak256("validator test");
 
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00),
             bytes1(0x01),
             address(newValidator),
             hex"ccdd" // not valid
@@ -208,7 +206,6 @@ contract ModuleManagerCoverageTest is Test {
         signatures[1] = hex"beef";
 
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00), // mode: standard
             bytes1(0x02), // type: permission
             permissionId,
             abi.encode(signatures)
@@ -225,7 +222,6 @@ contract ModuleManagerCoverageTest is Test {
     function test_isValidSignature_WhenInvalidValidationType_ShouldRevertWithInvalidValidationType() public {
         bytes32 testHash = keccak256("test");
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00),
             bytes1(0x03), // invalid type
             hex"00000000000000000000000000000000000000000000"
         );
@@ -261,7 +257,7 @@ contract ModuleManagerCoverageTest is Test {
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = hex"dead";
 
-        bytes memory signature = abi.encodePacked(bytes1(0x00), bytes1(0x02), permissionId, abi.encode(signatures));
+        bytes memory signature = abi.encodePacked(bytes1(0x02), permissionId, abi.encode(signatures));
 
         vm.expectRevert(InvalidSignature.selector);
         kernel.isValidSignature(testHash, signature);

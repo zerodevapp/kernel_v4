@@ -177,14 +177,14 @@ contract KernelFuzz is Test {
 
     /// @dev isValidSignature with root type and invalid sig returns ERC1271_INVALID
     function testFuzz_isValidSignature_invalidSig_returnsInvalid(bytes32 hash, bytes calldata sig) public view {
-        bytes memory fullSig = abi.encodePacked(bytes1(0), bytes1(0), sig);
+        bytes memory fullSig = abi.encodePacked(bytes1(0), sig);
         bytes4 ret = kernel.isValidSignature(hash, fullSig);
         assertEq(ret, ERC1271_INVALID, "should return invalid for arbitrary sig");
     }
 
     /// @dev isValidSignature with invalid validation type (0x03) reverts
     function testFuzz_isValidSignature_invalidType_reverts(bytes32 hash, bytes calldata sig) public {
-        bytes memory fullSig = abi.encodePacked(bytes1(0), bytes1(0x03), sig);
+        bytes memory fullSig = abi.encodePacked(bytes1(0x03), sig);
         vm.expectRevert(InvalidValidationType.selector);
         kernel.isValidSignature(hash, fullSig);
     }
@@ -194,7 +194,7 @@ contract KernelFuzz is Test {
         MockValidator uninstalled = new MockValidator();
         bytes memory sig =
             hex"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefde";
-        bytes memory fullSig = abi.encodePacked(bytes1(0), bytes1(0x01), bytes20(address(uninstalled)), sig);
+        bytes memory fullSig = abi.encodePacked(bytes1(0x01), bytes20(address(uninstalled)), sig);
         vm.expectRevert(abi.encodeWithSelector(InvalidVid.selector, validatorToIdentifier(uninstalled)));
         kernel.isValidSignature(hash, fullSig);
     }

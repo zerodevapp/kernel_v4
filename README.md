@@ -49,7 +49,7 @@ Three signature modes for `isValidSignature`:
 2. **Chain-specific nested EIP-712** — Wraps the hash in a `TypedDataSign` struct bound to chain ID
 3. **Replayable nested EIP-712** — Same wrapping but without chain ID, valid across chains
 
-All modes support both validator-based and permission-based signature verification, selected by the first 21 bytes of the signature.
+Structured signatures select root, validator, or permission validation through the leading `vType` and optional ID. Raw Kernel7702 signatures have no validation header.
 
 ### Standards
 
@@ -140,25 +140,19 @@ If the enable-replayable flag (0x04) is set, the digest uses the chain-agnostic 
 After ERC-6492 unwrapping, the signature is parsed as:
 
 ```
-| 1 byte | 1 byte | N bytes | remaining bytes       |
-| vMode  | vType  | vId     | inner signature        |
+| 1 byte | N bytes | remaining bytes       |
+| vType  | vId     | inner signature        |
 ```
 
 Where N depends on vType:
 
 | vType | N | vId content |
 | ------- | --- | ------------- |
-| `0x00` (root) | 0 | Uses stored root, inner = `signature[2:]` |
-| `0x01` (validator) | 20 | Validator address, inner = `signature[22:]` |
-| `0x02` (permission) | 4 | PermissionId, inner = `signature[6:]` |
+| `0x00` (root) | 0 | Uses stored root, inner = `signature[1:]` |
+| `0x01` (validator) | 20 | Validator address, inner = `signature[21:]` |
+| `0x02` (permission) | 4 | PermissionId, inner = `signature[5:]` |
 
-#### Standard Mode (no enable flag)
-
-The inner signature is verified via `_verifySignature` against the installed validator or permission, same as UserOp standard mode.
-
-#### Enable Mode for ERC-1271
-
-ERC-1271 does not support enable mode. A signature whose validation mode has the enable bit set returns the ERC-1271 invalid value. Enable mode remains supported for ERC-4337 UserOperations, where installation can modify state.
+The inner signature is verified via `_verifySignature` against the installed validator or permission. ERC-1271 has no validation-mode byte and does not support enable mode; validation modes remain part of ERC-4337 UserOperation nonces only.
 
 #### Nested EIP-712 Wrapping
 

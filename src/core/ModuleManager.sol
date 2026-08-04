@@ -18,7 +18,7 @@ import {
 } from "../types/Error.sol";
 import {ModuleInstalled, ModuleUninstalled} from "../types/Events.sol";
 import {Install, ModuleStorage, ExecutorConfig, SelectorConfig} from "../types/Structs.sol";
-import {ValidationId, ValidationMode, ValidationType, PermissionId, isEnable} from "../types/Types.sol";
+import {ValidationId, ValidationType, PermissionId} from "../types/Types.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
 import {getType, validatorToIdentifier, permissionToIdentifier} from "../lib/Utils.sol";
 import {
@@ -90,26 +90,34 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, SelectorM
         returns (bool result)
     {
         // check if fallback signature is allowed
-        if (_erc1271RawAllowed()) {
+        bool rawAllowed = _erc1271RawAllowed();
+        if (rawAllowed) {
             result = _verifyFallbackSignature(hash, signature);
         }
         if (!result) {
-            ValidationMode vMode = ValidationMode.wrap(bytes1(signature[0]));
-            // ERC-1271 is view-only: reject enable mode before parsing any validation or package data.
-            if (isEnable(vMode)) return false;
-            ValidationType vType = ValidationType.wrap(bytes1(signature[1]));
+            if (signature.length == 0) return false;
+            // A 65-byte payload may be either raw ECDSA or a tagged structured signature
+            // containing a 64-byte compact root signature, so valid structured forms still parse.
+            bool ambiguousRawLength = rawAllowed && signature.length == 65;
+            ValidationType vType = ValidationType.wrap(bytes1(signature[0]));
             ValidationId vId;
             if (vType == VALIDATION_TYPE_ROOT) {
                 vId = _validationStorage().root;
-                signature = signature[2:];
+                signature = signature[1:];
             } else if (vType == VALIDATION_TYPE_VALIDATOR) {
-                vId = validatorToIdentifier(IValidator(address(bytes20(signature[2:22]))));
-                signature = signature[22:];
+                if (signature.length < 21) return false;
+                vId = validatorToIdentifier(IValidator(address(bytes20(signature[1:21]))));
+                signature = signature[21:];
             } else if (vType == VALIDATION_TYPE_PERMISSION) {
-                vId = permissionToIdentifier(PermissionId.wrap(bytes4(signature[2:6])));
-                signature = signature[6:];
+                if (signature.length < 5) return false;
+                vId = permissionToIdentifier(PermissionId.wrap(bytes4(signature[1:5])));
+                signature = signature[5:];
             } else {
+                if (ambiguousRawLength) return false;
                 revert InvalidValidationType();
+            }
+            if (ambiguousRawLength && vType != VALIDATION_TYPE_ROOT && !_validationStorage().vInfo[vId].installed) {
+                return false;
             }
             result = Lib4337.checkValidation(_verifySignature(vId, msg.sender, hash, signature));
         }

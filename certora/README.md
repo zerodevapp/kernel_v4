@@ -2,7 +2,7 @@
 
 Formal verification harness for properties that need multi-step traces or unbounded-array quantification (out of Halmos's reach).
 
-> **v4 execution-hook migration:** generic type-4 hooks and their sentinels were removed. Type-11 execution hooks can be scoped to a validation, executor, or selector. `ValidationInfo.installed` now tracks validation installation. Historical results below that mention generic hooks describe the pre-migration model and must be rerun before being treated as current evidence. ERC-1271 enable mode is now always invalid; enable-mode installation remains ERC-4337-only.
+> **v4 execution-hook migration:** generic type-4 hooks and their sentinels were removed. Type-11 execution hooks can be scoped to a validation, executor, or selector. `ValidationInfo.installed` now tracks validation installation. Historical results below that mention generic hooks describe the pre-migration model and must be rerun before being treated as current evidence. ERC-1271 signatures no longer carry a validation-mode byte; enable-mode installation remains ERC-4337-only.
 
 ## Layout
 

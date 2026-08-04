@@ -159,7 +159,7 @@ contract RevertPathsTest is Test {
         // Build inner signature: mode(1) + type(1) + validator(20) + validatorSig
         // First set the valid sig on the mock
         newValidator.sudoSetValidSig(hex"aabbccdd");
-        bytes memory innerSig = abi.encodePacked(bytes1(0x00), bytes1(0x01), address(newValidator), hex"aabbccdd");
+        bytes memory innerSig = abi.encodePacked(bytes1(0x01), address(newValidator), hex"aabbccdd");
 
         // ERC-6492 sentinel = 0x6492...6492
         // The sentinel is: mul(0x6492, div(not(shr(address(), address())), 0xffff))

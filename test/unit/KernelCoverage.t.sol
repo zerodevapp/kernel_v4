@@ -975,7 +975,6 @@ contract KernelCoverageTest is Test {
         rootValidator.sudoSetValidSig(hex"aabb");
 
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00), // mode: standard
             bytes1(0x00), // type: root
             hex"aabb" // validator signature
         );
@@ -989,7 +988,6 @@ contract KernelCoverageTest is Test {
         // Don't set valid sig => validator will reject
 
         bytes memory signature = abi.encodePacked(
-            bytes1(0x00), // mode: standard
             bytes1(0x00), // type: root
             hex"ccdd"
         );

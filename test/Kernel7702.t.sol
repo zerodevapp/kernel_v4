@@ -67,12 +67,20 @@ contract Kernel7702Test is KernelTest {
         assertEq(ret, ERC1271_MAGICVALUE);
     }
 
+    function test_7702_structured_root_compact_signature_is_not_treated_as_raw(bytes32 hash) external {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+        bytes32 vs = bytes32(uint256(s) | (uint256(v - 27) << 255));
+        bytes memory signature = abi.encodePacked(bytes1(0x00), r, vs);
+        assertEq(signature.length, 65);
+        assertEq(kernel.isValidSignature(hash, signature), ERC1271_MAGICVALUE);
+    }
+
     function test_7702_raw_signature_invalid() external {
         // Use a fixed hash to ensure deterministic signature bytes
         bytes32 hash = keccak256("test_invalid_signature");
         (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
-        // Failed raw verification may decode as enable mode, which is always ERC-1271-invalid.
+        // A failed 65-byte raw signature must return ERC-1271-invalid without structured parsing.
         assertEq(kernel.isValidSignature(hash, abi.encodePacked(r, s, v)), ERC1271_INVALID);
     }
 
