@@ -1,21 +1,21 @@
 # Kernel v4
 
-ERC-4337 / ERC-7702 modular smart account with pluggable validation, execution, and hook modules. Implements [ERC-7579](https://eips.ethereum.org/EIPS/eip-7579) for standardized module interfaces.
+ERC-4337 / ERC-7702 modular smart account with pluggable validation and execution modules. Implements [ERC-7579](https://eips.ethereum.org/EIPS/eip-7579) for standardized module interfaces.
 
 ## Key Features
 
 ### Modular Architecture (ERC-7579)
 
-Six pluggable module types that can be installed and uninstalled at runtime:
+Six supported module types can be installed and uninstalled at runtime:
 
 | Type | Role |
-|------|------|
+| ------ | ------ |
 | **Validator** | Validates UserOps and signatures — owns a nonce key namespace |
 | **Executor** | Calls `executeFromExecutor` to perform actions on behalf of the account |
 | **Fallback** | Extends the account with new function selectors (call or delegatecall) |
-| **Hook** | Pre/post execution checks on validators, executors, and fallback selectors |
 | **Policy** | Part of a permission — enforces rules (e.g. spending limits, target allowlists) |
-| **Signer** | Part of a permission — provides the signature verification (e.g. passkey, multisig) |
+| **Signer** | Part of a permission — provides signature verification (e.g. passkey, multisig) |
+| **Permission Hook** | Optional pre/post execution checks scoped to one permission (type 11) |
 
 ### Permission System
 
@@ -35,19 +35,14 @@ Install modules atomically with the first UserOp — no separate setup transacti
 
 The 32-byte ERC-4337 nonce encodes which validator to use, giving each validator/permission its own nonce namespace. See [Data Encoding > UserOp Nonce](#userop-nonce) for the full layout.
 
-### Hook System
+### Permission Hooks
 
-Hooks provide pre/post execution checks. They bind to validators, executors, and fallback selectors independently:
-
-- **Validator hook** — Runs around `executeUserOp` when a non-root validator with a hook is used
-- **Executor hook** — Runs around `executeFromExecutor` for any installed executor
-- **Fallback hook** — Runs around fallback selector dispatch
-
-Two sentinel values: `address(0)` = not installed, `address(1)` = installed with no hook.
+An optional type-11 permission hook runs before and after a non-root permission's execution. A hooked permission is always routed through `executeUserOp`; root validations bypass hooks. Validators, executors, and fallback selectors do not support hooks.
 
 ### Signature Verification (ERC-1271 / ERC-7739)
 
 Three signature modes for `isValidSignature`:
+
 1. **Raw** — Direct hash signing (only on `Kernel7702` where the EOA is the signer)
 2. **Chain-specific nested EIP-712** — Wraps the hash in a `TypedDataSign` struct bound to chain ID
 3. **Replayable nested EIP-712** — Same wrapping but without chain ID, valid across chains
@@ -57,7 +52,7 @@ All modes support both validator-based and permission-based signature verificati
 ### Standards
 
 | Standard | Support |
-|----------|---------|
+| ---------- | --------- |
 | [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337) | Account abstraction via EntryPoint v0.9 |
 | [ERC-7579](https://eips.ethereum.org/EIPS/eip-7579) | Modular smart account interfaces |
 | [ERC-7702](https://eips.ethereum.org/EIPS/eip-7702) | EOA code delegation (`Kernel7702`) |
@@ -79,7 +74,7 @@ The 32-byte ERC-4337 nonce encodes the validation mode, type, and identifier:
 **vMode** (ValidationMode flags):
 
 | Value | Meaning |
-|-------|---------|
+| ------- | --------- |
 | `0x00` | Standard — chain-specific, no inline install |
 | `0x08` | Enable — install modules inline, chain-specific enable signature |
 | `0x0C` | Enable + replayable enable signature |
@@ -90,7 +85,7 @@ The 32-byte ERC-4337 nonce encodes the validation mode, type, and identifier:
 **vType** (ValidationType):
 
 | Value | Meaning | vId contains |
-|-------|---------|-------------|
+| ------- | --------- | ------------- |
 | `0x00` | Root / Fallback | Ignored (uses stored root) |
 | `0x01` | Validator | 20-byte validator address |
 | `0x02` | Permission | 4-byte PermissionId (left-aligned, rest zero) |
@@ -150,7 +145,7 @@ After ERC-6492 unwrapping, the signature is parsed as:
 Where N depends on vType:
 
 | vType | N | vId content |
-|-------|---|-------------|
+| ------- | --- | ------------- |
 | `0x00` (root) | 0 | Uses stored root, inner = `signature[2:]` |
 | `0x01` (validator) | 20 | Validator address, inner = `signature[22:]` |
 | `0x02` (permission) | 4 | PermissionId, inner = `signature[6:]` |
@@ -161,26 +156,7 @@ The inner signature is verified via `_verifySignature` against the installed val
 
 #### Enable Mode for ERC-1271
 
-Since `isValidSignature` is a `view` function, enable mode works differently than in UserOps — it **cannot** modify state (no module installation, no nonce increment). Instead it:
-
-1. Verifies the install signature is valid (same digest as UserOp enable mode)
-2. Checks the nonce is correct (view-only, no increment)
-3. Uses **stateless** verification — finds the validator/permission modules inside the `packages` array and calls `IStatelessValidatorWithSender.validateSignatureWithDataWithSender` instead of the normal installed module
-
-The inner signature format is the same `EnableModeSignature`:
-
-```
-abi.encode(EnableModeSignature({
-    nonce: uint256,
-    packages: Install[],
-    enableSignature: bytes,       // root validator's signature over the install digest
-    userOpSignature: bytes        // verified statelessly against modules in packages
-}))
-```
-
-For permission-based enable mode, `userOpSignature` is a `PermissionSignature` — one signature per policy/signer found in the packages with the matching PermissionId.
-
-> **Note:** vType cannot be root (`0x00`) in enable mode — it must specify an explicit validator or permission.
+ERC-1271 does not support enable mode. A signature whose validation mode has the enable bit set returns the ERC-1271 invalid value. Enable mode remains supported for ERC-4337 UserOperations, where installation can modify state.
 
 #### Nested EIP-712 Wrapping
 
@@ -215,21 +191,13 @@ abi.encode(InstallModuleDataFormat({
 #### internalData for Install
 
 | Module Type | internalData format |
-|-------------|---------------------|
-| Validator (1) | `[bytes20 hookAddress][bytes4 selector₁][bytes4 selector₂]...` |
-| Executor (2) | `[bytes20 hookAddress]` |
-| Fallback (3) | `[bytes4 selector][bytes1 callType][bytes20 hookAddress]` |
-| Hook (4) | Ignored (empty OK) |
+| ------------- | --------------------- |
+| Validator (1) | `[bytes4 selector₁][bytes4 selector₂]...` |
+| Executor (2) | Empty (required) |
+| Fallback (3) | Exactly `[bytes4 selector][bytes1 callType]` |
 | Policy (5) | `[bytes4 permissionId]` |
-| Signer (6) | `[bytes4 permissionId][bytes20 hookAddress][bytes4 selector₁]...` |
-
-**hookAddress** sentinel values:
-
-| Address | Meaning |
-|---------|---------|
-| `address(0)` | Not installed / entry-point-only (for fallback: only EntryPoint can call) |
-| `address(1)` | Installed with no hook |
-| Other | Hook contract address (must be installed as hook module first) |
+| Signer (6) | `[bytes4 permissionId][bytes4 selector₁]...` |
+| Permission Hook (11) | `[bytes4 permissionId]` |
 
 **callType** for fallback (type 3):
 
@@ -241,13 +209,13 @@ abi.encode(InstallModuleDataFormat({
 #### internalData for Uninstall
 
 | Module Type | internalData format |
-|-------------|---------------------|
+| ------------- | --------------------- |
 | Validator (1) | Ignored |
-| Executor (2) | Ignored |
-| Fallback (3) | `[bytes4 selector]` (first 4 bytes used) |
-| Hook (4) | Ignored |
+| Executor (2) | Empty (required) |
+| Fallback (3) | Exactly `[bytes4 selector]` |
 | Policy (5) | `[bytes4 permissionId]` — must uninstall in LIFO order (last installed first) |
-| Signer (6) | `[bytes4 permissionId]` — all policies must be uninstalled first |
+| Signer (6) | `[bytes4 permissionId]` — all policies and the permission hook must be removed first |
+| Permission Hook (11) | `[bytes4 permissionId]` |
 
 ### Batch Install via `Install[]`
 
@@ -268,14 +236,14 @@ Each `Install` struct:
 
 ```solidity
 struct Install {
-    uint256 moduleType;   // 1-6
+    uint256 moduleType;   // 1, 2, 3, 5, 6, or 11
     address module;       // module contract address
     bytes moduleData;     // forwarded to onInstall
     bytes internalData;   // kernel config (same format as table above)
 }
 ```
 
-**Permission install order**: When installing a permission, all policies (type 5) for that PermissionId must come first, followed by exactly one signer (type 6) with the same PermissionId. The signer finalizes the permission. Multiple permissions can be installed in a single batch — just ensure each permission's policies+signer are grouped together.
+**Permission install order**: policies (type 5) come first, followed by exactly one signer (type 6), then an optional permission hook (type 11), all sharing the same PermissionId. The hook requires the signer-completed permission to exist.
 
 ## Architecture
 
@@ -283,8 +251,7 @@ struct Install {
 Kernel (abstract)
 ├── ModuleManager
 │   ├── ValidationManager    — Validator/permission lifecycle, enable-mode, nonce mgmt
-│   ├── ExecutorManager      — Executor install/uninstall with hook binding
-│   ├── HookManager          — Hook install/uninstall, pre/post check dispatch
+│   ├── ExecutorManager      — Executor install/uninstall state
 │   └── SelectorManager      — Fallback handler routing by function selector
 ├── ExecutionManager         — ERC-7579 execution modes (single/batch/delegatecall)
 └── ERC1271                  — ERC-1271 / ERC-7739 signature verification
@@ -304,11 +271,10 @@ Supporting contracts:
 All storage uses [ERC-7201](https://eips.ethereum.org/EIPS/eip-7201) namespaced slots to avoid collisions across modules and upgrades:
 
 | Manager | Slot |
-|---------|------|
+| --------- | ------ |
 | ValidationManager | `keccak256("kernel.v4.validation") - 1` |
 | ModuleManager | `keccak256("kernel.v4.module") - 1` |
 | ExecutorManager | `keccak256("kernel.v4.executor") - 1` |
-| HookManager | `keccak256("kernel.v4.hook") - 1` |
 | SelectorManager | `keccak256("kernel.v4.selector") - 1` |
 
 ## Project Structure
@@ -396,7 +362,7 @@ open coverage/index.html
 ## Dependencies
 
 | Package | Version |
-|---------|---------|
+| --------- | --------- |
 | [Solady](https://github.com/Vectorized/solady) | 0.1.26 |
 | [account-abstraction](https://github.com/eth-infinitism/account-abstraction) | v0.9.0 |
 | [OpenZeppelin Contracts](https://github.com/OpenZeppelin/openzeppelin-contracts) | 5.4.0 |

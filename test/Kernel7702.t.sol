@@ -9,22 +9,8 @@ import {Install} from "src/types/Structs.sol";
 import {ValidationId} from "src/types/Types.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
 import {ERC1271_INVALID} from "src/types/Constants.sol";
-import {InvalidValidationType} from "src/types/Error.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
-
-contract Kernel7702Harness is Kernel7702 {
-    constructor(IEntryPoint _ep) Kernel7702(_ep) {}
-
-    function exposed_verifyStatelessSignature(
-        Install[] calldata packages,
-        ValidationId vId,
-        bytes32 hash,
-        bytes calldata signature
-    ) external view returns (bool) {
-        return _verifyStatelessSignature(packages, vId, hash, signature);
-    }
-}
 
 contract Kernel7702Test is KernelTest {
     address owner;
@@ -86,10 +72,8 @@ contract Kernel7702Test is KernelTest {
         bytes32 hash = keccak256("test_invalid_signature");
         (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
-        // When raw signature verification fails, the code falls through to validation mode parsing
-        // which reverts because a raw signature doesn't have valid validation type bytes
-        vm.expectRevert();
-        kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
+        // Failed raw verification may decode as enable mode, which is always ERC-1271-invalid.
+        assertEq(kernel.isValidSignature(hash, abi.encodePacked(r, s, v)), ERC1271_INVALID);
     }
 
     function test_change_root_check_vId_0() external unitTest {
@@ -226,15 +210,5 @@ contract Kernel7702Test is KernelTest {
         vm.prank(address(ep));
         uint256 validationData = kernel.validateUserOp(op, opHash, 0);
         assertEq(validationData, 1);
-    }
-
-    // ===== _verifyStatelessSignature: InvalidValidationType route =====
-
-    function test_7702_verifyStatelessSignature_revert_invalidValidationType() external {
-        Kernel7702Harness harness = new Kernel7702Harness(ep);
-        Install[] memory packages = new Install[](0);
-        // ValidationId with ROOT type (0x00) is neither VALIDATOR nor PERMISSION
-        vm.expectRevert(InvalidValidationType.selector);
-        harness.exposed_verifyStatelessSignature(packages, ValidationId.wrap(bytes21(0)), bytes32(0), hex"");
     }
 }

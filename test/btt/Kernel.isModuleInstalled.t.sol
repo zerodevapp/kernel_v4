@@ -79,7 +79,7 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
         bytes4 selector = bytes4(keccak256("customFunction()"));
 
         // Install fallback with selector
-        bytes memory internalData = abi.encodePacked(selector, bytes1(0x00), address(1));
+        bytes memory internalData = abi.encodePacked(selector, bytes1(0x00));
         vm.prank(address(ep));
         kernel.installModule(3, address(mockFallback), abi.encode(hex"", internalData));
 
@@ -100,25 +100,29 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        HOOK (TYPE 4) TESTS
+                    PERMISSION HOOK (TYPE 11) TESTS
     //////////////////////////////////////////////////////////////*/
 
-    modifier givenModuleTypeIdIs4Hook() {
-        _moduleTypeId = 4;
-        _;
+    function test_GivenThePermissionHookIsInstalled() external {
+        MockSigner mockSigner = new MockSigner();
+        MockHook mockHook = new MockHook();
+        vm.startPrank(address(ep));
+        kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(permissionId)));
+        kernel.installModule(11, address(mockHook), abi.encode(hex"", abi.encodePacked(permissionId)));
+        vm.stopPrank();
+
+        assertTrue(
+            kernel.isModuleInstalled(11, address(mockHook), abi.encodePacked(permissionId)),
+            "Installed permission hook should return true"
+        );
     }
 
-    function test_GivenTheHookIsEnabled() external givenModuleTypeIdIs4Hook {
+    function test_GivenThePermissionHookIsNotInstalled() external {
         MockHook mockHook = new MockHook();
-        vm.prank(address(ep));
-        kernel.installModule(4, address(mockHook), abi.encode(hex"", ""));
-
-        assertTrue(kernel.isModuleInstalled(4, address(mockHook), ""), "Enabled hook should return true");
-    }
-
-    function test_GivenTheHookIsNotEnabled() external givenModuleTypeIdIs4Hook {
-        MockHook mockHook = new MockHook();
-        assertFalse(kernel.isModuleInstalled(4, address(mockHook), ""), "Not enabled hook should return false");
+        assertFalse(
+            kernel.isModuleInstalled(11, address(mockHook), abi.encodePacked(permissionId)),
+            "Uninstalled permission hook should return false"
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -192,6 +196,8 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     //////////////////////////////////////////////////////////////*/
 
     function test_GivenModuleTypeIdIsUnsupported() external {
+        vm.expectRevert(NotImplemented.selector);
+        kernel.isModuleInstalled(4, address(0x123), "");
         vm.expectRevert(NotImplemented.selector);
         kernel.isModuleInstalled(7, address(0x123), "");
     }

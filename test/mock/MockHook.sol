@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IHook} from "src/interfaces/IERC7579Modules.sol";
+import {MODULE_TYPE_PERMISSION_HOOK} from "src/types/Constants.sol";
 
 contract MockHook is IHook {
     error PreHookReverted();
@@ -28,7 +29,7 @@ contract MockHook is IHook {
     }
 
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
-        return moduleTypeId == 1;
+        return moduleTypeId == MODULE_TYPE_PERMISSION_HOOK;
     }
 
     function isInitialized(address smartAccount) external view override returns (bool) {

@@ -5,7 +5,7 @@ import {Call} from "src/types/Structs.sol";
 import {MockExecutor} from "./mock/MockExecutor.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
-import {Unauthorized} from "src/types/Error.sol";
+import {Unauthorized, InvalidDataLength} from "src/types/Error.sol";
 
 abstract contract KernelExecutorTest is KernelTestBase {
     function test_execute_from_executor_fail_not_executor() external {
@@ -21,31 +21,37 @@ abstract contract KernelExecutorTest is KernelTestBase {
         assertTrue(kernel.supportsModule(2));
         address newEx = address(new MockExecutor());
         kernel.installModule(2, newEx, abi.encode(hex"deadbeef", ""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(1));
+        assertTrue(kernel.executorConfig(newEx).installed);
         assertTrue(kernel.isModuleInstalled(2, newEx, hex""));
     }
 
     function test_install_executor_oninstall_fail() external unitTest {
         address newEx = makeAddr("New Executor");
         kernel.installModule(2, newEx, abi.encode(hex"", ""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(1));
+        assertTrue(kernel.executorConfig(newEx).installed);
         assertTrue(kernel.isModuleInstalled(2, newEx, hex""));
+    }
+
+    function test_install_executor_rejects_legacy_hook_data() external unitTest {
+        MockExecutor newEx = new MockExecutor();
+        vm.expectRevert(InvalidDataLength.selector);
+        kernel.installModule(2, address(newEx), abi.encode(hex"", abi.encodePacked(address(1))));
     }
 
     function test_uninstall_executor_onuninstall_success() external unitTest {
         address newEx = address(new MockExecutor());
         kernel.installModule(2, newEx, abi.encode(hex"deadbeef", ""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(1));
+        assertTrue(kernel.executorConfig(newEx).installed);
         kernel.uninstallModule(2, newEx, abi.encode(hex"", hex""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(0));
+        assertFalse(kernel.executorConfig(newEx).installed);
     }
 
     function test_uninstall_executor_onuninstall_fail() external unitTest {
         address newEx = makeAddr("New Executor");
         kernel.installModule(2, newEx, abi.encode(hex"", ""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(1));
+        assertTrue(kernel.executorConfig(newEx).installed);
         kernel.uninstallModule(2, newEx, abi.encode(hex"", hex""));
-        assertEq(address(kernel.executorConfig(newEx).hook), address(0));
+        assertFalse(kernel.executorConfig(newEx).installed);
     }
 
     function test_execute_from_executor() external unitTestExecutor {

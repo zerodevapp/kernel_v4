@@ -15,7 +15,6 @@ import {
     CannotUninstallRoot,
     InvalidVid,
     InvalidDataLength,
-    NotInstalled,
     InvalidPermissionInstall,
     InvalidSignature
 } from "../types/Error.sol";
@@ -31,9 +30,7 @@ import {
     MODULE_TYPE_POLICY,
     MODULE_TYPE_SIGNER,
     SIG_VALIDATION_FAILED_UINT,
-    SIG_VALIDATION_SUCCESS_UINT,
-    HOOK_MODULE_NOT_INSTALLED,
-    HOOK_MODULE_INSTALLED_NO_HOOK
+    SIG_VALIDATION_SUCCESS_UINT
 } from "../types/Constants.sol";
 import {PermissionSignature, ValidationStorage, ValidationInfo, Install} from "../types/Structs.sol";
 import {Lib4337} from "../lib/Lib4337.sol";
@@ -45,8 +42,6 @@ import {getType, getValidator, getPermissionId, validatorToIdentifier, permissio
 abstract contract ValidationManager {
     /// @dev Tracks the permission being installed within a batch to ensure consistency.
     ValidationId transient installingPermission;
-
-    function _hookEnabled(IHook _hook) internal view virtual returns (bool);
 
     /// @notice Returns the current root validation identifier.
     /// @return The root ValidationId.
@@ -111,45 +106,28 @@ abstract contract ValidationManager {
         }
     }
 
-    /// @dev returns bool if nonce matches the selector allowance, you should also check hook to make sure validation is installed
+    /// @dev Returns whether the selector allowance nonce matches the validation's current nonce.
     function _allowedSelector(ValidationId vId, bytes4 selector) internal view returns (bool) {
         ValidationStorage storage $ = _validationStorage();
         return $.allowed[vId][selector] == $.vInfo[vId].nonce;
     }
 
-    /// @notice Initializes a validation's hook and allowed selectors.
-    /// @dev If _internalData is empty, the validation is marked as installed with no hook and no selectors.
-    ///      Otherwise: first 20 bytes = hook address, remaining bytes = packed bytes4 selectors.
-    /// @param vId The validation identifier to initialize.
-    /// @param _internalData The internal configuration data.
-    function _initializeValidation(ValidationId vId, bytes calldata _internalData) internal {
-        ValidationStorage storage $ = _validationStorage();
-        require($.vInfo[vId].hook == HOOK_MODULE_NOT_INSTALLED, OccupiedValidationId());
-        // if _internalData is empty, skip the initialization but bump the nonce so any
-        // `allowed[vId][sel]` entries from a prior incarnation of this vId (after
-        // uninstall+reinstall) become stale -- giving empty-internalData installs the
-        // same default-deny semantics as the non-empty path (where _grantAccess bumps).
-        if (_internalData.length == 0) {
-            $.vInfo[vId].hook = HOOK_MODULE_INSTALLED_NO_HOOK;
-            ++$.vInfo[vId].nonce;
-            return;
+    /// @notice Marks a validation as installed and initializes its allowed selectors.
+    function _initializeValidation(ValidationId vId, bytes calldata selectors) internal {
+        ValidationInfo storage info = _validationStorage().vInfo[vId];
+        require(!info.installed, OccupiedValidationId());
+        info.installed = true;
+        if (selectors.length == 0) {
+            // Invalidate selector grants from any prior installation of this ValidationId.
+            ++info.nonce;
+        } else {
+            _grantAccess(vId, selectors);
         }
-        // if not, first 20 bytes is the hook address
-        address hook = address(bytes20(_internalData[0:20]));
-        require(
-            hook == HOOK_MODULE_NOT_INSTALLED || hook == HOOK_MODULE_INSTALLED_NO_HOOK || _hookEnabled(IHook(hook)),
-            NotInstalled()
-        );
-        $.vInfo[vId].hook = hook == HOOK_MODULE_NOT_INSTALLED ? HOOK_MODULE_INSTALLED_NO_HOOK : hook;
-        _internalData = _internalData[20:];
-        // _grantAccess bumps nonce by 1 and writes `allowed[vId][sel] = nonce` for each
-        // selector, so non-empty installs also end with nonce = previous + 1.
-        _grantAccess(vId, _internalData);
     }
 
     /// @notice Installs a validator module and initializes its validation storage.
     /// @param _validator The validator module address.
-    /// @param _internalData Hook address (20 bytes) + packed selectors.
+    /// @param _internalData Packed bytes4 selectors.
     /// @param _installSuccess Whether the module's onInstall call succeeded.
     function _installValidator(address _validator, bytes calldata _internalData, bool _installSuccess) internal {
         require(_installSuccess, ModuleInstallFailed());
@@ -176,7 +154,7 @@ abstract contract ValidationManager {
     /// @dev Must be installed after all policies for the same PermissionId. Finalizes the permission by
     ///      initializing validation and resetting the transient installingPermission.
     /// @param _signer The signer module address.
-    /// @param _internalData PermissionId (4 bytes) + hook/selectors data for _initializeValidation.
+    /// @param _internalData PermissionId (4 bytes) followed by packed bytes4 selectors.
     /// @param _installSuccess Whether the module's onInstall call succeeded.
     function _installSigner(address _signer, bytes calldata _internalData, bool _installSuccess) internal {
         ValidationInfo storage $ = _checkPermissionInstall(_internalData, _installSuccess);
@@ -184,6 +162,18 @@ abstract contract ValidationManager {
         $.signer = _signer;
         _initializeValidation(vId, _internalData[4:]);
         installingPermission = ValidationId.wrap(bytes21(0));
+    }
+
+    /// @notice Installs an execution hook for an existing permission.
+    /// @dev internalData is the 4-byte PermissionId. Permission hooks are installed after the signer.
+    function _installPermissionHook(address _hook, bytes calldata _internalData, bool _installSuccess) internal {
+        require(_installSuccess && _hook.code.length > 0, ModuleInstallFailed());
+        require(_internalData.length == 4, InvalidDataLength());
+        ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData)));
+        ValidationInfo storage info = _validationStorage().vInfo[vId];
+        require(info.installed && info.signer != address(0), InvalidPermissionId());
+        require(address(info.permissionHook) == address(0), OccupiedValidationId());
+        info.permissionHook = IHook(_hook);
     }
 
     /// @notice Validates that a permission install is consistent (same PermissionId within a batch).
@@ -194,6 +184,7 @@ abstract contract ValidationManager {
         internal
         returns (ValidationInfo storage $)
     {
+        require(_internalData.length >= 4, InvalidDataLength());
         require(_installSuccess, ModuleInstallFailed());
         ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData[0:4])));
         $ = _validationStorage().vInfo[vId];
@@ -205,12 +196,12 @@ abstract contract ValidationManager {
         }
     }
 
-    /// @notice Marks a validation as uninstalled by zeroing its hook. Cannot uninstall root.
+    /// @notice Marks a validation as uninstalled. Cannot uninstall root.
     /// @param _vId The validation identifier to uninstall.
     function _uninstallValidation(ValidationId _vId) internal {
         ValidationStorage storage $ = _validationStorage();
         require($.root != _vId, CannotUninstallRoot());
-        $.vInfo[_vId].hook = HOOK_MODULE_NOT_INSTALLED;
+        $.vInfo[_vId].installed = false;
     }
 
     /// @notice Uninstalls a validator module.
@@ -218,6 +209,19 @@ abstract contract ValidationManager {
     function _uninstallValidator(address _validator, bytes calldata, bool) internal {
         ValidationId vId = validatorToIdentifier(IValidator(_validator));
         _uninstallValidation(vId);
+    }
+
+    /// @notice Uninstalls a permission hook without uninstalling the permission.
+    function _uninstallPermissionHook(address _hook, bytes calldata _internalData, bool) internal {
+        require(_internalData.length == 4, InvalidDataLength());
+        ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(_internalData)));
+        _uninstallPermissionHookWithVid(_hook, vId);
+    }
+
+    function _uninstallPermissionHookWithVid(address _hook, ValidationId vId) internal {
+        ValidationInfo storage info = _validationStorage().vInfo[vId];
+        require(address(info.permissionHook) == _hook, InvalidPermissionId());
+        info.permissionHook = IHook(address(0));
     }
 
     /// @notice Uninstalls a policy module. Policies must be uninstalled in reverse order (LIFO).
@@ -254,7 +258,7 @@ abstract contract ValidationManager {
     /// @param vId The validation identifier the signer belongs to.
     function _uninstallSignerWithVid(address _signer, ValidationId vId) internal {
         ValidationInfo storage $ = _validationStorage().vInfo[vId];
-        require($.policies.length == 0, InvalidPermissionUninstallOrder());
+        require($.policies.length == 0 && address($.permissionHook) == address(0), InvalidPermissionUninstallOrder());
         require($.signer == _signer, InvalidPermissionId());
         $.signer = address(0);
         _uninstallValidation(vId);
@@ -286,7 +290,7 @@ abstract contract ValidationManager {
         }
 
         ValidationInfo storage info = _validationStorage().vInfo[v];
-        require(info.hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(v));
+        require(info.installed, InvalidVid(v));
 
         if (vType == VALIDATION_TYPE_PERMISSION) {
             validateUserOp = _validateUserOpPermission;
@@ -311,7 +315,7 @@ abstract contract ValidationManager {
                 _verifyFallbackSignature(_hash, _signature) ? SIG_VALIDATION_SUCCESS_UINT : SIG_VALIDATION_FAILED_UINT;
         }
         ValidationInfo storage vInfo = _validationStorage().vInfo[vId];
-        require(vInfo.hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
+        require(vInfo.installed, InvalidVid(vId));
         ValidationType vType = getType(vId);
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = getValidator(vId);
@@ -471,7 +475,7 @@ abstract contract ValidationManager {
         // Require the validation to actually be installed before promoting it to root.
         // The fallback path (vId == bytes21(0)) is exempt since it has no install step.
         if (ValidationId.unwrap(vId) != bytes21(0)) {
-            require($.vInfo[vId].hook > HOOK_MODULE_NOT_INSTALLED, InvalidVid(vId));
+            require($.vInfo[vId].installed, InvalidVid(vId));
         }
         // Invalidate stale grants on the previous root when rotating. The first install
         // (oldRoot zero) and identity rotation (oldRoot == newRoot) are no-ops.

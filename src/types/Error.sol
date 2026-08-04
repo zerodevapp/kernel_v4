@@ -9,14 +9,8 @@ error ImplementationNotDeployed();
 /// @notice Thrown when a module's onInstall callback fails.
 error ModuleInstallFailed();
 
-/// @notice Thrown when a validator cannot be found in the install packages during stateless verification.
-error InvalidValidator();
-
 /// @notice Thrown when an unsupported module type is encountered.
 error NotImplemented();
-
-/// @notice Thrown when a required module (hook) is not installed.
-error NotInstalled();
 
 /// @notice Thrown when an install-mode signature fails verification.
 error InstallSignatureVerificationFailed();
@@ -63,7 +57,7 @@ error CannotUninstallRoot();
 /// @notice Thrown when a signature is invalid or has the wrong number of sub-signatures.
 error InvalidSignature();
 
-/// @notice Thrown when a ValidationId is not installed (hook == address(0)).
+/// @notice Thrown when a ValidationId is not installed.
 /// @param vId The invalid validation identifier.
 error InvalidVid(ValidationId vId);
 
@@ -75,9 +69,6 @@ error PermissionInstallNotFinished();
 
 /// @notice Thrown when policies and signer within a batch use inconsistent PermissionIds.
 error InvalidPermissionInstall();
-
-/// @notice Thrown when the last signature in a stateless permission verification is not from a signer module.
-error LastSignatureShouldBeSigner();
 
 /// @notice Thrown when a zero-address signer is provided to the ECDSA factory.
 error InvalidSigner();
