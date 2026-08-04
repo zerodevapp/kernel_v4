@@ -41,7 +41,7 @@ import {
     SELECTOR_MANAGER_STORAGE_SLOT
 } from "src/types/Constants.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {IValidator, IHook, IExecutor} from "src/interfaces/IERC7579Modules.sol";
+import {IValidator, IExecutor} from "src/interfaces/IERC7579Modules.sol";
 import {IERC7579Account} from "src/interfaces/IERC7579Account.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 

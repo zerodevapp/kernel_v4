@@ -60,13 +60,22 @@ interface IValidator is IModule {
 
 interface IExecutor is IModule {}
 
-interface IHook is IModule {
-    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
+interface IExecutionHook is IModule {
+    /// @notice Runs before execution in a validation, executor, or selector scope.
+    /// @param id The Kernel-generated scoped execution-hook identifier.
+    /// @param caller The caller that entered the scoped execution path.
+    /// @param value The native value supplied to that execution path.
+    /// @param data The calldata being checked for the scoped execution path.
+    /// @return hookData Context passed unchanged to postCheck.
+    function preCheck(bytes32 id, address caller, uint256 value, bytes calldata data)
         external
         payable
         returns (bytes memory hookData);
 
-    function postCheck(bytes calldata hookData) external payable;
+    /// @notice Runs after execution in the same scope.
+    /// @param id The same identifier passed to preCheck.
+    /// @param hookData The context returned by preCheck.
+    function postCheck(bytes32 id, bytes calldata hookData) external payable;
 }
 
 interface IFallback is IModule {}

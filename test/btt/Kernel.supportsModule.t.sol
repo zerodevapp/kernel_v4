@@ -35,8 +35,8 @@ abstract contract Kernel_supportsModule is BTTModifiers {
         assertTrue(kernel.supportsModule(6), "Should support Signer (type 6)");
     }
 
-    function test_GivenModuleTypeIdIs11PermissionHook() external {
-        assertTrue(kernel.supportsModule(11), "Should support PermissionHook (type 11)");
+    function test_GivenModuleTypeIdIs11ExecutionHook() external {
+        assertTrue(kernel.supportsModule(11), "Should support ExecutionHook (type 11)");
     }
 
     function test_GivenUnsupportedModuleType() external {

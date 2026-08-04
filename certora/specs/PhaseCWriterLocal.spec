@@ -8,7 +8,7 @@
  *
  *   For any vId != $.root:
  *       NOT ( _allowedSelector(vId, executeUserOp.selector)
- *             AND vInfo[vId].installed && vInfo[vId].permissionHook == address(0) )
+ *             AND vInfo[vId].installed && vInfo[vId].executionHook == address(0) )
  *
  * jointly enforced by:
  *   - commit 0921b25 -- `_grantAccess` rejects executeUserOp.selector for
@@ -92,7 +92,7 @@ methods {
     // Read-only state accessors.
     function harness_vInfoNonce(bytes21)              external returns (uint32)  envfree;
     function harness_vInfoInstalled(bytes21) external returns (bool) envfree;
-    function harness_vInfoPermissionHook(bytes21) external returns (address) envfree;
+    function harness_vInfoExecutionHook(bytes21) external returns (address) envfree;
     function harness_allowedNonce(bytes21, bytes4)    external returns (uint32)  envfree;
     function harness_allowedSelector(bytes21, bytes4) external returns (bool)    envfree;
     function harness_root()                           external returns (bytes21) envfree;
@@ -127,7 +127,7 @@ methods {
 // ---------------------------------------------------------------------------
 // Predicate: the "fast-path bypass conjunction" for victimVid.
 //   isBypassable(v) == _allowedSelector(v, executeUserOp.selector)
-//                      AND vInfo[v].installed && vInfo[v].permissionHook == address(0)
+//                      AND vInfo[v].installed && vInfo[v].executionHook == address(0)
 //
 // The global property says: for victimVid != $.root, NOT isBypassable(victimVid).
 // Each writer-local rule says: any call to that writer that started from a
@@ -136,7 +136,7 @@ methods {
 // ---------------------------------------------------------------------------
 definition isBypassable(bytes21 v) returns bool =
     harness_allowedSelector(v, harness_executeUserOpSelector())
-    && (harness_vInfoInstalled(v) && harness_vInfoPermissionHook(v) == 0);
+    && (harness_vInfoInstalled(v) && harness_vInfoExecutionHook(v) == 0);
 
 // ---------------------------------------------------------------------------
 // Storage-shape invariant: `allowed[v][sel] <= vInfo[v].nonce` for every
@@ -275,7 +275,7 @@ rule setRootPreservesNonBypass(
 //
 // Effect on isBypassable(victimVid):
 //   * If victimVid == targetVid: post-state hook is installed == false,
-//     which is not a zero permissionHook, so the conjunction's
+//     which is not a zero executionHook, so the conjunction's
 //     second conjunct is false. Property holds.
 //   * If victimVid != targetVid: vInfo[victimVid].installed,
 //     allowed[victimVid][*], and vInfo[victimVid].nonce are all unchanged.
@@ -310,7 +310,7 @@ rule uninstallValidationPreservesNonBypass(
 // _initializeValidation has two branches based on _internalData.length:
 //
 //   (A) Empty data:
-//         $.vInfo[targetVid].permissionHook = address(0)
+//         $.vInfo[targetVid].executionHook = address(0)
 //         $.vInfo[targetVid].nonce += 1
 //       The nonce bump (commits 9f9471c, ce185f6) ensures that any
 //       allowed[targetVid][sel] entries from a prior incarnation become
@@ -319,7 +319,7 @@ rule uninstallValidationPreservesNonBypass(
 //       holds for targetVid.
 //
 //   (B) Non-empty data:
-//         $.vInfo[targetVid].permissionHook = (parsed permission hook,
+//         $.vInfo[targetVid].executionHook = (parsed validation-scoped execution hook,
 //                                    possibly remapped to INSTALLED_NO_HOOK)
 //         then calls _grantAccess(targetVid, remaining selectors)
 //

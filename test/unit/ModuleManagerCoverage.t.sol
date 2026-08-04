@@ -55,7 +55,7 @@ import {
     VALIDATION_TYPE_PERMISSION
 } from "src/types/Constants.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
-import {IValidator, IHook, IExecutor} from "src/interfaces/IERC7579Modules.sol";
+import {IValidator, IExecutor} from "src/interfaces/IERC7579Modules.sol";
 import {IERC7579Account} from "src/interfaces/IERC7579Account.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 
@@ -751,16 +751,16 @@ contract RevertingOnInstallHook {
     function onUninstall(bytes calldata) external payable {}
 
     function isModuleType(uint256 typeId) external pure returns (bool) {
-        return typeId == 4;
+        return typeId == 11;
     }
 
     function isInitialized(address) external pure returns (bool) {
         return false;
     }
 
-    function preCheck(address, uint256, bytes calldata) external payable returns (bytes memory) {
+    function preCheck(bytes32, address, uint256, bytes calldata) external payable returns (bytes memory) {
         return hex"";
     }
 
-    function postCheck(bytes calldata) external payable {}
+    function postCheck(bytes32, bytes calldata) external payable {}
 }

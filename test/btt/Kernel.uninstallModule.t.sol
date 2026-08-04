@@ -322,7 +322,7 @@ abstract contract Kernel_uninstallModule is BTTModifiers {
             "Signer should be uninstalled"
         );
         assertFalse(
-            kernel.validationInfo(permissionToIdentifier(testPermId)).installed, "Permission hook should be cleared"
+            kernel.validationInfo(permissionToIdentifier(testPermId)).installed, "Permission should be uninstalled"
         );
     }
 

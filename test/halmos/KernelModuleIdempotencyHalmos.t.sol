@@ -18,7 +18,6 @@ import {MockHook} from "../mock/MockHook.sol";
 import {MockFallback} from "../mock/MockFallback.sol";
 import {MockPolicy} from "../mock/MockPolicy.sol";
 import {MockSigner} from "../mock/MockSigner.sol";
-import {IHook} from "src/interfaces/IERC7579Modules.sol";
 
 /// @title KernelModuleIdempotencyHalmos
 /// @notice Halmos proofs that install+uninstall is idempotent for all module types

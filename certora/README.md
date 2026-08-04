@@ -2,7 +2,7 @@
 
 Formal verification harness for properties that need multi-step traces or unbounded-array quantification (out of Halmos's reach).
 
-> **v4 permission-hook migration:** generic validator/executor/fallback hooks and their sentinels were removed. `ValidationInfo.installed` now tracks installation, and only permission validations may carry `permissionHook`. Historical results below that mention generic hooks describe the pre-migration model and must be rerun before being treated as current evidence. ERC-1271 enable mode is now always invalid; enable-mode installation remains ERC-4337-only.
+> **v4 execution-hook migration:** generic type-4 hooks and their sentinels were removed. Type-11 execution hooks can be scoped to a validation, executor, or selector. `ValidationInfo.installed` now tracks validation installation. Historical results below that mention generic hooks describe the pre-migration model and must be rerun before being treated as current evidence. ERC-1271 enable mode is now always invalid; enable-mode installation remains ERC-4337-only.
 
 ## Layout
 
@@ -109,9 +109,9 @@ inner-selector `require` when ALL of the following held:
 
 - `vType != ROOT`,
 - `_allowedSelector(vId, outerSel)` was true with `outerSel == executeUserOp.selector`,
-- `vInfo[vId].installed && vInfo[vId].permissionHook == address(0)`.
+- `vInfo[vId].installed && vInfo[vId].executionHook == address(0)`.
 
-When this happened, `_setValidationHook` was never called, the transient hook
+When this happened, `_setValidationExecutionHook` was never called, the transient hook
 stayed at 0, and `executeUserOp`'s inner delegatecall ran with NO selector
 check — handing a non-ROOT validation the equivalent of root privileges.
 
@@ -155,7 +155,7 @@ Files: `certora/specs/Permission.spec`, `certora/conf/Permission.conf`.
 | `setRootClearsOldPermissionState` | ✅ PASS |
 | `sanitySetRootReaches` (satisfy) | ✅ PASS |
 
-After `setRoot(packages, removeCurrent=true)` on a `VALIDATION_TYPE_PERMISSION` root, the old root's `policies.length == 0`, `signer == 0`, `permissionHook == 0`, and `installed == false`. LIFO loop bound at `policies.length <= 3`.
+After `setRoot(packages, removeCurrent=true)` on a `VALIDATION_TYPE_PERMISSION` root, the old root's `policies.length == 0`, `signer == 0`, `executionHook == 0`, and `installed == false`. LIFO loop bound at `policies.length <= 3`.
 
 Files: `certora/specs/SetRootLifo.spec`, `certora/conf/SetRootLifo.conf`.
 

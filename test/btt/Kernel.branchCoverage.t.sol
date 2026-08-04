@@ -913,7 +913,7 @@ abstract contract Kernel_branchCoverage is BTTModifiers {
         assertTrue(kernel.supportsModule(2), "Should support type 2 (executor)");
         assertTrue(kernel.supportsModule(3), "Should support type 3 (fallback)");
         assertFalse(kernel.supportsModule(4), "Should not support generic hook type 4");
-        assertTrue(kernel.supportsModule(11), "Should support permission hook type 11");
+        assertTrue(kernel.supportsModule(11), "Should support execution hook type 11");
         assertTrue(kernel.supportsModule(5), "Should support type 5 (policy)");
         assertTrue(kernel.supportsModule(6), "Should support type 6 (signer)");
         assertFalse(kernel.supportsModule(0), "Should NOT support type 0");

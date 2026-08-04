@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 import {MockFallback} from "./mock/MockFallback.sol";
 import {CallType} from "src/types/Types.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
-import {InvalidSelector, InvalidDataLength} from "src/types/Error.sol";
+import {InvalidSelector, InvalidDataLength, ExecutionHookStillInstalled} from "src/types/Error.sol";
+import {EXECUTION_HOOK_SELECTOR_SCOPE} from "src/types/Constants.sol";
+import {selectorExecutionHookId, getExecutionHookScope, getExecutionHookSelector} from "src/lib/Utils.sol";
 import {SelectorConfig} from "src/types/Structs.sol";
 
 abstract contract KernelSelectorTest is KernelTestBase {
@@ -29,6 +31,31 @@ abstract contract KernelSelectorTest is KernelTestBase {
         assertTrue(
             kernel.isModuleInstalled(3, address(mockFallback), abi.encodePacked(MockFallback.fallbackFunction.selector))
         );
+    }
+
+    function test_selector_scoped_execution_hook() external unitTest {
+        bytes4 selector = MockFallback.fallbackFunction.selector;
+        bytes memory hookContext = abi.encodePacked(EXECUTION_HOOK_SELECTOR_SCOPE, selector);
+        kernel.installModule(
+            3, address(mockFallback), abi.encode(hex"deadbeef", abi.encodePacked(selector, bytes1(0x00)))
+        );
+        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", hookContext));
+
+        uint256 res = MockFallback(address(kernel)).fallbackFunction(10);
+        bytes32 expectedId = selectorExecutionHookId(selector);
+        assertEq(getExecutionHookScope(expectedId), EXECUTION_HOOK_SELECTOR_SCOPE);
+        assertEq(getExecutionHookSelector(expectedId), selector);
+        assertEq(res, 100);
+        assertEq(hook.preCheckId(address(kernel)), expectedId);
+        assertEq(hook.postCheckId(address(kernel)), expectedId);
+        assertTrue(kernel.isModuleInstalled(11, address(hook), hookContext));
+        assertEq(address(kernel.selectorConfig(selector).executionHook), address(hook));
+
+        vm.expectRevert(ExecutionHookStillInstalled.selector);
+        kernel.uninstallModule(3, address(mockFallback), abi.encode(hex"", abi.encodePacked(selector)));
+        kernel.uninstallModule(11, address(hook), abi.encode(hex"", hookContext));
+        kernel.uninstallModule(3, address(mockFallback), abi.encode(hex"", abi.encodePacked(selector)));
+        assertEq(kernel.selectorConfig(selector).target, address(0));
     }
 
     function test_uninstall_selector_call() external unitTest {
@@ -91,6 +118,16 @@ abstract contract KernelSelectorTest is KernelTestBase {
             address(mockFallback),
             abi.encode(hex"", abi.encodePacked(MockFallback.fallbackFunction.selector, bytes1(0x00), address(1)))
         );
+    }
+
+    function test_install_selector_rejects_reserved_receiver_selectors() external unitTest {
+        bytes4[3] memory selectors = [bytes4(0x150b7a02), bytes4(0xf23a6e61), bytes4(0xbc197c81)];
+        for (uint256 i; i < selectors.length; i++) {
+            vm.expectRevert(InvalidSelector.selector);
+            kernel.installModule(
+                3, address(mockFallback), abi.encode(hex"deadbeef", abi.encodePacked(selectors[i], bytes1(0x00)))
+            );
+        }
     }
 
     function test_install_selector_invalid_selector() external unitTest {

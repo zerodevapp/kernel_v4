@@ -15,7 +15,7 @@ Six supported module types can be installed and uninstalled at runtime:
 | **Fallback** | Extends the account with new function selectors (call or delegatecall) |
 | **Policy** | Part of a permission — enforces rules (e.g. spending limits, target allowlists) |
 | **Signer** | Part of a permission — provides signature verification (e.g. passkey, multisig) |
-| **Permission Hook** | Optional pre/post execution checks scoped to one permission (type 11) |
+| **Execution Hook** | Optional pre/post checks scoped to one validation, executor, or selector (type 11) |
 
 ### Permission System
 
@@ -35,9 +35,11 @@ Install modules atomically with the first UserOp — no separate setup transacti
 
 The 32-byte ERC-4337 nonce encodes which validator to use, giving each validator/permission its own nonce namespace. See [Data Encoding > UserOp Nonce](#userop-nonce) for the full layout.
 
-### Permission Hooks
+### Execution Hooks
 
-An optional type-11 permission hook runs before and after a non-root permission's execution. A hooked permission is always routed through `executeUserOp`; root validations bypass hooks. Validators, executors, and fallback selectors do not support hooks.
+An optional type-11 execution hook runs before and after execution in one of three scopes: validation, executor, or selector. Hooked non-root validations are routed through `executeUserOp`; root validations bypass hooks. Executor hooks wrap `executeFromExecutor`, and selector hooks wrap fallback selector dispatch. Selector hooks apply only to calls that reach Kernel's fallback; native Kernel function dispatch bypasses them, and built-in token-receiver selectors cannot be installed as fallback targets.
+
+`preCheck` and `postCheck` receive the same Kernel-generated `bytes32 id`. The ID layout is `[bytes1 scope][target][zero padding]`, where the target is a 21-byte ValidationId, 20-byte executor address, or 4-byte selector. `Utils.sol` exposes generation and decoding helpers for every scope.
 
 ### Signature Verification (ERC-1271 / ERC-7739)
 
@@ -197,7 +199,9 @@ abi.encode(InstallModuleDataFormat({
 | Fallback (3) | Exactly `[bytes4 selector][bytes1 callType]` |
 | Policy (5) | `[bytes4 permissionId]` |
 | Signer (6) | `[bytes4 permissionId][bytes4 selector₁]...` |
-| Permission Hook (11) | `[bytes4 permissionId]` |
+| Execution Hook (11) | `[bytes1 scope][target]` (validation: 21-byte ValidationId; executor: 20-byte address; selector: 4-byte selector) |
+
+Execution-hook scopes are `0x01` for validation, `0x02` for executor, and `0x03` for selector.
 
 **callType** for fallback (type 3):
 
@@ -214,8 +218,8 @@ abi.encode(InstallModuleDataFormat({
 | Executor (2) | Empty (required) |
 | Fallback (3) | Exactly `[bytes4 selector]` |
 | Policy (5) | `[bytes4 permissionId]` — must uninstall in LIFO order (last installed first) |
-| Signer (6) | `[bytes4 permissionId]` — all policies and the permission hook must be removed first |
-| Permission Hook (11) | `[bytes4 permissionId]` |
+| Signer (6) | `[bytes4 permissionId]` — all policies and its execution hook must be removed first |
+| Execution Hook (11) | `[bytes1 scope][target]` (same format as installation) |
 
 ### Batch Install via `Install[]`
 
@@ -243,7 +247,7 @@ struct Install {
 }
 ```
 
-**Permission install order**: policies (type 5) come first, followed by exactly one signer (type 6), then an optional permission hook (type 11), all sharing the same PermissionId. The hook requires the signer-completed permission to exist.
+**Permission install order**: policies (type 5) come first, followed by exactly one signer (type 6), then an optional execution hook (type 11), all sharing the same PermissionId. The hook targets the permission's full 21-byte ValidationId and requires the signer-completed permission to exist. Validator, executor, and selector hooks are installed after their respective targets.
 
 ## Architecture
 

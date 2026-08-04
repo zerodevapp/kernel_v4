@@ -79,7 +79,7 @@ methods {
 
     // State accessors.
     function harness_vInfoInstalled(bytes21) external returns (bool) envfree;
-    function harness_vInfoPermissionHook(bytes21) external returns (address) envfree;
+    function harness_vInfoExecutionHook(bytes21) external returns (address) envfree;
     function harness_root()                     external returns (bytes21) envfree;
     function harness_getType(bytes21)           external returns (bytes1)  envfree;
     function harness_fallbackAvailable()        external returns (bool)    envfree;
@@ -118,7 +118,7 @@ methods {
 //
 // The hook precondition matches the production require:
 //   require(info.installed, InvalidVid(v));
-// installed == false is address(0); a zero permissionHook is
+// installed == false is address(0); a zero executionHook is
 // address(1). "Installed" means hook is any non-zero address.
 //
 // Expected outcome: PASS.

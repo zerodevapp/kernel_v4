@@ -4,12 +4,20 @@ pragma solidity ^0.8.0;
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {IERC7579Account} from "./interfaces/IERC7579Account.sol";
-import {IValidator, IExecutor, IHook, IModule} from "./interfaces/IERC7579Modules.sol";
+import {IValidator, IExecutor, IExecutionHook, IModule} from "./interfaces/IERC7579Modules.sol";
 import {ModuleManager, Install} from "./core/ModuleManager.sol";
 import {ExecutionManager} from "./core/ExecutionManager.sol";
 import {Lib4337} from "./lib/Lib4337.sol";
 import {ERC1271} from "./lib/ERC1271.sol";
-import {parseNonce, getType, getValidator, validatorToIdentifier, permissionToIdentifier} from "./lib/Utils.sol";
+import {
+    parseNonce,
+    getType,
+    getValidator,
+    validatorToIdentifier,
+    permissionToIdentifier,
+    executorExecutionHookId,
+    selectorExecutionHookId
+} from "./lib/Utils.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {
     ValidationId,
@@ -44,15 +52,16 @@ import {
     MODULE_TYPE_FALLBACK,
     MODULE_TYPE_POLICY,
     MODULE_TYPE_SIGNER,
-    MODULE_TYPE_PERMISSION_HOOK
+    MODULE_TYPE_EXECUTION_HOOK
 } from "./types/Constants.sol";
 import {
     ValidationStorage,
     ValidationInfo,
+    ExecutorConfig,
     EnableModeSignature,
     SelectorConfig,
     InstallModuleDataFormat,
-    PermissionUninstallData
+    ValidationUninstallData
 } from "./types/Structs.sol";
 
 /// @title Kernel
@@ -159,21 +168,21 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         }
         ValidationStorage storage $ = _validationStorage();
 
-        // Root is the unconditional recovery path and bypasses selector and permission-hook handling.
+        // Root is the unconditional recovery path and bypasses validation-scoped execution hooks.
         if (vType != VALIDATION_TYPE_ROOT) {
             ValidationInfo storage info = $.vInfo[vId];
             require(info.installed, InvalidVid(vId));
-            bool hasPermissionHook = vType == VALIDATION_TYPE_PERMISSION && address(info.permissionHook) != address(0);
-            // Permission hooks must wrap execution even when the outer selector is directly allowed.
-            if (hasPermissionHook || !_allowedSelector(vId, bytes4(userOp.callData[0:4]))) {
+            bool hasExecutionHook = address(info.executionHook) != address(0);
+            // Validation-scoped hooks must wrap execution even when the outer selector is directly allowed.
+            if (hasExecutionHook || !_allowedSelector(vId, bytes4(userOp.callData[0:4]))) {
                 require(
                     bytes4(userOp.callData[0:4]) == this.executeUserOp.selector
                         && _allowedSelector(vId, bytes4(userOp.callData[4:])),
                     UnauthorizedCallData()
                 );
             }
-            if (hasPermissionHook) {
-                _setValidationHook(userOpHash, info.permissionHook);
+            if (hasExecutionHook) {
+                _setValidationExecutionHook(userOpHash, vId, info.executionHook);
             }
         }
         (vId, validateUserOpFn) = _checkValidation(vType, vId);
@@ -193,10 +202,12 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
     /// @param userOpHash The hash of the user operation, used to retrieve the transient validation hook.
     function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external payable {
         _onlyEntryPointOrSelf();
-        IHook hook = _validationHook(userOpHash);
+        (ValidationId vId, IExecutionHook hook) = _validationExecutionHook(userOpHash);
+        bytes32 hookId;
         bytes memory context;
         if (address(hook) != address(0)) {
-            context = hook.preCheck(msg.sender, msg.value, userOp.callData[4:]);
+            hookId = _validationExecutionHookId(vId);
+            context = hook.preCheck(hookId, msg.sender, msg.value, userOp.callData[4:]);
         }
         (bool success, bytes memory ret) = address(this).delegatecall(userOp.callData[4:]);
         // propagate the revert message
@@ -206,7 +217,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             }
         }
         if (address(hook) != address(0)) {
-            hook.postCheck(context);
+            hook.postCheck(hookId, context);
         }
     }
 
@@ -235,8 +246,19 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         internal
         returns (bytes[] memory returnData)
     {
-        require(_executorConfig(IExecutor(msg.sender)).installed, Unauthorized());
-        return _execute(mode, executionData);
+        ExecutorConfig storage config = _executorConfig(IExecutor(msg.sender));
+        require(config.installed, Unauthorized());
+        IExecutionHook hook = config.executionHook;
+        bytes32 id;
+        bytes memory context;
+        if (address(hook) != address(0)) {
+            id = executorExecutionHookId(msg.sender);
+            context = hook.preCheck(id, msg.sender, msg.value, msg.data);
+        }
+        returnData = _execute(mode, executionData);
+        if (address(hook) != address(0)) {
+            hook.postCheck(id, context);
+        }
     }
 
     /// @dev SECURITY: When `callType` is `CALLTYPE_DELEGATECALL`, the fallback target executes
@@ -261,6 +283,14 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         SelectorConfig storage $ = _selectorConfig(selector);
         require($.target != address(0), InvalidSelector());
 
+        IExecutionHook hook = $.executionHook;
+        bytes32 id;
+        bytes memory context;
+        if (address(hook) != address(0)) {
+            id = selectorExecutionHookId(selector);
+            context = hook.preCheck(id, msg.sender, msg.value, msg.data);
+        }
+
         bool success;
         if ($.callType == CALLTYPE_SINGLE) {
             success = _call($.target, 0, abi.encodePacked(msg.data, msg.sender));
@@ -273,6 +303,9 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             _onRevertThrow();
         } else {
             res = _getReturn();
+        }
+        if (address(hook) != address(0)) {
+            hook.postCheck(id, context);
         }
     }
 
@@ -293,7 +326,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
 
     /// @notice Installs a single module per ERC-7579.
     /// @dev The initData is decoded as `InstallModuleDataFormat(bytes installData, bytes internalData)`.
-    /// @param moduleType The module type identifier (1=validator, 2=executor, 3=fallback, 5=policy, 6=signer, 11=permission hook).
+    /// @param moduleType The module type identifier (1=validator, 2=executor, 3=fallback, 5=policy, 6=signer, 11=execution hook).
     /// @param module The address of the module contract to install.
     /// @param initData ABI-encoded `InstallModuleDataFormat` containing install data and internal configuration.
     function installModule(uint256 moduleType, address module, bytes calldata initData) external payable override {
@@ -336,31 +369,44 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             ValidationType vType = getType(vId);
             ValidationInfo memory vInfo = _validationStorage().vInfo[vId];
             if (vType == VALIDATION_TYPE_VALIDATOR) {
-                (bool success,) =
-                    address(getValidator(vId)).call(abi.encodeWithSelector(IModule.onUninstall.selector, uninstallData));
+                bytes calldata validatorUninstallData = uninstallData;
+                if (address(vInfo.executionHook) != address(0)) {
+                    ValidationUninstallData calldata data;
+                    assembly {
+                        data := uninstallData.offset
+                    }
+                    require(data.uninstallData.length == 2, InvalidDataLength());
+                    validatorUninstallData = data.uninstallData[0];
+                    // forge-lint: disable-next-line(unchecked-call)
+                    address(vInfo.executionHook)
+                        .call(abi.encodeWithSelector(IModule.onUninstall.selector, data.uninstallData[1]));
+                    _uninstallExecutionHookWithVid(address(vInfo.executionHook), vId);
+                }
+                (bool success,) = address(getValidator(vId))
+                    .call(abi.encodeWithSelector(IModule.onUninstall.selector, validatorUninstallData));
                 _uninstallValidator(
                     address(getValidator(vId)),
-                    // passing in uninstallData here to use calldata, but it's never used
-                    uninstallData,
+                    // passing in validatorUninstallData here to use calldata, but it's never used
+                    validatorUninstallData,
                     success
                 );
             } else if (vType == VALIDATION_TYPE_PERMISSION) {
-                PermissionUninstallData calldata data;
+                ValidationUninstallData calldata data;
                 assembly {
                     data := uninstallData.offset
                 }
                 bytes[] calldata uninstallDataArr = data.uninstallData;
-                uint256 hookOffset = address(vInfo.permissionHook) == address(0) ? 0 : 1;
+                uint256 hookOffset = address(vInfo.executionHook) == address(0) ? 0 : 1;
                 require(uninstallDataArr.length == vInfo.policies.length + 1 + hookOffset, InvalidDataLength());
                 if (hookOffset == 1) {
                     // forge-lint: disable-next-line(unchecked-call)
-                    address(vInfo.permissionHook)
+                    address(vInfo.executionHook)
                         .call(
                             abi.encodeWithSelector(
                                 IModule.onUninstall.selector, uninstallDataArr[vInfo.policies.length + 1]
                             )
                         );
-                    _uninstallPermissionHookWithVid(address(vInfo.permissionHook), vId);
+                    _uninstallExecutionHookWithVid(address(vInfo.executionHook), vId);
                 }
                 // uninstall policies first
                 // NOTE : success is not checked on purpose as we are focusing on removing not actually calling onUninstall
@@ -446,17 +492,17 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
 
     /// @notice Returns whether the given module type is supported.
     /// @param moduleTypeId The module type identifier.
-    /// @return True for validator, executor, fallback, policy, signer, and permission-hook modules.
+    /// @return True for validator, executor, fallback, policy, signer, and execution-hook modules.
     function supportsModule(uint256 moduleTypeId) external pure returns (bool) {
         return moduleTypeId == MODULE_TYPE_VALIDATOR || moduleTypeId == MODULE_TYPE_EXECUTOR
             || moduleTypeId == MODULE_TYPE_FALLBACK || moduleTypeId == MODULE_TYPE_POLICY
-            || moduleTypeId == MODULE_TYPE_SIGNER || moduleTypeId == MODULE_TYPE_PERMISSION_HOOK;
+            || moduleTypeId == MODULE_TYPE_SIGNER || moduleTypeId == MODULE_TYPE_EXECUTION_HOOK;
     }
 
     /// @notice Checks whether a specific module is currently installed.
     /// @param moduleTypeId The module type identifier.
     /// @param module The module address to check.
-    /// @param additionalContext For fallback modules: the bytes4 selector. For policies/signers: the bytes4 PermissionId.
+    /// @param additionalContext Selector, permission ID, or scoped execution-hook target context.
     /// @return True if the module is installed for the given type and context.
     function isModuleInstalled(uint256 moduleTypeId, address module, bytes calldata additionalContext)
         external
@@ -488,10 +534,8 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
             ValidationInfo storage $ = _validationStorage().vInfo[vId];
             return module != address(0) && $.signer == module;
-        } else if (moduleTypeId == MODULE_TYPE_PERMISSION_HOOK) {
-            // forge-lint: disable-next-line(unsafe-typecast)
-            ValidationId vId = permissionToIdentifier(PermissionId.wrap(bytes4(additionalContext)));
-            return module != address(0) && address(_validationStorage().vInfo[vId].permissionHook) == module;
+        } else if (moduleTypeId == MODULE_TYPE_EXECUTION_HOOK) {
+            return module != address(0) && _isExecutionHookInstalled(module, additionalContext);
         } else {
             revert NotImplemented();
         }

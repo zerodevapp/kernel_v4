@@ -6,7 +6,7 @@ import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOper
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {ValidationId, ValidationType, ValidationMode, PermissionId} from "src/types/Types.sol";
 import {ValidationInfo, ValidationStorage} from "src/types/Structs.sol";
-import {IHook, IExecutor} from "src/interfaces/IERC7579Modules.sol";
+import {IExecutionHook, IExecutor} from "src/interfaces/IERC7579Modules.sol";
 import {CallType} from "src/types/Types.sol";
 import {ExecutorStorage, SelectorStorage} from "src/types/Structs.sol";
 import {parseNonce, getType, permissionToIdentifier} from "src/lib/Utils.sol";
@@ -42,8 +42,8 @@ contract KernelHarness is KernelUUPS {
         return _vs().vInfo[ValidationId.wrap(vId)].installed;
     }
 
-    function harness_vInfoPermissionHook(bytes21 vId) external view returns (address) {
-        return address(_vs().vInfo[ValidationId.wrap(vId)].permissionHook);
+    function harness_vInfoExecutionHook(bytes21 vId) external view returns (address) {
+        return address(_vs().vInfo[ValidationId.wrap(vId)].executionHook);
     }
 
     function harness_allowedNonce(bytes21 vId, bytes4 sel) external view returns (uint32) {
@@ -109,12 +109,14 @@ contract KernelHarness is KernelUUPS {
         return ValidationMode.unwrap(vMode);
     }
 
-    function harness_validationHook(bytes32 userOpHash) external view returns (address) {
-        IHook h;
-        assembly {
-            h := tload(userOpHash)
-        }
-        return address(h);
+    function harness_validationExecutionHook(bytes32 userOpHash) external view returns (address) {
+        (, IExecutionHook hook) = _validationExecutionHook(userOpHash);
+        return address(hook);
+    }
+
+    function harness_validationExecutionHookVId(bytes32 userOpHash) external view returns (bytes21) {
+        (ValidationId vId,) = _validationExecutionHook(userOpHash);
+        return ValidationId.unwrap(vId);
     }
 
     // ------------------------------------------------------------------

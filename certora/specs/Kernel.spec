@@ -21,7 +21,7 @@
  *   (nonRootCannotBypassFastPathWithExecuteUserOp, commits 0921b25 + ce185f6):
  *     For any vId != $.root:
  *         NOT (_allowedSelector(vId, executeUserOp.selector)
- *              AND vInfo[vId].installed && vInfo[vId].permissionHook == address(0))
+ *              AND vInfo[vId].installed && vInfo[vId].executionHook == address(0))
  *   - 0921b25 blocks the grant at the source (`_grantAccess` rejects
  *     `executeUserOp.selector` for non-root vIds).
  *   - ce185f6 invalidates orphaned grants on rotation (`_setRoot` bumps the
@@ -33,7 +33,7 @@
  *   regression after the fix):
  *   Adds an additional precondition that EXCLUDES the fast-path bypass:
  *       NOT( allowed[vId][outerSel] == vInfo[vId].nonce
- *            AND vInfo[vId].installed && vInfo[vId].permissionHook == address(0) )
+ *            AND vInfo[vId].installed && vInfo[vId].executionHook == address(0) )
  *   With that exclusion, validateUserOp reaches the require on
  *   Kernel.sol L179-183 which enforces _allowedSelector(vId, innerSel).
  *
@@ -43,8 +43,8 @@
  *     - vType != ROOT,
  *     - `_allowedSelector(vId, outerSel)` was true with outerSel ==
  *       executeUserOp.selector,
- *     - `vInfo[vId].installed && vInfo[vId].permissionHook == address(0)`.
- *   In that branch, `_setValidationHook` was never called, the transient
+ *     - `vInfo[vId].installed && vInfo[vId].executionHook == address(0)`.
+ *   In that branch, `_setValidationExecutionHook` was never called, the transient
  *   hook for `userOpHash` stayed at 0, and `executeUserOp`'s inner
  *   delegatecall ran with NO selector check — handing a non-ROOT validation
  *   the equivalent of root privileges.
@@ -78,7 +78,7 @@ methods {
     // Harness storage / parse accessors (envfree — no env needed).
     function harness_vInfoNonce(bytes21)            external returns (uint32)  envfree;
     function harness_vInfoInstalled(bytes21) external returns (bool) envfree;
-    function harness_vInfoPermissionHook(bytes21) external returns (address) envfree;
+    function harness_vInfoExecutionHook(bytes21) external returns (address) envfree;
     function harness_allowedNonce(bytes21, bytes4)  external returns (uint32)  envfree;
     function harness_allowedSelector(bytes21, bytes4) external returns (bool)    envfree;
     function harness_root()                         external returns (bytes21) envfree;
@@ -139,7 +139,7 @@ methods {
 //
 //   For any vId != $.root:
 //       NOT ( _allowedSelector(vId, executeUserOp.selector)
-//             AND vInfo[vId].installed && vInfo[vId].permissionHook == address(0) )
+//             AND vInfo[vId].installed && vInfo[vId].executionHook == address(0) )
 //
 // jointly enforced by:
 //   - commit 0921b25 — `_grantAccess` rejects `executeUserOp.selector` for
@@ -183,7 +183,7 @@ methods {
 invariant nonRootCannotBypassFastPathWithExecuteUserOp(bytes21 vId)
     vId != harness_root() =>
         !(harness_allowedSelector(vId, harness_executeUserOpSelector())
-          && (harness_vInfoInstalled(vId) && harness_vInfoPermissionHook(vId) == 0));
+          && (harness_vInfoInstalled(vId) && harness_vInfoExecutionHook(vId) == 0));
 
 // --------------------------------------------------------------------------
 // Rule: validateUserOpEnforcesInnerSelectorAccess_naive
@@ -252,7 +252,7 @@ rule validateUserOpEnforcesInnerSelectorAccess_naive(
 //   - parsed vType != ROOT,
 //   - op.callData has at least 8 bytes,
 //   - NOT(allowed[vId][outerSel] == vInfo[vId].nonce
-//         AND vInfo[vId].installed && vInfo[vId].permissionHook == address(0)),
+//         AND vInfo[vId].installed && vInfo[vId].executionHook == address(0)),
 // the post-state satisfies allowed[vId][innerSel] == vInfo[vId].nonce.
 // --------------------------------------------------------------------------
 rule validateUserOpEnforcesInnerSelectorAccess_strict(
@@ -276,7 +276,7 @@ rule validateUserOpEnforcesInnerSelectorAccess_strict(
     // the validation has no hook, the require gate is bypassed (this is the
     // implementation finding, NOT a property of the spec).
     bool fastPath = harness_allowedSelector(vId, outerSel)
-                    && (harness_vInfoInstalled(vId) && harness_vInfoPermissionHook(vId) == 0);
+                    && (harness_vInfoInstalled(vId) && harness_vInfoExecutionHook(vId) == 0);
     require !fastPath;
 
     validateUserOp@withrevert(e, op, userOpHash, missingAccountFunds);

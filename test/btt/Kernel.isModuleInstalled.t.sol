@@ -9,6 +9,8 @@ import {MockHook} from "../mock/MockHook.sol";
 import {MockPolicy} from "../mock/MockPolicy.sol";
 import {MockSigner} from "../mock/MockSigner.sol";
 import {NotImplemented} from "src/types/Error.sol";
+import {EXECUTION_HOOK_VALIDATION_SCOPE} from "src/types/Constants.sol";
+import {permissionToIdentifier} from "src/lib/Utils.sol";
 
 /// @title Kernel.isModuleInstalled BTT Tests
 /// @notice Tests for isModuleInstalled following Branching Tree Technique
@@ -100,28 +102,31 @@ abstract contract Kernel_isModuleInstalled is BTTModifiers {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    PERMISSION HOOK (TYPE 11) TESTS
+                    EXECUTION HOOK (TYPE 11) TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_GivenThePermissionHookIsInstalled() external {
+    function test_GivenTheExecutionHookIsInstalled() external {
         MockSigner mockSigner = new MockSigner();
         MockHook mockHook = new MockHook();
+        bytes memory context = abi.encodePacked(EXECUTION_HOOK_VALIDATION_SCOPE, permissionToIdentifier(permissionId));
         vm.startPrank(address(ep));
         kernel.installModule(6, address(mockSigner), abi.encode(hex"", abi.encodePacked(permissionId)));
-        kernel.installModule(11, address(mockHook), abi.encode(hex"", abi.encodePacked(permissionId)));
+        kernel.installModule(11, address(mockHook), abi.encode(hex"", context));
         vm.stopPrank();
 
         assertTrue(
-            kernel.isModuleInstalled(11, address(mockHook), abi.encodePacked(permissionId)),
-            "Installed permission hook should return true"
+            kernel.isModuleInstalled(11, address(mockHook), context), "Installed execution hook should return true"
         );
     }
 
-    function test_GivenThePermissionHookIsNotInstalled() external {
+    function test_GivenTheExecutionHookIsNotInstalled() external {
         MockHook mockHook = new MockHook();
+        bytes memory context = abi.encodePacked(EXECUTION_HOOK_VALIDATION_SCOPE, permissionToIdentifier(permissionId));
         assertFalse(
-            kernel.isModuleInstalled(11, address(mockHook), abi.encodePacked(permissionId)),
-            "Uninstalled permission hook should return false"
+            kernel.isModuleInstalled(11, address(mockHook), context), "Uninstalled execution hook should return false"
+        );
+        assertFalse(
+            kernel.isModuleInstalled(11, address(mockHook), hex""), "Empty execution hook context should return false"
         );
     }
 

@@ -48,7 +48,7 @@ methods {
     // Harness accessors used by the rule.
     function harness_vInfoNonce(bytes21)              external returns (uint32)  envfree;
     function harness_vInfoInstalled(bytes21) external returns (bool) envfree;
-    function harness_vInfoPermissionHook(bytes21) external returns (address) envfree;
+    function harness_vInfoExecutionHook(bytes21) external returns (address) envfree;
     function harness_vInfoSigner(bytes21)             external returns (address) envfree;
     function harness_vInfoPoliciesLength(bytes21)     external returns (uint256) envfree;
     function harness_vInfoPolicyAt(bytes21, uint256)  external returns (address) envfree;
@@ -146,8 +146,8 @@ rule setRootClearsOldPermissionState(
         "old permission signer not zeroed";
     assert !reverted => !harness_vInfoInstalled(oldRoot),
         "old permission remains installed";
-    assert !reverted => harness_vInfoPermissionHook(oldRoot) == 0,
-        "old permission hook not zeroed";
+    assert !reverted => harness_vInfoExecutionHook(oldRoot) == 0,
+        "old validation execution hook not zeroed";
 }
 
 // --------------------------------------------------------------------------

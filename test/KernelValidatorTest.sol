@@ -6,22 +6,37 @@ import {ValidationId, PermissionId} from "src/types/Types.sol";
 import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
+import {MockValidator} from "./mock/MockValidator.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
 import {
     InvalidRootValidation,
     InvalidNonce,
     UnauthorizedCallData,
     InvalidPermissionUninstallOrder,
+    ExecutionHookStillInstalled,
+    ExecutionHookAlreadyInstalled,
+    InvalidExecutionHookTarget,
+    InvalidDataLength,
     InvalidPermissionId,
     OccupiedValidationId,
     NotImplemented
 } from "src/types/Error.sol";
-import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
-import {permissionToIdentifier, validatorToIdentifier} from "src/lib/Utils.sol";
+import {ERC1271_MAGICVALUE, EXECUTION_HOOK_VALIDATION_SCOPE} from "src/types/Constants.sol";
+import {
+    permissionToIdentifier,
+    validatorToIdentifier,
+    validationExecutionHookId,
+    getExecutionHookScope,
+    getExecutionHookValidationId
+} from "src/lib/Utils.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {IModule} from "src/interfaces/IERC7579Modules.sol";
 
 abstract contract KernelValidatorTest is KernelTestBase {
+    function _validationExecutionHookContext(ValidationId vId) internal pure returns (bytes memory) {
+        return abi.encodePacked(EXECUTION_HOOK_VALIDATION_SCOPE, ValidationId.unwrap(vId));
+    }
+
     function caller() external view returns (address) {
         return msg.sender;
     }
@@ -120,6 +135,12 @@ abstract contract KernelValidatorTest is KernelTestBase {
         vm.stopPrank();
         if (useHook && success) {
             assertTrue(hook.preHookData(address(kernel)).length != 0);
+            ValidationId vId = permissionToIdentifier(permissionId);
+            bytes32 expectedId = validationExecutionHookId(vId);
+            assertEq(getExecutionHookScope(expectedId), EXECUTION_HOOK_VALIDATION_SCOPE);
+            assertEq(ValidationId.unwrap(getExecutionHookValidationId(expectedId)), ValidationId.unwrap(vId));
+            assertEq(hook.preCheckId(address(kernel)), expectedId);
+            assertEq(hook.postCheckId(address(kernel)), expectedId);
         }
     }
 
@@ -238,7 +259,11 @@ abstract contract KernelValidatorTest is KernelTestBase {
         assertFalse(kernel.root() == permissionToIdentifier(permissionId));
         kernel.setRoot(packages, false, hex"");
         assertTrue(kernel.root() == permissionToIdentifier(permissionId));
-        kernel.installModule(11, address(hook), abi.encode(bytes("hook install"), abi.encodePacked(permissionId)));
+        kernel.installModule(
+            11,
+            address(hook),
+            abi.encode(bytes("hook install"), _validationExecutionHookContext(permissionToIdentifier(permissionId)))
+        );
 
         packages[0] = Install({
             moduleType: 5, module: address(policy), internalData: abi.encodePacked(hex"efefefef"), moduleData: hex""
@@ -448,12 +473,12 @@ abstract contract KernelValidatorTest is KernelTestBase {
             moduleType: 11,
             module: address(hook),
             moduleData: hex"deadbeef",
-            internalData: abi.encodePacked(permissionId)
+            internalData: _validationExecutionHookContext(vId)
         });
         kernel.installModule(pkgs);
         vInfo = kernel.validationInfo(vId);
-        assertEq(address(vInfo.permissionHook), address(hook));
-        assertTrue(kernel.isModuleInstalled(11, address(hook), abi.encodePacked(permissionId)));
+        assertEq(address(vInfo.executionHook), address(hook));
+        assertTrue(kernel.isModuleInstalled(11, address(hook), _validationExecutionHookContext(vId)));
         bytes4 ret = kernel.isValidSignature(
             keccak256("Hello world"),
             abi.encodePacked(
@@ -552,32 +577,102 @@ abstract contract KernelValidatorTest is KernelTestBase {
         assertTrue(vInfo.signer == address(0));
     }
 
-    function test_permission_hook_requires_completed_permission() external unitTest {
-        vm.expectRevert(InvalidPermissionId.selector);
-        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+    function test_execution_hook_requires_completed_permission() external unitTest {
+        vm.expectRevert(InvalidExecutionHookTarget.selector);
+        kernel.installModule(
+            11,
+            address(hook),
+            abi.encode(hex"deadbeef", _validationExecutionHookContext(permissionToIdentifier(permissionId)))
+        );
     }
 
-    function test_permission_hook_lifecycle_and_uninstall_order() external unitTest {
+    function test_execution_hook_permission_lifecycle_and_uninstall_order() external unitTest {
+        ValidationId vId = permissionToIdentifier(permissionId);
+        bytes memory hookContext = _validationExecutionHookContext(vId);
         kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
-        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", hookContext));
 
-        ValidationInfo memory info = kernel.validationInfo(permissionToIdentifier(permissionId));
+        ValidationInfo memory info = kernel.validationInfo(vId);
         assertTrue(info.installed);
-        assertEq(address(info.permissionHook), address(hook));
-        assertTrue(kernel.isModuleInstalled(11, address(hook), abi.encodePacked(permissionId)));
+        assertEq(address(info.executionHook), address(hook));
+        assertTrue(kernel.isModuleInstalled(11, address(hook), hookContext));
 
-        vm.expectRevert(OccupiedValidationId.selector);
-        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        vm.expectRevert(ExecutionHookAlreadyInstalled.selector);
+        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", hookContext));
 
-        vm.expectRevert(InvalidPermissionUninstallOrder.selector);
+        vm.expectRevert(ExecutionHookStillInstalled.selector);
         kernel.uninstallModule(6, address(signer), abi.encode(hex"", abi.encodePacked(permissionId)));
 
-        kernel.uninstallModule(11, address(hook), abi.encode(hex"", abi.encodePacked(permissionId)));
-        assertFalse(kernel.isModuleInstalled(11, address(hook), abi.encodePacked(permissionId)));
-        assertEq(address(kernel.validationInfo(permissionToIdentifier(permissionId)).permissionHook), address(0));
+        kernel.uninstallModule(11, address(hook), abi.encode(hex"", hookContext));
+        assertFalse(kernel.isModuleInstalled(11, address(hook), hookContext));
+        assertEq(address(kernel.validationInfo(vId).executionHook), address(0));
 
         kernel.uninstallModule(6, address(signer), abi.encode(hex"", abi.encodePacked(permissionId)));
         assertFalse(kernel.validationInfo(permissionToIdentifier(permissionId)).installed);
+    }
+
+    function test_validator_scoped_execution_hook() external unitTest {
+        ValidationId vId = validatorToIdentifier(newValidator);
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"deadbeef", abi.encodePacked(kernel.execute.selector))
+        );
+        bytes memory hookContext = _validationExecutionHookContext(vId);
+        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", hookContext));
+
+        assertTrue(kernel.isModuleInstalled(11, address(hook), hookContext));
+        assertEq(address(kernel.validationInfo(vId).executionHook), address(hook));
+
+        _sendUserOpValidator(true, true);
+        bytes32 expectedId = validationExecutionHookId(vId);
+        assertEq(getExecutionHookScope(expectedId), EXECUTION_HOOK_VALIDATION_SCOPE);
+        assertEq(ValidationId.unwrap(getExecutionHookValidationId(expectedId)), ValidationId.unwrap(vId));
+        assertEq(hook.preCheckId(address(kernel)), expectedId);
+        assertEq(hook.postCheckId(address(kernel)), expectedId);
+
+        vm.expectRevert(ExecutionHookStillInstalled.selector);
+        kernel.uninstallModule(1, address(newValidator), abi.encode(hex"", hex""));
+
+        kernel.uninstallModule(11, address(hook), abi.encode(hex"", hookContext));
+        kernel.uninstallModule(1, address(newValidator), abi.encode(hex"", hex""));
+        assertFalse(kernel.validationInfo(vId).installed);
+    }
+
+    function test_set_root_removes_validator_execution_hook_before_validator() external unitTest {
+        ValidationId oldRoot = validatorToIdentifier(newValidator);
+        kernel.installModule(
+            1, address(newValidator), abi.encode(hex"deadbeef", abi.encodePacked(kernel.execute.selector))
+        );
+        kernel.installModule(11, address(hook), abi.encode(hex"deadbeef", _validationExecutionHookContext(oldRoot)));
+        kernel.setRoot(oldRoot);
+
+        MockValidator replacement = new MockValidator();
+        Install[] memory packages = new Install[](1);
+        packages[0] = Install({
+            moduleType: 1,
+            module: address(replacement),
+            moduleData: hex"deadbeef",
+            internalData: abi.encodePacked(kernel.execute.selector)
+        });
+        bytes[] memory uninstallData = new bytes[](2);
+        uninstallData[0] = hex"aaaa";
+        uninstallData[1] = hex"bbbb";
+        kernel.setRoot(packages, true, abi.encode(uninstallData));
+
+        assertEq(ValidationId.unwrap(kernel.root()), ValidationId.unwrap(validatorToIdentifier(replacement)));
+        assertFalse(kernel.validationInfo(oldRoot).installed);
+        assertEq(address(kernel.validationInfo(oldRoot).executionHook), address(0));
+    }
+
+    function test_execution_hook_rejects_invalid_scope_and_length() external unitTest {
+        vm.expectRevert(InvalidExecutionHookTarget.selector);
+        kernel.installModule(11, address(hook), abi.encode(hex"", abi.encodePacked(bytes1(0xff), bytes4(0))));
+
+        vm.expectRevert(InvalidDataLength.selector);
+        kernel.installModule(
+            11,
+            address(hook),
+            abi.encode(hex"", abi.encodePacked(EXECUTION_HOOK_VALIDATION_SCOPE, PermissionId.unwrap(permissionId)))
+        );
     }
 
     function test_generic_hook_type_is_unsupported() external unitTest {

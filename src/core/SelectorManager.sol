@@ -3,7 +3,13 @@ pragma solidity ^0.8.0;
 
 import {CallType} from "../types/Types.sol";
 import {SELECTOR_MANAGER_STORAGE_SLOT, CALLTYPE_DELEGATECALL} from "../types/Constants.sol";
-import {ModuleInstallFailed, InvalidSelectorTarget, InvalidDataLength} from "../types/Error.sol";
+import {
+    ModuleInstallFailed,
+    InvalidSelectorTarget,
+    InvalidDataLength,
+    InvalidSelector,
+    ExecutionHookStillInstalled
+} from "../types/Error.sol";
 import {SelectorConfig, SelectorStorage} from "../types/Structs.sol";
 
 /// @title SelectorManager
@@ -32,17 +38,24 @@ abstract contract SelectorManager {
     function _installSelector(address _module, bytes calldata _internalData, bool _installSuccess) internal {
         require(_internalData.length == 5, InvalidDataLength());
         require(_module != address(0), InvalidSelectorTarget());
+        bytes4 selector = bytes4(_internalData[0:4]);
+        require(!_isReservedSelector(selector), InvalidSelector());
         CallType callType = CallType.wrap(bytes1(_internalData[4]));
         require(callType == CALLTYPE_DELEGATECALL || _installSuccess, ModuleInstallFailed());
-        SelectorConfig storage $ = _selectorConfig(bytes4(_internalData[0:4]));
+        SelectorConfig storage $ = _selectorConfig(selector);
         $.target = _module;
         $.callType = callType;
+    }
+
+    function _isReservedSelector(bytes4 selector) internal pure returns (bool) {
+        return selector == 0x150b7a02 || selector == 0xf23a6e61 || selector == 0xbc197c81;
     }
 
     /// @notice Uninstalls a fallback selector handler.
     function _uninstallSelector(address, bytes calldata _internalData, bool) internal {
         require(_internalData.length == 4, InvalidDataLength());
         SelectorConfig storage $ = _selectorConfig(bytes4(_internalData[0:4]));
+        require(address($.executionHook) == address(0), ExecutionHookStillInstalled());
         $.target = address(0);
         $.callType = CallType.wrap(bytes1(0x00));
     }

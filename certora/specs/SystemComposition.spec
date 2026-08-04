@@ -48,7 +48,7 @@
  *
  *   1. Structural invariant from commits 0921b25 + ce185f6
  *        For any non-root vId, NOT( _allowedSelector(vId,
- *        executeUserOp.selector) AND vInfo[vId].installed AND vInfo[vId].permissionHook == address(0) ).
+ *        executeUserOp.selector) AND vInfo[vId].installed AND vInfo[vId].executionHook == address(0) ).
  *      Established by `_grantAccess` rejecting the executeUserOp grant
  *      for non-root vIds and by `_setRoot` bumping the old root's nonce
  *      on rotation. This invariant rules out the fast-path branch
@@ -193,7 +193,7 @@ methods {
     // Harness storage accessors.
     function harness_vInfoNonce(bytes21)              external returns (uint32)  envfree;
     function harness_vInfoInstalled(bytes21) external returns (bool) envfree;
-    function harness_vInfoPermissionHook(bytes21) external returns (address) envfree;
+    function harness_vInfoExecutionHook(bytes21) external returns (address) envfree;
     function harness_allowedNonce(bytes21, bytes4)    external returns (uint32)  envfree;
     function harness_allowedSelector(bytes21, bytes4) external returns (bool)    envfree;
     function harness_root()                           external returns (bytes21) envfree;
@@ -258,7 +258,7 @@ methods {
 invariant nonRootCannotBypassFastPathWithExecuteUserOp(bytes21 vId)
     vId != harness_root() =>
         !(harness_allowedSelector(vId, harness_executeUserOpSelector())
-          && (harness_vInfoInstalled(vId) && harness_vInfoPermissionHook(vId) == 0));
+          && (harness_vInfoInstalled(vId) && harness_vInfoExecutionHook(vId) == 0));
 
 // ---------------------------------------------------------------------------
 // Storage-shape hypothesis: `allowed[v][sel] <= vInfo[v].nonce`. See

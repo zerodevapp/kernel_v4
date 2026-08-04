@@ -15,7 +15,7 @@ import {MockRevertingFallback} from "../mock/MockRevertingFallback.sol";
 import {MockRevertingHook} from "../mock/MockRevertingHook.sol";
 import {MockRevertingPolicy} from "../mock/MockRevertingPolicy.sol";
 import {MockRevertingSigner} from "../mock/MockRevertingSigner.sol";
-import {IValidator, IExecutor, IHook} from "src/interfaces/IERC7579Modules.sol";
+import {IValidator, IExecutor} from "src/interfaces/IERC7579Modules.sol";
 import {validatorToIdentifier, permissionToIdentifier} from "src/lib/Utils.sol";
 import {PermissionId} from "src/types/Types.sol";
 import {Unauthorized, NotImplemented, OccupiedValidationId, ModuleInstallFailed} from "src/types/Error.sol";
