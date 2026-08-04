@@ -8,7 +8,7 @@ import {Kernel} from "src/Kernel.sol";
 import {Install} from "src/types/Structs.sol";
 import {ValidationId} from "src/types/Types.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
-import {ERC1271_INVALID} from "src/types/Constants.sol";
+import {InvalidValidationType} from "src/types/Error.sol";
 import {validatorToIdentifier} from "src/lib/Utils.sol";
 import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 
@@ -67,13 +67,20 @@ contract Kernel7702Test is KernelTest {
         assertEq(ret, ERC1271_MAGICVALUE);
     }
 
-    function test_7702_65_byte_payload_is_reserved_for_raw_signature() external {
-        bytes32 hash = keccak256("reserved raw signature length");
+    function test_7702_raw_compact_signature(bytes32 hash) external {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
         bytes32 vs = bytes32(uint256(s) | (uint256(v - 27) << 255));
-        bytes memory structuredSignature = abi.encodePacked(bytes1(0x00), r, vs);
-        assertEq(structuredSignature.length, 65);
-        assertEq(kernel.isValidSignature(hash, structuredSignature), ERC1271_INVALID);
+        bytes memory signature = abi.encodePacked(r, vs);
+        assertEq(signature.length, 64);
+        assertEq(kernel.isValidSignature(hash, signature), ERC1271_MAGICVALUE);
+    }
+
+    function test_7702_structured_root_compact_signature(bytes32 hash) external {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
+        bytes32 vs = bytes32(uint256(s) | (uint256(v - 27) << 255));
+        bytes memory signature = abi.encodePacked(bytes1(0x00), r, vs);
+        assertEq(signature.length, 65);
+        assertEq(kernel.isValidSignature(hash, signature), ERC1271_MAGICVALUE);
     }
 
     function test_7702_raw_signature_invalid() external {
@@ -81,8 +88,8 @@ contract Kernel7702Test is KernelTest {
         bytes32 hash = keccak256("test_invalid_signature");
         (, uint256 wrongKey) = makeAddrAndKey("WrongSigner");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, hash);
-        // A failed 65-byte raw signature must return ERC-1271-invalid without structured parsing.
-        assertEq(kernel.isValidSignature(hash, abi.encodePacked(r, s, v)), ERC1271_INVALID);
+        vm.expectRevert(InvalidValidationType.selector);
+        kernel.isValidSignature(hash, abi.encodePacked(r, s, v));
     }
 
     function test_change_root_check_vId_0() external unitTest {

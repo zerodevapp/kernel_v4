@@ -45,7 +45,7 @@ An optional type-11 execution hook runs before and after execution in one of thr
 
 Three signature modes for `isValidSignature`:
 
-1. **Raw** — A 65-byte direct-hash ECDSA signature (only on `Kernel7702` where the EOA is the signer)
+1. **Raw** — Direct hash signing (only on `Kernel7702` where the EOA is the signer)
 2. **Chain-specific nested EIP-712** — Wraps the hash in a `TypedDataSign` struct bound to chain ID
 3. **Replayable nested EIP-712** — Same wrapping but without chain ID, valid across chains
 

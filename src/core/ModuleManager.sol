@@ -89,10 +89,8 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, SelectorM
         override
         returns (bool result)
     {
-        // Kernel7702 reserves 65-byte payloads for raw ECDSA signatures.
-        if (_erc1271RawAllowed() && signature.length == 65) {
-            return _verifyFallbackSignature(hash, signature);
-        }
+        bool rawAllowed = _erc1271RawAllowed();
+        if (rawAllowed && _verifyFallbackSignature(hash, signature)) return true;
         if (signature.length == 0) return false;
         ValidationType vType = ValidationType.wrap(bytes1(signature[0]));
         ValidationId vId;
