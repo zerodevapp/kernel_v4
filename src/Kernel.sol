@@ -74,6 +74,10 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         require(msg.sender == address(ENTRYPOINT) || msg.sender == address(this), Unauthorized());
     }
 
+    function _onlyEntryPoint() internal view {
+        require(msg.sender == address(ENTRYPOINT), Unauthorized());
+    }
+
     constructor(IEntryPoint _entrypoint) {
         ENTRYPOINT = _entrypoint;
     }
@@ -109,7 +113,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
         payable
         returns (uint256 validationData)
     {
-        _onlyEntryPointOrSelf();
+        _onlyEntryPoint();
         validationData = _processUserOp(userOp, userOpHash);
         assembly {
             if missingAccountFunds {
@@ -153,12 +157,8 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
                 sig := signature.offset
             }
             validationData = _verifyInstallSignatureRaw(enableReplayable, sig.nonce, sig.packages, sig.enableSignature);
-            // Root did not authorize this install -> surface the failure and install nothing.
-            // Compare only the failure field: a valid enable signature may carry nonzero
-            // validity bounds, so the full packed word must not be compared against 1.
-            // Without this guard, a call to validateUserOp outside the EntryPoint validation
-            // phase (where the returned validationData is ignored) would install modules and
-            // advance the nonce despite a failed root signature.
+            // EntryPoint owns validity-window enforcement. Reject hard signature failures before
+            // mutating state; EntryPoint rolls back installs for all other invalid results.
             if (uint160(validationData) == 1) {
                 return validationData;
             }
@@ -209,6 +209,7 @@ abstract contract Kernel is ModuleManager, ExecutionManager, IERC7579Account {
             hookId = _validationExecutionHookId(vId);
             context = hook.preCheck(hookId, msg.sender, msg.value, userOp.callData[4:]);
         }
+        require(bytes4(userOp.callData[4:]) != this.validateUserOp.selector, UnauthorizedCallData());
         (bool success, bytes memory ret) = address(this).delegatecall(userOp.callData[4:]);
         // propagate the revert message
         if (!success) {

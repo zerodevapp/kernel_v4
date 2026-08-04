@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {BTTModifiers} from "./BTTModifiers.sol";
 import {Kernel} from "src/Kernel.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {Unauthorized} from "src/types/Error.sol";
+import {Unauthorized, UnauthorizedCallData} from "src/types/Error.sol";
 import {LibERC7579} from "solady/accounts/LibERC7579.sol";
 import {Call} from "src/types/Structs.sol";
 import {MockCallee} from "../mock/MockCallee.sol";
@@ -23,6 +23,17 @@ abstract contract Kernel_executeUserOp is BTTModifiers {
         PackedUserOperation memory op = _createEmptyUserOp();
 
         vm.expectRevert(Unauthorized.selector);
+        kernel.executeUserOp(op, bytes32(0));
+    }
+
+    function test_WhenInnerCallIsValidateUserOp() external whenTheCallerIsTheEntryPointOrSelf {
+        PackedUserOperation memory op = _createEmptyUserOp();
+        op.callData = abi.encodePacked(
+            Kernel.executeUserOp.selector,
+            abi.encodeWithSelector(Kernel.validateUserOp.selector, bytes32(0), bytes32(0), uint256(0))
+        );
+
+        vm.expectRevert(UnauthorizedCallData.selector);
         kernel.executeUserOp(op, bytes32(0));
     }
 
