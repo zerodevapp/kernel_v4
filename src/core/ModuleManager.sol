@@ -89,38 +89,28 @@ abstract contract ModuleManager is ValidationManager, ExecutorManager, SelectorM
         override
         returns (bool result)
     {
-        // check if fallback signature is allowed
-        bool rawAllowed = _erc1271RawAllowed();
-        if (rawAllowed) {
-            result = _verifyFallbackSignature(hash, signature);
+        // Kernel7702 reserves 65-byte payloads for raw ECDSA signatures.
+        if (_erc1271RawAllowed() && signature.length == 65) {
+            return _verifyFallbackSignature(hash, signature);
         }
-        if (!result) {
-            if (signature.length == 0) return false;
-            // A 65-byte payload may be either raw ECDSA or a tagged structured signature
-            // containing a 64-byte compact root signature, so valid structured forms still parse.
-            bool ambiguousRawLength = rawAllowed && signature.length == 65;
-            ValidationType vType = ValidationType.wrap(bytes1(signature[0]));
-            ValidationId vId;
-            if (vType == VALIDATION_TYPE_ROOT) {
-                vId = _validationStorage().root;
-                signature = signature[1:];
-            } else if (vType == VALIDATION_TYPE_VALIDATOR) {
-                if (signature.length < 21) return false;
-                vId = validatorToIdentifier(IValidator(address(bytes20(signature[1:21]))));
-                signature = signature[21:];
-            } else if (vType == VALIDATION_TYPE_PERMISSION) {
-                if (signature.length < 5) return false;
-                vId = permissionToIdentifier(PermissionId.wrap(bytes4(signature[1:5])));
-                signature = signature[5:];
-            } else {
-                if (ambiguousRawLength) return false;
-                revert InvalidValidationType();
-            }
-            if (ambiguousRawLength && vType != VALIDATION_TYPE_ROOT && !_validationStorage().vInfo[vId].installed) {
-                return false;
-            }
-            result = Lib4337.checkValidation(_verifySignature(vId, msg.sender, hash, signature));
+        if (signature.length == 0) return false;
+        ValidationType vType = ValidationType.wrap(bytes1(signature[0]));
+        ValidationId vId;
+        if (vType == VALIDATION_TYPE_ROOT) {
+            vId = _validationStorage().root;
+            signature = signature[1:];
+        } else if (vType == VALIDATION_TYPE_VALIDATOR) {
+            if (signature.length < 21) return false;
+            vId = validatorToIdentifier(IValidator(address(bytes20(signature[1:21]))));
+            signature = signature[21:];
+        } else if (vType == VALIDATION_TYPE_PERMISSION) {
+            if (signature.length < 5) return false;
+            vId = permissionToIdentifier(PermissionId.wrap(bytes4(signature[1:5])));
+            signature = signature[5:];
+        } else {
+            revert InvalidValidationType();
         }
+        result = Lib4337.checkValidation(_verifySignature(vId, msg.sender, hash, signature));
     }
 
     /// @notice Computes the EIP-712 hash of an array of Install packages.

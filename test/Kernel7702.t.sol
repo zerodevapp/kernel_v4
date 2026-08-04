@@ -67,12 +67,13 @@ contract Kernel7702Test is KernelTest {
         assertEq(ret, ERC1271_MAGICVALUE);
     }
 
-    function test_7702_structured_root_compact_signature_is_not_treated_as_raw(bytes32 hash) external {
+    function test_7702_65_byte_payload_is_reserved_for_raw_signature() external {
+        bytes32 hash = keccak256("reserved raw signature length");
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash);
         bytes32 vs = bytes32(uint256(s) | (uint256(v - 27) << 255));
-        bytes memory signature = abi.encodePacked(bytes1(0x00), r, vs);
-        assertEq(signature.length, 65);
-        assertEq(kernel.isValidSignature(hash, signature), ERC1271_MAGICVALUE);
+        bytes memory structuredSignature = abi.encodePacked(bytes1(0x00), r, vs);
+        assertEq(structuredSignature.length, 65);
+        assertEq(kernel.isValidSignature(hash, structuredSignature), ERC1271_INVALID);
     }
 
     function test_7702_raw_signature_invalid() external {
