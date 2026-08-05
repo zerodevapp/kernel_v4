@@ -7,9 +7,16 @@ import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {KernelTestBase} from "./KernelTestBase.sol";
-import {InvalidRootValidation, InvalidNonce, NotInstalled} from "src/types/Error.sol";
+import {
+    InvalidRootValidation,
+    InvalidNonce,
+    NotInstalled,
+    UnauthorizedCallData,
+    InvalidPermissionUninstallOrder
+} from "src/types/Error.sol";
 import {ERC1271_MAGICVALUE} from "src/types/Constants.sol";
 import {permissionToIdentifier, validatorToIdentifier} from "src/lib/Utils.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 abstract contract KernelValidatorTest is KernelTestBase {
     function caller() external view returns (address) {
@@ -43,16 +50,23 @@ abstract contract KernelValidatorTest is KernelTestBase {
             signature: hex""
         });
         ops[0].signature = _validatorSignUserOp(ops[0], true, false);
-        address caller = this.caller();
+        address prevCaller = this.caller();
         vm.startPrank(beneficiary, beneficiary);
         if (useHook) {
             assertEq(hook.preHookData(address(kernel)), hex"");
         }
         if (!success) {
-            vm.expectRevert();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IEntryPoint.FailedOpWithRevert.selector,
+                    0,
+                    "AA23 reverted",
+                    abi.encodeWithSelector(UnauthorizedCallData.selector)
+                )
+            );
         }
         ep.handleOps(ops, beneficiary);
-        vm.startPrank(caller);
+        vm.startPrank(prevCaller);
         if (useHook && success) {
             assertTrue(hook.preHookData(address(kernel)).length != 0);
         }
@@ -89,7 +103,14 @@ abstract contract KernelValidatorTest is KernelTestBase {
             assertEq(hook.preHookData(address(kernel)), hex"");
         }
         if (!success) {
-            vm.expectRevert();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IEntryPoint.FailedOpWithRevert.selector,
+                    0,
+                    "AA23 reverted",
+                    abi.encodeWithSelector(UnauthorizedCallData.selector)
+                )
+            );
         }
         vm.startPrank(beneficiary, beneficiary);
         ep.handleOps(ops, beneficiary);
@@ -293,6 +314,7 @@ abstract contract KernelValidatorTest is KernelTestBase {
         );
         ValidationInfo memory vInfo = kernel.validationInfo(vId);
         assertTrue(vInfo.hook == address(1));
+        // Non-empty install bumps nonce once via _grantAccess.
         assertEq(vInfo.nonce, 1);
         bytes4 ret = kernel.isValidSignature(
             keccak256("Hello world"),
@@ -307,11 +329,14 @@ abstract contract KernelValidatorTest is KernelTestBase {
 
         kernel.uninstallModule(1, address(newValidator), abi.encode(hex"", hex""));
         vInfo = kernel.validationInfo(vId);
+        // uninstall does not touch nonce; the bump on the next install invalidates
+        // any stale `allowed[vId][sel]` entries from the prior incarnation.
         assertEq(vInfo.nonce, 1);
         kernel.installModule(
             1, address(newValidator), abi.encode(hex"deadbeef", abi.encodePacked(address(0), kernel.setNonce.selector))
         );
         vInfo = kernel.validationInfo(vId);
+        // re-install with non-empty internalData bumps nonce once -> 2.
         assertEq(vInfo.nonce, 2);
 
         _sendUserOpValidator(false, false);
@@ -566,5 +591,21 @@ abstract contract KernelValidatorTest is KernelTestBase {
         vInfo = kernel.validationInfo(vId);
         assertTrue(vInfo.hook == address(0));
         assertTrue(vInfo.signer == address(0));
+    }
+
+    function test_uninstall_policy_not_last_reverts() external unitTest {
+        MockPolicy policy2 = new MockPolicy();
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.installModule(5, address(policy2), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        vm.expectRevert(InvalidPermissionUninstallOrder.selector);
+        kernel.uninstallModule(5, address(policy), abi.encode(hex"", abi.encodePacked(permissionId)));
+    }
+
+    function test_uninstall_signer_with_policies_reverts() external unitTest {
+        kernel.installModule(5, address(policy), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        kernel.installModule(6, address(signer), abi.encode(hex"deadbeef", abi.encodePacked(permissionId)));
+        vm.expectRevert(InvalidPermissionUninstallOrder.selector);
+        kernel.uninstallModule(6, address(signer), abi.encode(hex"", abi.encodePacked(permissionId)));
     }
 }
