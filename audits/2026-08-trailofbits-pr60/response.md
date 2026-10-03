@@ -15,13 +15,13 @@ Response branch: `feat/permission-hook-module-type`
 | TOB-KERNEL-8 | Shared scoped-hook deinitialization | Low | **Acknowledged** |
 | TOB-KERNEL-9 | In-flight scoped-hook removal | Medium | **Acknowledged** |
 | TOB-KERNEL-10 | Unchecked initData decoding | Medium | **Fixed** — `d92c9a2` |
-| TOB-KERNEL-11 | Ignored executor callback failures | Medium | **Acknowledged** (documented in code) |
+| TOB-KERNEL-11 | Ignored executor callback failures | Medium | **Fixed** — `e491d02`; accepted in fix review |
 | TOB-KERNEL-12 | Missing executor installation check | Medium | **Fixed** — `bac0d4b` |
 | TOB-KERNEL-13 | Unbound userOpHash in executeUserOp | Low | **Fixed** — `b42fa9a` |
 
 Every fix ships with a regression test named for its window (`test/unit/`): `Erc1271AccountBinding`,
 `ExecutorRevocation`, `PolicyRootUninstall`, `WrongTypeUninstall`, `SetRootTeardownOrder`,
-`InstallDataBounds`, `ExecuteUserOpBinding`.
+`InstallDataBounds`, `ExecuteUserOpBinding`, `ExecutorReinstallation`.
 
 ## Fix notes
 
@@ -36,6 +36,10 @@ Every fix ships with a regression test named for its window (`test/unit/`): `Erc
   signers. Root policy changes require an explicit root rotation.
 - **TOB-10** — `installModule`/`uninstallModule` route through `_decodeModuleData`, which requires
   both dynamic fields of `InstallModuleDataFormat` to lie entirely within the declared `initData`.
+- **TOB-11** — executor installation requires a successful low-level `onInstall` call before
+  granting authority (`e491d02`). Plain EOAs remain supported; failed `onUninstall` cleanup cannot
+  block removal. Reinstallation with a failing callback cannot reactivate stale authorization.
+  The reviewer accepted this fix and confirmed that the finding would be marked resolved.
 - **TOB-12** — `_uninstallExecutor` requires `installed`; same-class checks added to
   `_uninstallValidator` (installed) and `_uninstallSelector` (module must match the selector's
   target). New error: `ModuleNotInstalled`.
@@ -80,9 +84,3 @@ Every fix ships with a regression test named for its window (`test/unit/`): `Erc
   fully-authorized operation. Hook-author requirement (documented): scoped hooks MUST reject
   protected calls that target the account itself unless they specifically intend to allow
   self-administration.
-- **TOB-11 (executor install ignores onInstall)** — intentional, now documented at the site
-  (`ExecutorManager._installExecutor`): executors may be EOAs or contracts that do not implement
-  `IModule`, so lifecycle callbacks are best-effort for this module type. The exploitable half of
-  the reported chain is closed by `ded1250` (revocation is unconditional); the remaining
-  trade-off — reinstalling a stateful executor whose `onInstall` reverts re-activates its previous
-  state — is accepted and placed on the installer.
