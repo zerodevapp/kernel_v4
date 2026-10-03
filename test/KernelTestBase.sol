@@ -20,6 +20,7 @@ import {IValidator} from "src/interfaces/IERC7579Modules.sol";
 import {Received} from "src/types/Events.sol";
 import {Install} from "src/types/Structs.sol";
 import {PermissionId} from "src/types/Types.sol";
+import {ChainAgnosticHashHelper} from "./utils/ChainAgnosticHashHelper.sol";
 
 abstract contract KernelTestBase is Test {
     IEntryPoint ep;
@@ -37,6 +38,7 @@ abstract contract KernelTestBase is Test {
     MockHook hook;
     PermissionId permissionId;
     uint256 permissionRevertIndex;
+    ChainAgnosticHashHelper hashHelper;
 
     bool isMock;
     bool is7702;
@@ -146,10 +148,7 @@ abstract contract KernelTestBase is Test {
     ) internal returns (bytes memory sig) {
         Install[] memory packages = new Install[](1);
         packages[0] = Install({
-            moduleType: 1,
-            module: address(newValidator),
-            moduleData: hex"",
-            internalData: abi.encodePacked(address(0), selector)
+            moduleType: 1, module: address(newValidator), moduleData: hex"", internalData: abi.encodePacked(selector)
         });
         sig = abi.encode(
             uint256(0), packages, enableSig(nonce, enableSuccess, replayable, packages, signEnable), userOpSig
@@ -172,7 +171,7 @@ abstract contract KernelTestBase is Test {
             moduleType: 6,
             module: address(signer),
             moduleData: hex"",
-            internalData: abi.encodePacked(permissionId, address(0), selector)
+            internalData: abi.encodePacked(permissionId, selector)
         });
 
         sig = abi.encode(

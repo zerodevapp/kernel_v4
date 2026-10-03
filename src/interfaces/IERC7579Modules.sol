@@ -4,9 +4,6 @@ pragma solidity ^0.8.21;
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 
 interface IModule {
-    error AlreadyInitialized(address smartAccount);
-    error NotInitialized(address smartAccount);
-
     /**
      * @dev This function is called by the smart account during installation of the module
      * @param data arbitrary data that may be required on the module during `onInstall`
@@ -40,8 +37,6 @@ interface IModule {
 }
 
 interface IValidator is IModule {
-    error InvalidTargetAddress(address target);
-
     /**
      * @dev Validates a transaction on behalf of the account.
      *         This function is intended to be called by the MSA during the ERC-4337 validation phase
@@ -65,13 +60,22 @@ interface IValidator is IModule {
 
 interface IExecutor is IModule {}
 
-interface IHook is IModule {
-    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
+interface IScopedExecutionHook is IModule {
+    /// @notice Runs before execution in a validation, executor, or selector scope.
+    /// @param id The Kernel-generated scoped execution-hook identifier.
+    /// @param caller The caller that entered the scoped execution path.
+    /// @param value The native value supplied to that execution path.
+    /// @param data The calldata being checked for the scoped execution path.
+    /// @return hookData Context passed unchanged to postCheck.
+    function preCheck(bytes32 id, address caller, uint256 value, bytes calldata data)
         external
         payable
         returns (bytes memory hookData);
 
-    function postCheck(bytes calldata hookData) external payable;
+    /// @notice Runs after execution in the same scope.
+    /// @param id The same identifier passed to preCheck.
+    /// @param hookData The context returned by preCheck.
+    function postCheck(bytes32 id, bytes calldata hookData) external payable;
 }
 
 interface IFallback is IModule {}
@@ -90,20 +94,4 @@ interface ISigner is IModule {
         payable
         returns (uint256);
     function checkSignature(bytes32 id, address sender, bytes32 hash, bytes calldata sig) external view returns (bytes4);
-}
-
-interface IStatelessValidator is IValidator {
-    function validateSignatureWithData(bytes32 hash, bytes calldata signature, bytes calldata data)
-        external
-        view
-        returns (bool);
-}
-
-interface IStatelessValidatorWithSender is IModule {
-    function validateSignatureWithDataWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata signature,
-        bytes calldata data
-    ) external view returns (bool);
 }

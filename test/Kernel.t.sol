@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 import {EntryPointLib} from "./utils/EntryPointLib.sol";
 import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelFactory} from "src/KernelFactory.sol";
-import {KernelUUPS} from "src/KernelUUPS.sol";
 import {KernelImmutableECDSA} from "src/KernelImmutableECDSA.sol";
 import {Install} from "src/types/Structs.sol";
 import {MockFallback} from "./mock/MockFallback.sol";
@@ -13,7 +12,8 @@ import {MockPolicy} from "./mock/MockPolicy.sol";
 import {MockSigner} from "./mock/MockSigner.sol";
 import {MockCallee} from "./mock/MockCallee.sol";
 import {NotImplemented} from "src/types/Error.sol";
-import {Install} from "src/types/Structs.sol";
+import {InvalidInitialization} from "src/types/Error.sol";
+import {InvalidSelector} from "src/types/Error.sol";
 import {ERC1967_IMPLEMENTATION_SLOT} from "src/types/Constants.sol";
 import {KernelUserOpTest} from "./KernelUserOpTest.sol";
 import {KernelERC1271Test} from "./KernelERC1271Test.sol";
@@ -21,7 +21,7 @@ import {KernelExecutorTest} from "./KernelExecutorTest.sol";
 import {KernelValidatorTest} from "./KernelValidatorTest.sol";
 import {KernelExecuteTest} from "./KernelExecuteTest.sol";
 import {KernelSelectorTest} from "./KernelSelectorTest.sol";
-import {KernelHookTest} from "./KernelHookTest.sol";
+import {ChainAgnosticHashHelper} from "./utils/ChainAgnosticHashHelper.sol";
 import {PermissionId} from "src/types/Types.sol";
 
 contract KernelTest is
@@ -30,8 +30,7 @@ contract KernelTest is
     KernelExecutorTest,
     KernelValidatorTest,
     KernelExecuteTest,
-    KernelSelectorTest,
-    KernelHookTest
+    KernelSelectorTest
 {
     KernelUUPS uups;
 
@@ -49,6 +48,7 @@ contract KernelTest is
         policy = new MockPolicy();
         signer = new MockSigner();
         hook = new MockHook();
+        hashHelper = new ChainAgnosticHashHelper();
         permissionId = PermissionId.wrap(bytes4(keccak256(abi.encodePacked("Hello world"))));
         _initialize();
     }
@@ -58,7 +58,7 @@ contract KernelTest is
         rootValidatorData = hex"";
         Install[] memory pkgs = new Install[](1);
         pkgs[0] = Install({moduleType: 1, module: address(rootValidator), moduleData: hex"", internalData: hex""});
-        vm.expectRevert();
+        vm.expectRevert(InvalidInitialization.selector);
         uups.initialize(pkgs);
     }
 
@@ -102,8 +102,12 @@ contract KernelTest is
     }
 
     function test_upgradeTo() external unitTest {
-        vm.skip(is7702);
         KernelUUPS newTemplate = new KernelUUPS(ep);
+        if (is7702) {
+            vm.expectRevert(InvalidSelector.selector);
+            KernelUUPS(payable(address(kernel))).upgradeToAndCall(address(newTemplate), hex"");
+            return;
+        }
         KernelUUPS(payable(address(kernel))).upgradeToAndCall(address(newTemplate), hex"");
         bytes32 impl = vm.load(address(kernel), ERC1967_IMPLEMENTATION_SLOT);
         assertEq(address(uint160(uint256(impl))), address(newTemplate));
@@ -126,9 +130,10 @@ contract KernelTest is
         assertTrue(kernel.supportsModule(1));
         assertTrue(kernel.supportsModule(2));
         assertTrue(kernel.supportsModule(3));
-        assertTrue(kernel.supportsModule(4));
+        assertFalse(kernel.supportsModule(4));
         assertTrue(kernel.supportsModule(5));
         assertTrue(kernel.supportsModule(6));
         assertFalse(kernel.supportsModule(7));
+        assertTrue(kernel.supportsModule(11));
     }
 }
